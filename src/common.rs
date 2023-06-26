@@ -1,15 +1,29 @@
 use serde::{Serialize, Deserialize};
+use nostr_sdk::prelude::*;
 use std::fmt::*;
+use std::fmt::Result as Result;
+use std::sync::{Arc,Mutex};
 
+pub type ArcClient = Arc<Mutex<Client>>;
+pub type ArcMutex = Arc<Mutex<i32>>;
 pub enum BuySell {
   Buy,
   Sell
 }
 
 #[derive(Clone, Debug)]
-pub enum BitcoinSettlementTypes {
+pub enum BitcoinSettlementMethod {
   Onchain,
   Lightning,
+}
+
+impl Display for BitcoinSettlementMethod {
+  fn fmt(&self, f: &mut Formatter) -> Result {
+    match self {
+      BitcoinSettlementMethod::Onchain => write!(f, "Onchain"),
+      BitcoinSettlementMethod::Lightning => write!(f, "Lightning"),
+    }
+  }
 }
 
 // List of fiat payment methods from 
@@ -17,7 +31,7 @@ pub enum BitcoinSettlementTypes {
 // We are not implementing trade limits and risk association here. This should be for the higher level to determine.
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum FiatPaymentMethods {
+pub enum FiatPaymentMethod {
   Uphold,
   MoneyBeam,
   PopMoney,
@@ -77,59 +91,59 @@ pub enum FiatPaymentMethods {
   Venmo,
 }
 
-impl Display for FiatPaymentMethods {
+impl Display for FiatPaymentMethod {
   fn fmt(&self, f: &mut Formatter) -> Result {
     match self {
-        FiatPaymentMethods::Uphold => write!(f, "Uphold"),
-        FiatPaymentMethods::MoneyBeam => write!(f, "MoneyBeam"),
-        FiatPaymentMethods::PopMoney => write!(f, "PopMoney"),
-        FiatPaymentMethods::Revolut => write!(f, "Revolut"),
-        FiatPaymentMethods::PerfectMoney => write!(f, "PerfectMoney"),
-        FiatPaymentMethods::Sepa => write!(f, "SEPA"),
-        FiatPaymentMethods::SepaInstant => write!(f, "SEPAInstant"),
-        FiatPaymentMethods::FasterPayments => write!(f, "FasterPayments"),
-        FiatPaymentMethods::NationalBank => write!(f, "NationalBank"),
-        FiatPaymentMethods::JapanBank => write!(f, "JapanBank"),
-        FiatPaymentMethods::AustraliaPayID => write!(f, "AustraliaPayID"),
-        FiatPaymentMethods::Swish => write!(f, "Swish"),
-        FiatPaymentMethods::AliPay => write!(f, "AliPay"),
-        FiatPaymentMethods::WeChatPay => write!(f, "WeChatPay"),
-        FiatPaymentMethods::Zelle => write!(f, "Zelle"),
-        FiatPaymentMethods::InteracETransfer => write!(f, "InteracETransfer"),
-        FiatPaymentMethods::USPostalMoneyOrder => write!(f, "USPostalMoneyOrder"),
-        FiatPaymentMethods::CashDeposit => write!(f, "CashDeposit"),
-        FiatPaymentMethods::MoneyGram => write!(f, "MoneyGram"),
-        FiatPaymentMethods::WesternUnion => write!(f, "WesternUnion"),
-        FiatPaymentMethods::FaceToFace => write!(f, "FaceToFace"),
-        FiatPaymentMethods::HalCash => write!(f, "HalCash"),
-        FiatPaymentMethods::PromptPay => write!(f, "PromptPay"),
-        FiatPaymentMethods::AdvancedCash => write!(f, "AdvancedCash"),
-        FiatPaymentMethods::TransferWise => write!(f, "TransferWise"),
-        FiatPaymentMethods::Paysera => write!(f, "Paysera"),
-        FiatPaymentMethods::Paxum => write!(f, "Paxum"),
-        FiatPaymentMethods::NEFT => write!(f, "NEFT"),
-        FiatPaymentMethods::RTGS => write!(f, "RTGS"),
-        FiatPaymentMethods::IMPS => write!(f, "IMPS"),
-        FiatPaymentMethods::UPI => write!(f, "UPI"),
-        FiatPaymentMethods::Paytm => write!(f, "Paytm"),
-        FiatPaymentMethods::Nequi => write!(f, "Nequi"),
-        FiatPaymentMethods::Bizum => write!(f, "Bizum"),
-        FiatPaymentMethods::Pix => write!(f, "Pix"),
-        FiatPaymentMethods::AmazonGiftCard => write!(f, "AmazonGiftCard"),
-        FiatPaymentMethods::CashByMail => write!(f, "CashByMail"),
-        FiatPaymentMethods::Capitual => write!(f, "Capitual"),
-        FiatPaymentMethods::Celpay => write!(f, "Celpay"),
-        FiatPaymentMethods::Monese => write!(f, "Monese"),
-        FiatPaymentMethods::Satispay => write!(f, "Satispay"),
-        FiatPaymentMethods::Tikkie => write!(f, "Tikkie"),
-        FiatPaymentMethods::Verse => write!(f, "Verse"),
-        FiatPaymentMethods::Strike => write!(f, "Strike"),
-        FiatPaymentMethods::SWIFT => write!(f, "SWIFT"),
-        FiatPaymentMethods::ACHTransfer => write!(f, "ACHTransfer"),
-        FiatPaymentMethods::DomesticWireTransfer => write!(f, "DomesticWireTransfer"),
-        FiatPaymentMethods::OkPay => write!(f, "OkPay"),
-        FiatPaymentMethods::CashApp => write!(f, "CashApp"),
-        FiatPaymentMethods::Venmo => write!(f, "Venmo"),
+        FiatPaymentMethod::Uphold => write!(f, "Uphold"),
+        FiatPaymentMethod::MoneyBeam => write!(f, "MoneyBeam"),
+        FiatPaymentMethod::PopMoney => write!(f, "PopMoney"),
+        FiatPaymentMethod::Revolut => write!(f, "Revolut"),
+        FiatPaymentMethod::PerfectMoney => write!(f, "PerfectMoney"),
+        FiatPaymentMethod::Sepa => write!(f, "SEPA"),
+        FiatPaymentMethod::SepaInstant => write!(f, "SEPAInstant"),
+        FiatPaymentMethod::FasterPayments => write!(f, "FasterPayments"),
+        FiatPaymentMethod::NationalBank => write!(f, "NationalBank"),
+        FiatPaymentMethod::JapanBank => write!(f, "JapanBank"),
+        FiatPaymentMethod::AustraliaPayID => write!(f, "AustraliaPayID"),
+        FiatPaymentMethod::Swish => write!(f, "Swish"),
+        FiatPaymentMethod::AliPay => write!(f, "AliPay"),
+        FiatPaymentMethod::WeChatPay => write!(f, "WeChatPay"),
+        FiatPaymentMethod::Zelle => write!(f, "Zelle"),
+        FiatPaymentMethod::InteracETransfer => write!(f, "InteracETransfer"),
+        FiatPaymentMethod::USPostalMoneyOrder => write!(f, "USPostalMoneyOrder"),
+        FiatPaymentMethod::CashDeposit => write!(f, "CashDeposit"),
+        FiatPaymentMethod::MoneyGram => write!(f, "MoneyGram"),
+        FiatPaymentMethod::WesternUnion => write!(f, "WesternUnion"),
+        FiatPaymentMethod::FaceToFace => write!(f, "FaceToFace"),
+        FiatPaymentMethod::HalCash => write!(f, "HalCash"),
+        FiatPaymentMethod::PromptPay => write!(f, "PromptPay"),
+        FiatPaymentMethod::AdvancedCash => write!(f, "AdvancedCash"),
+        FiatPaymentMethod::TransferWise => write!(f, "TransferWise"),
+        FiatPaymentMethod::Paysera => write!(f, "Paysera"),
+        FiatPaymentMethod::Paxum => write!(f, "Paxum"),
+        FiatPaymentMethod::NEFT => write!(f, "NEFT"),
+        FiatPaymentMethod::RTGS => write!(f, "RTGS"),
+        FiatPaymentMethod::IMPS => write!(f, "IMPS"),
+        FiatPaymentMethod::UPI => write!(f, "UPI"),
+        FiatPaymentMethod::Paytm => write!(f, "Paytm"),
+        FiatPaymentMethod::Nequi => write!(f, "Nequi"),
+        FiatPaymentMethod::Bizum => write!(f, "Bizum"),
+        FiatPaymentMethod::Pix => write!(f, "Pix"),
+        FiatPaymentMethod::AmazonGiftCard => write!(f, "AmazonGiftCard"),
+        FiatPaymentMethod::CashByMail => write!(f, "CashByMail"),
+        FiatPaymentMethod::Capitual => write!(f, "Capitual"),
+        FiatPaymentMethod::Celpay => write!(f, "Celpay"),
+        FiatPaymentMethod::Monese => write!(f, "Monese"),
+        FiatPaymentMethod::Satispay => write!(f, "Satispay"),
+        FiatPaymentMethod::Tikkie => write!(f, "Tikkie"),
+        FiatPaymentMethod::Verse => write!(f, "Verse"),
+        FiatPaymentMethod::Strike => write!(f, "Strike"),
+        FiatPaymentMethod::SWIFT => write!(f, "SWIFT"),
+        FiatPaymentMethod::ACHTransfer => write!(f, "ACHTransfer"),
+        FiatPaymentMethod::DomesticWireTransfer => write!(f, "DomesticWireTransfer"),
+        FiatPaymentMethod::OkPay => write!(f, "OkPay"),
+        FiatPaymentMethod::CashApp => write!(f, "CashApp"),
+        FiatPaymentMethod::Venmo => write!(f, "Venmo"),
     }
   }
 }
