@@ -81,3 +81,38 @@ impl Display for ObligationKind {
     }
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn bitcoin_onchain_obligation_kind_to_tags() {
+    let obligation_kind = ObligationKind::Bitcoin(vec![BitcoinSettlementMethod::Onchain]);
+    let mut obligation_tags = obligation_kind.to_tags();
+    obligation_tags.sort();
+    let mut expected_tags = vec!["ob-bitcoin-onchain", "ob-bitcoin"];
+    expected_tags.sort();
+    assert_eq!(obligation_tags, expected_tags);
+  }
+
+  #[test]
+  fn fiat_usd_venmo_obligation_kind_to_tags() {
+    let obligation_kind = ObligationKind::Fiat(Currency::USD, vec![FiatPaymentMethod::Venmo, FiatPaymentMethod::CashApp]);
+    let mut obligation_tags = obligation_kind.to_tags();
+    obligation_tags.sort();
+    let mut expected_tags = vec!["ob-fiat-usd-venmo", "ob-fiat-usd-cashapp", "ob-fiat-usd", "ob-fiat"];
+    expected_tags.sort();
+    assert_eq!(obligation_tags, expected_tags);
+  }
+
+  #[test]
+  fn custom_obligation_kind_to_tags() {
+    let obligation_kind = ObligationKind::Custom("barter".to_string());
+    let mut obligation_tags = obligation_kind.to_tags();
+    obligation_tags.sort();
+    let mut expected_tags = vec!["ob-custom-barter", "ob-custom"];
+    expected_tags.sort();
+    assert_eq!(obligation_tags, expected_tags);
+  }
+}
