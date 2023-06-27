@@ -86,7 +86,7 @@ impl<'a> MakerOrder<'a> {
     let t_tag: Tag = Tag::Generic(TagKind::Custom("t".to_string()), self.taker_obligation.kind.to_tags().into_iter().collect());
 
     // Trade Detail Parameters #p
-    let p_tag: Tag = Tag::Generic(TagKind::Custom("p".to_string()), self.trade_details.parameters_to_tags());
+    let p_tag: Tag = Tag::Generic(TagKind::Custom("p".to_string()), self.trade_details.parameters_to_tags().into_iter().collect());
 
     // Trade Engine Name #n
     let n_tag: Tag = Tag::Generic(TagKind::Custom("n".to_string()), vec![self.engine_details.trade_engine_name.to_string()]);
