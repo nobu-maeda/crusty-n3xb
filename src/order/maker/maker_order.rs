@@ -80,10 +80,10 @@ impl<'a> MakerOrder<'a> {
     let i_tag: Tag = Tag::Generic(TagKind::Custom("i".to_string()), vec![self.trade_uuid.to_owned()]);
 
     // Maker Obligation Tag #m
-    let m_tag: Tag = Tag::Generic(TagKind::Custom("m".to_string()), self.maker_obligation.kind.to_tags());
+    let m_tag: Tag = Tag::Generic(TagKind::Custom("m".to_string()), self.maker_obligation.kind.to_tags().into_iter().collect());
 
     // Taker Obligation Tag #t
-    let t_tag: Tag = Tag::Generic(TagKind::Custom("t".to_string()), self.taker_obligation.kind.to_tags());
+    let t_tag: Tag = Tag::Generic(TagKind::Custom("t".to_string()), self.taker_obligation.kind.to_tags().into_iter().collect());
 
     // Trade Detail Parameters #p
     let p_tag: Tag = Tag::Generic(TagKind::Custom("p".to_string()), self.trade_details.parameters_to_tags());

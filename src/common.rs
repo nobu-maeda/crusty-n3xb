@@ -2,6 +2,7 @@ use serde::{Serialize, Deserialize};
 use nostr_sdk::prelude::*;
 use std::fmt::*;
 use std::fmt::Result as Result;
+use std::hash::Hash;
 use std::sync::{Arc,Mutex};
 
 pub type ArcClient = Arc<Mutex<Client>>;
@@ -11,7 +12,7 @@ pub enum BuySell {
   Sell
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum BitcoinSettlementMethod {
   Onchain,
   Lightning,
@@ -30,7 +31,7 @@ impl Display for BitcoinSettlementMethod {
 // https://github.com/bisq-network/bisq/blob/release/v1.9.10/core/src/main/java/bisq/core/payment/payload/PaymentMethod.java
 // We are not implementing trade limits and risk association here. This should be for the higher level to determine.
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug, Serialize, Deserialize)]
 pub enum FiatPaymentMethod {
   Uphold,
   MoneyBeam,
