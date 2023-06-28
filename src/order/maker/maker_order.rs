@@ -50,19 +50,11 @@ impl<'a> MakerOrder<'a> {
 
     async fn send_event_note(&self) {
         // Create Note Content
-        let trade_engine_specifics = if let Some(trade_engine_specifics) =
-            self.engine_details.trade_engine_specifics.as_ref()
-        {
-            Some(trade_engine_specifics.to_owned())
-        } else {
-            None
-        };
-
         let maker_order_note = MakerOrderNote {
             maker_obligation: self.maker_obligation.content.to_owned(),
             taker_obligation: self.taker_obligation.content.to_owned(),
             trade_details: self.trade_details.content.to_owned(),
-            trade_engine_specifics,
+            trade_engine_specifics: self.engine_details.trade_engine_specifics.to_owned(),
             pow_difficulty: self.pow_difficulty,
         };
 

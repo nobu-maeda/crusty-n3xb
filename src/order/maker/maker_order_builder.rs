@@ -159,9 +159,9 @@ mod tests {
         let some_engine_specific_str = "some-test-specific-info";
         builder.engine_details(TradeEngineDetails {
             trade_engine_name: some_engine_name_str.to_string(),
-            trade_engine_specifics: Some(Box::new(TestTradeEngineSpecifics {
+            trade_engine_specifics: Box::new(TestTradeEngineSpecifics {
                 test_specific_field: some_engine_specific_str.to_string(),
-            })),
+            }),
         });
 
         let some_pow_difficulty: u64 = 8;

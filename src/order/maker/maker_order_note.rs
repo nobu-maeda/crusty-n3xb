@@ -7,6 +7,6 @@ pub struct MakerOrderNote {
     pub maker_obligation: MakerObligationContent,
     pub taker_obligation: TakerObligationContent,
     pub trade_details: TradeDetailsContent,
-    pub trade_engine_specifics: Option<Box<dyn TradeEngineSpecfiicsTrait>>,
+    pub trade_engine_specifics: Box<dyn TradeEngineSpecfiicsTrait>,
     pub pow_difficulty: u64,
 }
