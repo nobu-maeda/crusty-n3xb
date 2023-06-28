@@ -1,8 +1,10 @@
+use serde::Serialize;
+
 use super::{maker_order::*, obligation::*, trade_details::*, trade_engine_details::*};
 use crate::common::*;
 use crate::error::*;
 
-pub struct MakerOrderBuilder<'a> {
+pub struct MakerOrderBuilder<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> {
     event_msg_client: &'a ArcClient,
     // DB
 
@@ -11,11 +13,11 @@ pub struct MakerOrderBuilder<'a> {
     maker_obligation: Option<MakerObligation>,
     taker_obligation: Option<TakerObligation>,
     trade_details: Option<TradeDetails>,
-    engine_details: Option<TradeEngineDetails>,
+    engine_details: Option<TradeEngineDetails<T>>,
     pow_difficulty: Option<u64>,
 }
 
-impl<'a> MakerOrderBuilder<'a> {
+impl<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> MakerOrderBuilder<'a, T> {
     pub fn new(event_msg_client: &'a ArcClient, // DB
     ) -> Self {
         MakerOrderBuilder {
@@ -24,7 +26,7 @@ impl<'a> MakerOrderBuilder<'a> {
             maker_obligation: Option::<MakerObligation>::None,
             taker_obligation: Option::<TakerObligation>::None,
             trade_details: Option::<TradeDetails>::None,
-            engine_details: Option::<TradeEngineDetails>::None,
+            engine_details: Option::<TradeEngineDetails<T>>::None,
             pow_difficulty: Option::<u64>::None,
         }
     }
@@ -49,7 +51,10 @@ impl<'a> MakerOrderBuilder<'a> {
         self
     }
 
-    pub fn engine_details(&mut self, engine_details: impl Into<TradeEngineDetails>) -> &mut Self {
+    pub fn engine_details(
+        &mut self,
+        engine_details: impl Into<TradeEngineDetails<T>>,
+    ) -> &mut Self {
         self.engine_details = Some(engine_details.into());
         self
     }
@@ -59,7 +64,7 @@ impl<'a> MakerOrderBuilder<'a> {
         self
     }
 
-    pub fn build(&self) -> std::result::Result<MakerOrder, N3xbError> {
+    pub fn build(&self) -> std::result::Result<MakerOrder<T>, N3xbError> {
         let Some(trade_uuid) = self.trade_uuid.as_ref() else {
       return Err(N3xbError::Other("No Trade UUID".to_string()));  // TODO: Error handling?
     };
@@ -107,7 +112,8 @@ mod tests {
     #[tokio::test]
     async fn maker_order_builder_build() {
         let client = new_event_msg_client();
-        let mut builder = MakerOrderBuilder::new(&client);
+        let mut builder: MakerOrderBuilder<TestTradeEngineSpecifics> =
+            MakerOrderBuilder::new(&client);
 
         let some_uuid_string = "Some-UUID-String";
         builder.trade_uuid(some_uuid_string);
@@ -159,9 +165,9 @@ mod tests {
         let some_engine_specific_str = "some-test-specific-info";
         builder.engine_details(TradeEngineDetails {
             trade_engine_name: some_engine_name_str.to_string(),
-            trade_engine_specifics: Box::new(TestTradeEngineSpecifics {
+            trade_engine_specifics: TestTradeEngineSpecifics {
                 test_specific_field: some_engine_specific_str.to_string(),
-            }),
+            },
         });
 
         let some_pow_difficulty: u64 = 8;
@@ -188,7 +194,13 @@ mod tests {
                     maker_order.engine_details.trade_engine_name,
                     some_engine_name_str.to_string()
                 );
-                // TODO: How to test Engine Specific Traits?
+                assert_eq!(
+                    maker_order
+                        .engine_details
+                        .trade_engine_specifics
+                        .test_specific_field,
+                    some_engine_specific_str.to_string()
+                );
             }
             Err(error) => {
                 panic!(

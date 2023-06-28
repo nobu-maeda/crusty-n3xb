@@ -1,7 +1,10 @@
 mod maker;
 mod taker;
 
-pub use maker::{maker_order::MakerOrder, maker_order_builder::MakerOrderBuilder};
+pub use maker::{
+    maker_order::MakerOrder, maker_order_builder::MakerOrderBuilder,
+    trade_engine_details::TradeEngineSpecfiicsTrait,
+};
 
 pub trait Order {
     // Common Order properties

@@ -1,10 +1,11 @@
 use nostr_sdk::prelude::*;
+use serde::Serialize;
 
 use super::super::Order;
 use super::{maker_order_note::*, obligation::*, trade_details::*, trade_engine_details::*};
 use crate::common::*;
 
-pub struct MakerOrder<'a> {
+pub struct MakerOrder<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> {
     event_msg_client: &'a ArcClient,
 
     // Maker specific Order properties
@@ -12,11 +13,11 @@ pub struct MakerOrder<'a> {
     pub maker_obligation: MakerObligation,
     pub taker_obligation: TakerObligation,
     pub trade_details: TradeDetails,
-    pub engine_details: TradeEngineDetails,
+    pub engine_details: TradeEngineDetails<T>,
     pub pow_difficulty: u64,
 }
 
-impl<'a> MakerOrder<'a> {
+impl<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> MakerOrder<'a, T> {
     // Commands Maker can issue
     pub fn new(
         event_msg_client: &'a ArcClient,
@@ -24,7 +25,7 @@ impl<'a> MakerOrder<'a> {
         maker_obligation: MakerObligation,
         taker_obligation: TakerObligation,
         trade_details: TradeDetails,
-        engine_details: TradeEngineDetails,
+        engine_details: TradeEngineDetails<T>,
         pow_difficulty: u64,
     ) -> Self {
         let maker_order = MakerOrder {
@@ -124,7 +125,7 @@ impl<'a> MakerOrder<'a> {
     }
 }
 
-impl<'a> Order for MakerOrder<'a> {
+impl<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> Order for MakerOrder<'a, T> {
     fn identifier() -> String {
         String::new()
     }

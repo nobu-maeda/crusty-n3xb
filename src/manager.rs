@@ -1,17 +1,24 @@
 use nostr_sdk::prelude::*;
+use serde::Serialize;
 
-use crate::common::*;
 use crate::order::MakerOrderBuilder;
+use crate::{common::*, order::TradeEngineSpecfiicsTrait};
 
-use std::sync::{Arc, Mutex};
+use std::{
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
 
-pub struct Manager {
+pub struct Manager<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize> {
     event_msg_client: ArcClient,
     subscription_client: ArcClient,
     // TODO: Local DB
+    _phantom_engine_specifics: PhantomData<EngineSpecificsType>,
 }
 
-impl Manager {
+impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize>
+    Manager<EngineSpecificsType>
+{
     // Public Functions
 
     // Constructors
@@ -21,6 +28,7 @@ impl Manager {
             event_msg_client: Self::new_nostr_client(&keys).await,
             subscription_client: Self::new_nostr_client(&keys).await,
             // TODO: Create Local DB
+            _phantom_engine_specifics: PhantomData,
         }
     }
 
@@ -31,6 +39,7 @@ impl Manager {
             event_msg_client: Self::new_nostr_client(&keys).await,
             subscription_client: Self::new_nostr_client(&keys).await,
             // TODO: Create Local DB
+            _phantom_engine_specifics: PhantomData,
         }
     }
 
@@ -39,12 +48,13 @@ impl Manager {
             event_msg_client: Arc::new(Mutex::new(event_msg_client)),
             subscription_client: Arc::new(Mutex::new(subscription_client)),
             // TODO: Create Local DB
+            _phantom_engine_specifics: PhantomData,
         }
     }
 
     // Order Management
 
-    pub fn build_maker_order(&self) -> MakerOrderBuilder {
+    pub fn build_maker_order(&self) -> MakerOrderBuilder<EngineSpecificsType> {
         MakerOrderBuilder::new(&self.event_msg_client)
     }
 
