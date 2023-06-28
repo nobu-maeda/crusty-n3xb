@@ -1,6 +1,5 @@
-use std::fmt::*;
-
 use serde::Serialize;
+use std::fmt::*;
 
 #[typetag::serde(tag = "type")]
 pub trait TradeEngineSpecfiicsTrait: Debug {}

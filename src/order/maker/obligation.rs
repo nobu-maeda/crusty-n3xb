@@ -1,9 +1,7 @@
+use crate::common::*;
 use iso_currency::Currency;
 use serde::{Deserialize, Serialize};
-
 use std::{collections::HashSet, fmt::*};
-
-use crate::common::*;
 
 #[derive(Clone, Debug)]
 pub struct MakerObligation {

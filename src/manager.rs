@@ -1,8 +1,7 @@
-use nostr_sdk::prelude::*;
-use serde::Serialize;
-
 use crate::order::MakerOrderBuilder;
 use crate::{common::*, order::TradeEngineSpecfiicsTrait};
+use nostr_sdk::prelude::*;
+use serde::Serialize;
 
 use std::{
     marker::PhantomData,

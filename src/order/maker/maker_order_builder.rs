@@ -1,8 +1,7 @@
-use serde::Serialize;
-
 use super::{maker_order::*, obligation::*, trade_details::*, trade_engine_details::*};
 use crate::common::*;
 use crate::error::*;
+use serde::Serialize;
 
 pub struct MakerOrderBuilder<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> {
     event_msg_client: &'a ArcClient,
@@ -108,6 +107,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use std::collections::HashSet;
     use std::sync::{Arc, Mutex};
+    use typetag;
 
     #[tokio::test]
     async fn maker_order_builder_build() {

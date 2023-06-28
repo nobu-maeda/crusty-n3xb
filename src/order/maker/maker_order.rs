@@ -1,9 +1,8 @@
-use nostr_sdk::prelude::*;
-use serde::Serialize;
-
 use super::super::Order;
 use super::{maker_order_note::*, obligation::*, trade_details::*, trade_engine_details::*};
 use crate::common::*;
+use nostr_sdk::prelude::*;
+use serde::Serialize;
 
 pub struct MakerOrder<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> {
     event_msg_client: &'a ArcClient,

@@ -1,6 +1,5 @@
-use serde::{Deserialize, Serialize};
-
 use super::{obligation::*, trade_details::*, trade_engine_details::*};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct MakerOrderNote<T: TradeEngineSpecfiicsTrait + Clone + Serialize> {
