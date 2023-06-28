@@ -201,6 +201,7 @@ mod tests {
                         .test_specific_field,
                     some_engine_specific_str.to_string()
                 );
+                assert_eq!(maker_order.pow_difficulty, 8);
             }
             Err(error) => {
                 panic!(
@@ -211,23 +212,420 @@ mod tests {
         }
     }
 
-    #[test]
-    fn maker_order_builder_build_trade_uuid_missing() {}
+    #[tokio::test]
+    async fn maker_order_builder_build_trade_uuid_missing() {
+        let client = new_event_msg_client();
+        let mut builder: MakerOrderBuilder<TestTradeEngineSpecifics> =
+            MakerOrderBuilder::new(&client);
 
-    #[test]
-    fn maker_order_builder_build_maker_obligation_missing() {}
+        let maker_obligation_kind = ObligationKind::Fiat(
+            Currency::CNY,
+            HashSet::from([FiatPaymentMethod::WeChatPay, FiatPaymentMethod::AliPay]),
+        );
+        let maker_obligation_content = MakerObligationContent {
+            amount: 1000000,
+            amount_min: None,
+        };
+        builder.maker_obligation(MakerObligation {
+            kind: maker_obligation_kind.clone(),
+            content: maker_obligation_content.clone(),
+        });
 
-    #[test]
-    fn maker_order_builder_build_taker_obligation_missing() {}
+        let taker_obligation_kind = ObligationKind::Bitcoin(HashSet::from([
+            BitcoinSettlementMethod::Onchain,
+            BitcoinSettlementMethod::Lightning,
+        ]));
+        let taker_obligation_content = TakerObligationContent {
+            limit_rate: Some(0.000001),
+            market_offset_pct: None,
+            market_oracles: None,
+        };
+        builder.taker_obligation(TakerObligation {
+            kind: taker_obligation_kind.clone(),
+            content: taker_obligation_content.clone(),
+        });
 
-    #[test]
-    fn maker_order_builder_build_trade_details_missing() {}
+        let trade_parameters = HashSet::from([
+            TradeParameter::AcceptsPartialTake,
+            TradeParameter::TrustedArbitration,
+            TradeParameter::TrustedEscrow,
+            TradeParameter::TradeTimesOut(TradeTimeOutLimit::NoTimeout),
+        ]);
+        let trade_details_content = TradeDetailsContent {
+            maker_bond_pct: None,
+            taker_bond_pct: None,
+            trade_timeout: None,
+        };
+        builder.trade_details(TradeDetails {
+            parameters: trade_parameters.clone(),
+            content: trade_details_content.clone(),
+        });
 
-    #[test]
-    fn maker_order_builder_build_engine_details_missing() {}
+        let some_engine_name_str = "some-trade-mechanics";
+        let some_engine_specific_str = "some-test-specific-info";
+        builder.engine_details(TradeEngineDetails {
+            trade_engine_name: some_engine_name_str.to_string(),
+            trade_engine_specifics: TestTradeEngineSpecifics {
+                test_specific_field: some_engine_specific_str.to_string(),
+            },
+        });
 
-    #[test]
-    fn maker_order_builder_build_pow_difficulty_missing() {}
+        let some_pow_difficulty: u64 = 8;
+        builder.pow_difficulty(some_pow_difficulty);
+
+        let result = builder.build();
+
+        match result {
+            Ok(_) => {
+                panic!("maker_order_builder_build should not contain trade_uuid and should not result in Ok");
+            }
+            Err(_) => {} // TODO: Some way to check on Error returned, without hard coupling to Error handling methodology
+        }
+    }
+
+    #[tokio::test]
+    async fn maker_order_builder_build_maker_obligation_missing() {
+        let client = new_event_msg_client();
+        let mut builder: MakerOrderBuilder<TestTradeEngineSpecifics> =
+            MakerOrderBuilder::new(&client);
+
+        let some_uuid_string = "Some-UUID-String";
+        builder.trade_uuid(some_uuid_string);
+
+        let taker_obligation_kind = ObligationKind::Bitcoin(HashSet::from([
+            BitcoinSettlementMethod::Onchain,
+            BitcoinSettlementMethod::Lightning,
+        ]));
+        let taker_obligation_content = TakerObligationContent {
+            limit_rate: Some(0.000001),
+            market_offset_pct: None,
+            market_oracles: None,
+        };
+        builder.taker_obligation(TakerObligation {
+            kind: taker_obligation_kind.clone(),
+            content: taker_obligation_content.clone(),
+        });
+
+        let trade_parameters = HashSet::from([
+            TradeParameter::AcceptsPartialTake,
+            TradeParameter::TrustedArbitration,
+            TradeParameter::TrustedEscrow,
+            TradeParameter::TradeTimesOut(TradeTimeOutLimit::NoTimeout),
+        ]);
+        let trade_details_content = TradeDetailsContent {
+            maker_bond_pct: None,
+            taker_bond_pct: None,
+            trade_timeout: None,
+        };
+        builder.trade_details(TradeDetails {
+            parameters: trade_parameters.clone(),
+            content: trade_details_content.clone(),
+        });
+
+        let some_engine_name_str = "some-trade-mechanics";
+        let some_engine_specific_str = "some-test-specific-info";
+        builder.engine_details(TradeEngineDetails {
+            trade_engine_name: some_engine_name_str.to_string(),
+            trade_engine_specifics: TestTradeEngineSpecifics {
+                test_specific_field: some_engine_specific_str.to_string(),
+            },
+        });
+
+        let some_pow_difficulty: u64 = 8;
+        builder.pow_difficulty(some_pow_difficulty);
+
+        let result = builder.build();
+
+        match result {
+            Ok(_) => {
+                panic!("maker_order_builder_build should not contain maker_obligation and should not result in Ok");
+            }
+            Err(_) => {} // TODO: Some way to check on Error returned, without hard coupling to Error handling methodology
+        }
+    }
+
+    #[tokio::test]
+    async fn maker_order_builder_build_taker_obligation_missing() {
+        let client = new_event_msg_client();
+        let mut builder: MakerOrderBuilder<TestTradeEngineSpecifics> =
+            MakerOrderBuilder::new(&client);
+
+        let some_uuid_string = "Some-UUID-String";
+        builder.trade_uuid(some_uuid_string);
+
+        let maker_obligation_kind = ObligationKind::Fiat(
+            Currency::CNY,
+            HashSet::from([FiatPaymentMethod::WeChatPay, FiatPaymentMethod::AliPay]),
+        );
+        let maker_obligation_content = MakerObligationContent {
+            amount: 1000000,
+            amount_min: None,
+        };
+        builder.maker_obligation(MakerObligation {
+            kind: maker_obligation_kind.clone(),
+            content: maker_obligation_content.clone(),
+        });
+
+        let trade_parameters = HashSet::from([
+            TradeParameter::AcceptsPartialTake,
+            TradeParameter::TrustedArbitration,
+            TradeParameter::TrustedEscrow,
+            TradeParameter::TradeTimesOut(TradeTimeOutLimit::NoTimeout),
+        ]);
+        let trade_details_content = TradeDetailsContent {
+            maker_bond_pct: None,
+            taker_bond_pct: None,
+            trade_timeout: None,
+        };
+        builder.trade_details(TradeDetails {
+            parameters: trade_parameters.clone(),
+            content: trade_details_content.clone(),
+        });
+
+        let some_engine_name_str = "some-trade-mechanics";
+        let some_engine_specific_str = "some-test-specific-info";
+        builder.engine_details(TradeEngineDetails {
+            trade_engine_name: some_engine_name_str.to_string(),
+            trade_engine_specifics: TestTradeEngineSpecifics {
+                test_specific_field: some_engine_specific_str.to_string(),
+            },
+        });
+
+        let some_pow_difficulty: u64 = 8;
+        builder.pow_difficulty(some_pow_difficulty);
+
+        let result = builder.build();
+
+        match result {
+            Ok(_) => {
+                panic!("maker_order_builder_build should not contain taker_obligation and should not result in Ok");
+            }
+            Err(_) => {} // TODO: Some way to check on Error returned, without hard coupling to Error handling methodology
+        }
+    }
+
+    #[tokio::test]
+    async fn maker_order_builder_build_trade_details_missing() {
+        let client = new_event_msg_client();
+        let mut builder: MakerOrderBuilder<TestTradeEngineSpecifics> =
+            MakerOrderBuilder::new(&client);
+
+        let some_uuid_string = "Some-UUID-String";
+        builder.trade_uuid(some_uuid_string);
+
+        let maker_obligation_kind = ObligationKind::Fiat(
+            Currency::CNY,
+            HashSet::from([FiatPaymentMethod::WeChatPay, FiatPaymentMethod::AliPay]),
+        );
+        let maker_obligation_content = MakerObligationContent {
+            amount: 1000000,
+            amount_min: None,
+        };
+        builder.maker_obligation(MakerObligation {
+            kind: maker_obligation_kind.clone(),
+            content: maker_obligation_content.clone(),
+        });
+
+        let taker_obligation_kind = ObligationKind::Bitcoin(HashSet::from([
+            BitcoinSettlementMethod::Onchain,
+            BitcoinSettlementMethod::Lightning,
+        ]));
+        let taker_obligation_content = TakerObligationContent {
+            limit_rate: Some(0.000001),
+            market_offset_pct: None,
+            market_oracles: None,
+        };
+        builder.taker_obligation(TakerObligation {
+            kind: taker_obligation_kind.clone(),
+            content: taker_obligation_content.clone(),
+        });
+
+        let some_engine_name_str = "some-trade-mechanics";
+        let some_engine_specific_str = "some-test-specific-info";
+        builder.engine_details(TradeEngineDetails {
+            trade_engine_name: some_engine_name_str.to_string(),
+            trade_engine_specifics: TestTradeEngineSpecifics {
+                test_specific_field: some_engine_specific_str.to_string(),
+            },
+        });
+
+        let some_pow_difficulty: u64 = 8;
+        builder.pow_difficulty(some_pow_difficulty);
+
+        let result = builder.build();
+
+        match result {
+            Ok(_) => {
+                panic!("maker_order_builder_build should not contain trade_details and should not result in Ok");
+            }
+            Err(_) => {} // TODO: Some way to check on Error returned, without hard coupling to Error handling methodology
+        }
+    }
+
+    #[tokio::test]
+    async fn maker_order_builder_build_engine_details_missing() {
+        let client = new_event_msg_client();
+        let mut builder: MakerOrderBuilder<TestTradeEngineSpecifics> =
+            MakerOrderBuilder::new(&client);
+
+        let some_uuid_string = "Some-UUID-String";
+        builder.trade_uuid(some_uuid_string);
+
+        let maker_obligation_kind = ObligationKind::Fiat(
+            Currency::CNY,
+            HashSet::from([FiatPaymentMethod::WeChatPay, FiatPaymentMethod::AliPay]),
+        );
+        let maker_obligation_content = MakerObligationContent {
+            amount: 1000000,
+            amount_min: None,
+        };
+        builder.maker_obligation(MakerObligation {
+            kind: maker_obligation_kind.clone(),
+            content: maker_obligation_content.clone(),
+        });
+
+        let taker_obligation_kind = ObligationKind::Bitcoin(HashSet::from([
+            BitcoinSettlementMethod::Onchain,
+            BitcoinSettlementMethod::Lightning,
+        ]));
+        let taker_obligation_content = TakerObligationContent {
+            limit_rate: Some(0.000001),
+            market_offset_pct: None,
+            market_oracles: None,
+        };
+        builder.taker_obligation(TakerObligation {
+            kind: taker_obligation_kind.clone(),
+            content: taker_obligation_content.clone(),
+        });
+
+        let trade_parameters = HashSet::from([
+            TradeParameter::AcceptsPartialTake,
+            TradeParameter::TrustedArbitration,
+            TradeParameter::TrustedEscrow,
+            TradeParameter::TradeTimesOut(TradeTimeOutLimit::NoTimeout),
+        ]);
+        let trade_details_content = TradeDetailsContent {
+            maker_bond_pct: None,
+            taker_bond_pct: None,
+            trade_timeout: None,
+        };
+        builder.trade_details(TradeDetails {
+            parameters: trade_parameters.clone(),
+            content: trade_details_content.clone(),
+        });
+
+        let some_pow_difficulty: u64 = 8;
+        builder.pow_difficulty(some_pow_difficulty);
+
+        let result = builder.build();
+
+        match result {
+            Ok(_) => {
+                panic!("maker_order_builder_build should not contain engine_details and should not result in Ok");
+            }
+            Err(_) => {} // TODO: Some way to check on Error returned, without hard coupling to Error handling methodology
+        }
+    }
+
+    #[tokio::test]
+    async fn maker_order_builder_build_pow_difficulty_default() {
+        let client = new_event_msg_client();
+        let mut builder: MakerOrderBuilder<TestTradeEngineSpecifics> =
+            MakerOrderBuilder::new(&client);
+
+        let some_uuid_string = "Some-UUID-String";
+        builder.trade_uuid(some_uuid_string);
+
+        let maker_obligation_kind = ObligationKind::Fiat(
+            Currency::CNY,
+            HashSet::from([FiatPaymentMethod::WeChatPay, FiatPaymentMethod::AliPay]),
+        );
+        let maker_obligation_content = MakerObligationContent {
+            amount: 1000000,
+            amount_min: None,
+        };
+        builder.maker_obligation(MakerObligation {
+            kind: maker_obligation_kind.clone(),
+            content: maker_obligation_content.clone(),
+        });
+
+        let taker_obligation_kind = ObligationKind::Bitcoin(HashSet::from([
+            BitcoinSettlementMethod::Onchain,
+            BitcoinSettlementMethod::Lightning,
+        ]));
+        let taker_obligation_content = TakerObligationContent {
+            limit_rate: Some(0.000001),
+            market_offset_pct: None,
+            market_oracles: None,
+        };
+        builder.taker_obligation(TakerObligation {
+            kind: taker_obligation_kind.clone(),
+            content: taker_obligation_content.clone(),
+        });
+
+        let trade_parameters = HashSet::from([
+            TradeParameter::AcceptsPartialTake,
+            TradeParameter::TrustedArbitration,
+            TradeParameter::TrustedEscrow,
+            TradeParameter::TradeTimesOut(TradeTimeOutLimit::NoTimeout),
+        ]);
+        let trade_details_content = TradeDetailsContent {
+            maker_bond_pct: None,
+            taker_bond_pct: None,
+            trade_timeout: None,
+        };
+        builder.trade_details(TradeDetails {
+            parameters: trade_parameters.clone(),
+            content: trade_details_content.clone(),
+        });
+
+        let some_engine_name_str = "some-trade-mechanics";
+        let some_engine_specific_str = "some-test-specific-info";
+        builder.engine_details(TradeEngineDetails {
+            trade_engine_name: some_engine_name_str.to_string(),
+            trade_engine_specifics: TestTradeEngineSpecifics {
+                test_specific_field: some_engine_specific_str.to_string(),
+            },
+        });
+
+        let result = builder.build();
+
+        match result {
+            Ok(maker_order) => {
+                assert_eq!(maker_order.trade_uuid, some_uuid_string);
+                assert_eq!(maker_order.maker_obligation.kind, maker_obligation_kind);
+                assert_eq!(
+                    maker_order.maker_obligation.content,
+                    maker_obligation_content
+                );
+                assert_eq!(maker_order.taker_obligation.kind, taker_obligation_kind);
+                assert_eq!(
+                    maker_order.taker_obligation.content,
+                    taker_obligation_content
+                );
+                assert_eq!(maker_order.trade_details.parameters, trade_parameters);
+                assert_eq!(maker_order.trade_details.content, trade_details_content);
+                assert_eq!(
+                    maker_order.engine_details.trade_engine_name,
+                    some_engine_name_str.to_string()
+                );
+                assert_eq!(
+                    maker_order
+                        .engine_details
+                        .trade_engine_specifics
+                        .test_specific_field,
+                    some_engine_specific_str.to_string()
+                );
+                assert_eq!(maker_order.pow_difficulty, 0);
+            }
+            Err(error) => {
+                panic!(
+                    "maker_order_builder_build failed on builder.build() - {}",
+                    error.to_string()
+                );
+            }
+        }
+    }
 
     // Helper Definitions
 
