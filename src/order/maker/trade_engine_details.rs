@@ -6,8 +6,8 @@ use std::fmt::*;
 
 #[derive(Clone, Debug)]
 pub struct TradeEngineDetails {
-  pub trade_engine_name: String,
-  pub trade_engine_specifics: Option<Box<dyn TradeEngineSpecfiicsTrait>>,
+    pub trade_engine_name: String,
+    pub trade_engine_specifics: Option<Box<dyn TradeEngineSpecfiicsTrait>>,
 }
 
 #[typetag::serde(tag = "type")]

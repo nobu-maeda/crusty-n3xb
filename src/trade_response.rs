@@ -1,5 +1,5 @@
 use erased_serde::Serialize as ErasedSerialize;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use typetag;
 
@@ -12,9 +12,9 @@ pub trait TradeEngineSpecfiicsTrait: ErasedSerialize + Debug {}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TradeResponseMessage {
-  trade_response: String,  // TODO: Change to Enums
-  reject_reason: Option<Vec<String>>,  // TODO: Change to Enums
-  trade_engine_specifics: Box<dyn TradeEngineSpecfiicsTrait>,  
+    trade_response: String,             // TODO: Change to Enums
+    reject_reason: Option<Vec<String>>, // TODO: Change to Enums
+    trade_engine_specifics: Box<dyn TradeEngineSpecfiicsTrait>,
 }
 
 #[typetag::serde(name = "n3xB-trade-response")]
