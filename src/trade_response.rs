@@ -1,21 +1,23 @@
-use erased_serde::Serialize as ErasedSerialize;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use typetag;
 
-use crate::peer_messaging;
+use crate::peer_messaging::*;
 
 // Trade Response Message Data Structure
 
 #[typetag::serde(tag = "type")]
-pub trait TradeEngineSpecfiicsTrait: ErasedSerialize + Debug {}
+pub trait TradeEngineSpecfiicsTrait: Debug {}
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct TradeResponseMessage {
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct TradeResponseMessage<T: TradeEngineSpecfiicsTrait + Serialize + Clone> {
     trade_response: String,             // TODO: Change to Enums
     reject_reason: Option<Vec<String>>, // TODO: Change to Enums
-    trade_engine_specifics: Box<dyn TradeEngineSpecfiicsTrait>,
+    trade_engine_specifics: T,
 }
 
-#[typetag::serde(name = "n3xB-trade-response")]
-impl peer_messaging::PeerMessageTrait for TradeResponseMessage {}
+#[typetag::serialize(name = "n3xB-trade-response")] // TODO: What about deserialization?
+impl<T: TradeEngineSpecfiicsTrait + Clone + Serialize> PeerMessageTrait
+    for TradeResponseMessage<T>
+{
+}

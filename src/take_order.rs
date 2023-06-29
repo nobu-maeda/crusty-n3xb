@@ -1,13 +1,12 @@
-use erased_serde::Serialize as ErasedSerialize;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use typetag;
 
-use crate::peer_messaging;
+use crate::peer_messaging::*;
 
 // Take Order Message Data Structure
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Obligation {
     amount: u64,
     currency: String, // TODO: Change to ISO 4217 Enum
@@ -15,17 +14,17 @@ pub struct Obligation {
     bond_amount: Option<u64>,
 }
 
-#[typetag::serde(tag = "type")]
-pub trait TradeEngineSpecfiicsTrait: ErasedSerialize + Debug {}
+#[typetag::serialize(tag = "type")]
+pub trait TradeEngineSpecfiicsTrait: Debug {}
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct TakeOrderMessage {
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct TakeOrderMessage<T: TradeEngineSpecfiicsTrait + Serialize + Clone> {
     maker_obligation: Obligation,
     taker_obligation: Obligation,
     market_oracle_used: Option<String>, // TODO: Change to URL type
-    trade_engine_specifics: Box<dyn TradeEngineSpecfiicsTrait>,
+    trade_engine_specifics: T,
     pow_difficulty: u64,
 }
 
-#[typetag::serde(name = "n3xB-take-order")]
-impl peer_messaging::PeerMessageTrait for TakeOrderMessage {}
+#[typetag::serialize(name = "n3xB-take-order")] // TODO: What about deserialization?
+impl<T: TradeEngineSpecfiicsTrait + Serialize + Clone> PeerMessageTrait for TakeOrderMessage<T> {}

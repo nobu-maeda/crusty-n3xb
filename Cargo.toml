@@ -6,14 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dyn-clone = "1.0"
+tokio = { version = "1", features = [ "io-util", "macros", "rt", "rt-multi-thread", "sync", "net", "time" ] }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-erased-serde = "0.3"
 typetag = "0.2"
-
 nostr-sdk = "0.22"
-tokio = { version = "1", features = [ "io-util", "macros", "rt", "rt-multi-thread", "sync", "net", "time" ] }
 
 iso_currency = { version = "0.4.3", features = ["with-serde"] }
