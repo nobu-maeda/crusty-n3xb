@@ -1,3 +1,4 @@
+mod common;
 pub mod maker_order;
 pub mod maker_order_builder;
 mod maker_order_note;
