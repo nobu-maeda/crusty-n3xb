@@ -1,6 +1,5 @@
 use crate::order::MakerOrderBuilder;
-use crate::{common::*, order::TradeEngineSpecfiicsTrait};
-use nostr_sdk::prelude::*;
+use crate::{nostr::*, order::TradeEngineSpecfiicsTrait};
 use serde::Serialize;
 
 use std::{

@@ -1,12 +1,11 @@
-use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt::Result;
 use std::fmt::*;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 
-pub type ArcClient = Arc<Mutex<Client>>;
 pub type ArcMutex = Arc<Mutex<i32>>;
+
 pub enum BuySell {
     Buy,
     Sell,

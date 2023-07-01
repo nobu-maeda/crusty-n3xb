@@ -1,6 +1,5 @@
 use super::{maker_order::*, obligation::*, trade_details::*, trade_engine_details::*};
-use crate::common::*;
-use crate::error::*;
+use crate::{error::*, nostr::*};
 use serde::Serialize;
 
 pub struct MakerOrderBuilder<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> {
@@ -103,7 +102,6 @@ mod tests {
     use super::super::common::test::*;
     use super::*;
     use core::panic;
-    use nostr_sdk::prelude::*;
     use std::sync::{Arc, Mutex};
 
     #[tokio::test]
@@ -459,12 +457,7 @@ mod tests {
     // Helper Functions
 
     fn new_event_msg_client() -> ArcClient {
-        let keys = Keys::generate();
-        let opts = Options::new()
-            .wait_for_connection(true)
-            .wait_for_send(true)
-            .difficulty(8);
-        let client = Client::with_opts(&keys, opts);
+        let client = Client::new();
         Arc::new(Mutex::new(client))
     }
 }

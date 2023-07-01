@@ -1,7 +1,6 @@
 use super::super::Order;
 use super::{maker_order_note::*, obligation::*, trade_details::*, trade_engine_details::*};
-use crate::common::*;
-use nostr_sdk::prelude::*;
+use crate::nostr::*;
 use serde::Serialize;
 
 pub struct MakerOrder<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> {
@@ -37,7 +36,7 @@ impl<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> MakerOrder<'a, T> {
             pow_difficulty,
         };
 
-        // TODO: Add order to DB store
+        // TODO: Add order to DB store?
 
         maker_order
     }
@@ -134,4 +133,59 @@ impl<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> Order for MakerOrder<
     fn remove() {}
 
     fn complete() {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::common::test::*;
+    use super::*;
+    use std::sync::{Arc, Mutex};
+
+    fn send_event_expectation(event: Event) -> Result<EventId, Error> {
+        print!("Nostr Event: {:?}", event); // TODO: Actually validate the event, Tags and JSON content is as expected
+        Result::Ok(event.id)
+    }
+
+    #[tokio::test]
+    async fn maker_order_send_event_note() {
+        let mut client: Client = Client::new();
+        client.expect_keys().returning(|| Keys::generate());
+        client.expect_send_event().returning(send_event_expectation);
+
+        let arc_client = Arc::new(Mutex::new(client));
+
+        let maker_obligation = MakerObligation {
+            kind: SomeTestParams::maker_obligation_kind(),
+            content: SomeTestParams::maker_obligation_content(),
+        };
+
+        let taker_obligation = TakerObligation {
+            kind: SomeTestParams::taker_obligation_kind(),
+            content: SomeTestParams::taker_obligation_content(),
+        };
+
+        let trade_details = TradeDetails {
+            parameters: SomeTestParams::trade_parameters(),
+            content: SomeTestParams::trade_details_content(),
+        };
+
+        let engine_details = TradeEngineDetails {
+            trade_engine_name: SomeTestParams::engine_name_str(),
+            trade_engine_specifics: SomeTradeEngineSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            },
+        };
+
+        let maker_order = MakerOrder::new(
+            &arc_client,
+            SomeTestParams::some_uuid_string(),
+            maker_obligation,
+            taker_obligation,
+            trade_details,
+            engine_details,
+            SomeTestParams::pow_difficulty(),
+        );
+
+        maker_order.send_event_note().await;
+    }
 }
