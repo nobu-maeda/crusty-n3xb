@@ -8,12 +8,12 @@ pub use maker::{
 
 pub trait Order {
     // Common Order properties
-    fn identifier() -> String;
+    fn identifier(&self) -> String;
 
     // Commands common to all orders
-    fn message();
-    fn remove();
-    fn complete();
+    fn message(&self);
+    fn remove(&self);
+    fn complete(&self);
 }
 
 enum TradeStatus {}

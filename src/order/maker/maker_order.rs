@@ -1,6 +1,6 @@
 use super::super::Order;
 use super::{maker_order_note::*, obligation::*, trade_details::*, trade_engine_details::*};
-use crate::nostr::*;
+use crate::{common::*, nostr::*};
 use serde::Serialize;
 
 pub struct MakerOrder<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> {
@@ -47,7 +47,7 @@ impl<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> MakerOrder<'a, T> {
 
     pub fn lock() {}
 
-    async fn send_event_note(&self) {
+    pub async fn send_event_note(&self) {
         // Create Note Content
         let maker_order_note = MakerOrderNote {
             maker_obligation: self.maker_obligation.content.to_owned(),
@@ -60,57 +60,29 @@ impl<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> MakerOrder<'a, T> {
         let content_string = serde_json::to_string(&maker_order_note).unwrap(); // TODO: Error Handling?
 
         // Create Note Tags
-        // TODO: Factor Custom Tag routine out to process a hash-map instead?
+        let mut tag_set: Vec<OrderTag> = Vec::new();
 
-        // Trade UUID #i
-        let i_tag: Tag = Tag::Generic(
-            TagKind::Custom("i".to_string()),
-            vec![self.trade_uuid.to_owned()],
-        );
-
-        // Maker Obligation Tag #m
-        let m_tag: Tag = Tag::Generic(
-            TagKind::Custom("m".to_string()),
-            self.maker_obligation.kind.to_tags().into_iter().collect(),
-        );
-
-        // Taker Obligation Tag #t
-        let t_tag: Tag = Tag::Generic(
-            TagKind::Custom("t".to_string()),
-            self.taker_obligation.kind.to_tags().into_iter().collect(),
-        );
-
-        // Trade Detail Parameters #p
-        let p_tag: Tag = Tag::Generic(
-            TagKind::Custom("p".to_string()),
-            self.trade_details
-                .parameters_to_tags()
-                .into_iter()
-                .collect(),
-        );
-
-        // Trade Engine Name #n
-        let n_tag: Tag = Tag::Generic(
-            TagKind::Custom("n".to_string()),
-            vec![self.engine_details.trade_engine_name.to_string()],
-        );
-
-        // n3xB Event Kind #k
-        let k_tag: Tag = Tag::Generic(
-            TagKind::Custom("k".to_string()),
-            vec!["maker-order".to_string()],
-        );
-
-        // NIP-78 Application Tag #d
-        let d_tag: Tag = Tag::Generic(TagKind::Custom("d".to_string()), vec!["n3xb".to_string()]);
-
-        let note_tags = [i_tag, m_tag, t_tag, p_tag, n_tag, k_tag, d_tag];
+        tag_set.push(OrderTag::TradeUUID(self.trade_uuid.clone()));
+        tag_set.push(OrderTag::MakerObligations(
+            self.maker_obligation.kind.to_tags(),
+        ));
+        tag_set.push(OrderTag::TakerObligations(
+            self.taker_obligation.kind.to_tags(),
+        ));
+        tag_set.push(OrderTag::TradeDetailParameters(
+            self.trade_details.parameters_to_tags(),
+        ));
+        tag_set.push(OrderTag::TradeEngineName(
+            self.engine_details.trade_engine_name.clone(),
+        ));
+        tag_set.push(OrderTag::EventKind(EventKind::MakerOrder));
+        tag_set.push(OrderTag::ApplicationTag(N3XB_APPLICATION_TAG.to_string()));
 
         // NIP-78 Event Kind - 30078
         let builder = EventBuilder::new(
             Kind::ParameterizedReplaceable(30078),
             content_string,
-            &note_tags,
+            &create_event_tags(tag_set),
         );
 
         let keys = self.event_msg_client.lock().unwrap().keys();
@@ -124,15 +96,15 @@ impl<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> MakerOrder<'a, T> {
 }
 
 impl<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> Order for MakerOrder<'a, T> {
-    fn identifier() -> String {
+    fn identifier(&self) -> String {
         String::new()
     }
 
-    fn message() {}
+    fn message(&self) {}
 
-    fn remove() {}
+    fn remove(&self) {}
 
-    fn complete() {}
+    fn complete(&self) {}
 }
 
 #[cfg(test)]

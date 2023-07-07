@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fmt::Result;
 use std::fmt::*;
 use std::hash::Hash;
@@ -10,6 +11,47 @@ pub enum BuySell {
     Buy,
     Sell,
 }
+
+#[derive(Clone, Debug)]
+pub enum OrderTag {
+    TradeUUID(String),
+    MakerObligations(HashSet<String>),
+    TakerObligations(HashSet<String>),
+    TradeDetailParameters(HashSet<String>),
+    TradeEngineName(String),
+    EventKind(EventKind),
+    ApplicationTag(String),
+}
+
+impl OrderTag {
+    pub fn key(&self) -> String {
+        let str = match self {
+            OrderTag::TradeUUID(_) => "i",
+            OrderTag::MakerObligations(_) => "m",
+            OrderTag::TakerObligations(_) => "t",
+            OrderTag::TradeDetailParameters(_) => "p",
+            OrderTag::TradeEngineName(_) => "n",
+            OrderTag::EventKind(_) => "k",
+            OrderTag::ApplicationTag(_) => "d",
+        };
+        str.to_string()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum EventKind {
+    MakerOrder,
+}
+
+impl Display for EventKind {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match self {
+            EventKind::MakerOrder => write!(f, "maker-order"),
+        }
+    }
+}
+
+pub static N3XB_APPLICATION_TAG: &str = "n3xb";
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum BitcoinSettlementMethod {

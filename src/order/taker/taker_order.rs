@@ -10,13 +10,13 @@ impl TakerOrder {
 }
 
 impl Order for TakerOrder {
-    fn identifier() -> String {
+    fn identifier(&self) -> String {
         String::new()
     }
 
-    fn message() {}
+    fn message(&self) {}
 
-    fn remove() {}
+    fn remove(&self) {}
 
-    fn complete() {}
+    fn complete(&self) {}
 }
