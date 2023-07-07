@@ -1,9 +1,9 @@
-mod commands;
+pub mod error;
+pub mod manager;
+pub mod order;
+
 mod common;
-mod error;
-mod manager;
 mod nostr;
-mod order;
 mod peer_messaging;
 mod take_order;
 mod trade_response;
