@@ -1,12 +1,8 @@
-use super::{maker_order::*, obligation::*, trade_details::*, trade_engine_details::*};
-use crate::{error::*, nostr::*};
+use super::{obligation::*, order::*, trade_details::*, trade_engine_details::*};
+use crate::error::*;
 use serde::Serialize;
 
-pub struct MakerOrderBuilder<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> {
-    event_msg_client: &'a ArcClient,
-    // DB
-
-    // Trade Specific Parameters
+pub struct OrderBuilder<T: TradeEngineSpecfiicsTrait + Clone + Serialize> {
     trade_uuid: Option<String>, // TODO: Change to UUID type
     maker_obligation: Option<MakerObligation>,
     taker_obligation: Option<TakerObligation>,
@@ -15,11 +11,9 @@ pub struct MakerOrderBuilder<'a, T: TradeEngineSpecfiicsTrait + Clone + Serializ
     pow_difficulty: Option<u64>,
 }
 
-impl<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> MakerOrderBuilder<'a, T> {
-    pub fn new(event_msg_client: &'a ArcClient, // DB
-    ) -> Self {
-        MakerOrderBuilder {
-            event_msg_client,
+impl<T: TradeEngineSpecfiicsTrait + Clone + Serialize> OrderBuilder<T> {
+    pub fn new() -> Self {
+        OrderBuilder {
             trade_uuid: Option::<String>::None,
             maker_obligation: Option::<MakerObligation>::None,
             taker_obligation: Option::<TakerObligation>::None,
@@ -62,7 +56,7 @@ impl<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> MakerOrderBuilder<'a,
         self
     }
 
-    pub fn build(&self) -> std::result::Result<MakerOrder<T>, N3xbError> {
+    pub fn build(&self) -> std::result::Result<Order<T>, N3xbError> {
         let Some(trade_uuid) = self.trade_uuid.as_ref() else {
       return Err(N3xbError::Other("No Trade UUID".to_string()));  // TODO: Error handling?
     };
@@ -85,30 +79,26 @@ impl<'a, T: TradeEngineSpecfiicsTrait + Clone + Serialize> MakerOrderBuilder<'a,
 
         let pow_difficulty = self.pow_difficulty.unwrap_or_else(|| 0);
 
-        Ok(MakerOrder::new(
-            self.event_msg_client,
-            trade_uuid.to_owned(),
-            maker_obligation.to_owned(),
-            taker_obligation.to_owned(),
-            trade_details.to_owned(),
-            engine_details.to_owned(),
+        Ok(Order {
+            trade_uuid: trade_uuid.to_owned(),
+            maker_obligation: maker_obligation.to_owned(),
+            taker_obligation: taker_obligation.to_owned(),
+            trade_details: trade_details.to_owned(),
+            engine_details: engine_details.to_owned(),
             pow_difficulty,
-        ))
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::common::test::*;
+    use super::super::common::tests::*;
     use super::*;
     use core::panic;
-    use std::sync::{Arc, Mutex};
 
     #[tokio::test]
-    async fn maker_order_builder_build() {
-        let client = new_event_msg_client();
-        let mut builder: MakerOrderBuilder<SomeTradeEngineSpecifics> =
-            MakerOrderBuilder::new(&client);
+    async fn order_builder_build() {
+        let mut builder: OrderBuilder<SomeTradeEngineSpecifics> = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
@@ -139,48 +129,48 @@ mod tests {
         let result = builder.build();
 
         match result {
-            Ok(maker_order) => {
-                assert_eq!(maker_order.trade_uuid, SomeTestParams::some_uuid_string());
+            Ok(order) => {
+                assert_eq!(order.trade_uuid, SomeTestParams::some_uuid_string());
                 assert_eq!(
-                    maker_order.maker_obligation.kind,
+                    order.maker_obligation.kind,
                     SomeTestParams::maker_obligation_kind()
                 );
                 assert_eq!(
-                    maker_order.maker_obligation.content,
+                    order.maker_obligation.content,
                     SomeTestParams::maker_obligation_content()
                 );
                 assert_eq!(
-                    maker_order.taker_obligation.kind,
+                    order.taker_obligation.kind,
                     SomeTestParams::taker_obligation_kind()
                 );
                 assert_eq!(
-                    maker_order.taker_obligation.content,
+                    order.taker_obligation.content,
                     SomeTestParams::taker_obligation_content()
                 );
                 assert_eq!(
-                    maker_order.trade_details.parameters,
+                    order.trade_details.parameters,
                     SomeTestParams::trade_parameters()
                 );
                 assert_eq!(
-                    maker_order.trade_details.content,
+                    order.trade_details.content,
                     SomeTestParams::trade_details_content()
                 );
                 assert_eq!(
-                    maker_order.engine_details.trade_engine_name,
+                    order.engine_details.trade_engine_name,
                     SomeTestParams::engine_name_str()
                 );
                 assert_eq!(
-                    maker_order
+                    order
                         .engine_details
                         .trade_engine_specifics
                         .test_specific_field,
                     SomeTestParams::engine_specific_str()
                 );
-                assert_eq!(maker_order.pow_difficulty, SomeTestParams::pow_difficulty());
+                assert_eq!(order.pow_difficulty, SomeTestParams::pow_difficulty());
             }
             Err(error) => {
                 panic!(
-                    "maker_order_builder_build failed on builder.build() - {}",
+                    "order_builder_build failed on builder.build() - {}",
                     error.to_string()
                 );
             }
@@ -188,10 +178,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn maker_order_builder_build_trade_uuid_missing() {
-        let client = new_event_msg_client();
-        let mut builder: MakerOrderBuilder<SomeTradeEngineSpecifics> =
-            MakerOrderBuilder::new(&client);
+    async fn order_builder_build_trade_uuid_missing() {
+        let mut builder: OrderBuilder<SomeTradeEngineSpecifics> = OrderBuilder::new();
 
         builder.maker_obligation(MakerObligation {
             kind: SomeTestParams::maker_obligation_kind(),
@@ -221,17 +209,17 @@ mod tests {
 
         match result {
             Ok(_) => {
-                panic!("maker_order_builder_build should not contain trade_uuid and should not result in Ok");
+                panic!(
+                    "order_builder_build should not contain trade_uuid and should not result in Ok"
+                );
             }
             Err(_) => {} // TODO: Some way to check on Error returned, without hard coupling to Error handling methodology
         }
     }
 
     #[tokio::test]
-    async fn maker_order_builder_build_maker_obligation_missing() {
-        let client = new_event_msg_client();
-        let mut builder: MakerOrderBuilder<SomeTradeEngineSpecifics> =
-            MakerOrderBuilder::new(&client);
+    async fn order_builder_build_maker_obligation_missing() {
+        let mut builder: OrderBuilder<SomeTradeEngineSpecifics> = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
@@ -258,17 +246,15 @@ mod tests {
 
         match result {
             Ok(_) => {
-                panic!("maker_order_builder_build should not contain maker_obligation and should not result in Ok");
+                panic!("order_builder_build should not contain maker_obligation and should not result in Ok");
             }
             Err(_) => {} // TODO: Some way to check on Error returned, without hard coupling to Error handling methodology
         }
     }
 
     #[tokio::test]
-    async fn maker_order_builder_build_taker_obligation_missing() {
-        let client = new_event_msg_client();
-        let mut builder: MakerOrderBuilder<SomeTradeEngineSpecifics> =
-            MakerOrderBuilder::new(&client);
+    async fn order_builder_build_taker_obligation_missing() {
+        let mut builder: OrderBuilder<SomeTradeEngineSpecifics> = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
@@ -295,17 +281,15 @@ mod tests {
 
         match result {
             Ok(_) => {
-                panic!("maker_order_builder_build should not contain taker_obligation and should not result in Ok");
+                panic!("order_builder_build should not contain taker_obligation and should not result in Ok");
             }
             Err(_) => {} // TODO: Some way to check on Error returned, without hard coupling to Error handling methodology
         }
     }
 
     #[tokio::test]
-    async fn maker_order_builder_build_trade_details_missing() {
-        let client = new_event_msg_client();
-        let mut builder: MakerOrderBuilder<SomeTradeEngineSpecifics> =
-            MakerOrderBuilder::new(&client);
+    async fn order_builder_build_trade_details_missing() {
+        let mut builder: OrderBuilder<SomeTradeEngineSpecifics> = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
@@ -332,17 +316,15 @@ mod tests {
 
         match result {
             Ok(_) => {
-                panic!("maker_order_builder_build should not contain trade_details and should not result in Ok");
+                panic!("order_builder_build should not contain trade_details and should not result in Ok");
             }
             Err(_) => {} // TODO: Some way to check on Error returned, without hard coupling to Error handling methodology
         }
     }
 
     #[tokio::test]
-    async fn maker_order_builder_build_engine_details_missing() {
-        let client = new_event_msg_client();
-        let mut builder: MakerOrderBuilder<SomeTradeEngineSpecifics> =
-            MakerOrderBuilder::new(&client);
+    async fn order_builder_build_engine_details_missing() {
+        let mut builder: OrderBuilder<SomeTradeEngineSpecifics> = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
@@ -367,17 +349,15 @@ mod tests {
 
         match result {
             Ok(_) => {
-                panic!("maker_order_builder_build should not contain engine_details and should not result in Ok");
+                panic!("order_builder_build should not contain engine_details and should not result in Ok");
             }
             Err(_) => {} // TODO: Some way to check on Error returned, without hard coupling to Error handling methodology
         }
     }
 
     #[tokio::test]
-    async fn maker_order_builder_build_pow_difficulty_default() {
-        let client = new_event_msg_client();
-        let mut builder: MakerOrderBuilder<SomeTradeEngineSpecifics> =
-            MakerOrderBuilder::new(&client);
+    async fn order_builder_build_pow_difficulty_default() {
+        let mut builder: OrderBuilder<SomeTradeEngineSpecifics> = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
@@ -406,58 +386,51 @@ mod tests {
         let result = builder.build();
 
         match result {
-            Ok(maker_order) => {
-                assert_eq!(maker_order.trade_uuid, SomeTestParams::some_uuid_string());
+            Ok(order) => {
+                assert_eq!(order.trade_uuid, SomeTestParams::some_uuid_string());
                 assert_eq!(
-                    maker_order.maker_obligation.kind,
+                    order.maker_obligation.kind,
                     SomeTestParams::maker_obligation_kind()
                 );
                 assert_eq!(
-                    maker_order.maker_obligation.content,
+                    order.maker_obligation.content,
                     SomeTestParams::maker_obligation_content()
                 );
                 assert_eq!(
-                    maker_order.taker_obligation.kind,
+                    order.taker_obligation.kind,
                     SomeTestParams::taker_obligation_kind()
                 );
                 assert_eq!(
-                    maker_order.taker_obligation.content,
+                    order.taker_obligation.content,
                     SomeTestParams::taker_obligation_content()
                 );
                 assert_eq!(
-                    maker_order.trade_details.parameters,
+                    order.trade_details.parameters,
                     SomeTestParams::trade_parameters()
                 );
                 assert_eq!(
-                    maker_order.trade_details.content,
+                    order.trade_details.content,
                     SomeTestParams::trade_details_content()
                 );
                 assert_eq!(
-                    maker_order.engine_details.trade_engine_name,
+                    order.engine_details.trade_engine_name,
                     SomeTestParams::engine_name_str()
                 );
                 assert_eq!(
-                    maker_order
+                    order
                         .engine_details
                         .trade_engine_specifics
                         .test_specific_field,
                     SomeTestParams::engine_specific_str()
                 );
-                assert_eq!(maker_order.pow_difficulty, 0);
+                assert_eq!(order.pow_difficulty, 0);
             }
             Err(error) => {
                 panic!(
-                    "maker_order_builder_build failed on builder.build() - {}",
+                    "order_builder_build failed on builder.build() - {}",
                     error.to_string()
                 );
             }
         }
-    }
-
-    // Helper Functions
-
-    fn new_event_msg_client() -> ArcClient {
-        let client = Client::new();
-        Arc::new(Mutex::new(client))
     }
 }

@@ -42,13 +42,16 @@ pub fn create_event_tags(order_tags: Vec<OrderTag>) -> Vec<Tag> {
 }
 
 #[cfg(test)]
+pub use nostr_sdk::prelude::*;
+
+#[cfg(test)]
 use mockall::*;
 
 #[cfg(test)]
-use std::net::SocketAddr;
+use std::time::Duration;
 
 #[cfg(test)]
-use std::time::Duration;
+use std::net::SocketAddr;
 
 #[cfg(test)]
 mock! {

@@ -1,12 +1,7 @@
-mod maker;
-mod taker;
+mod maker_sm;
+mod taker_sm;
 
-pub use maker::{
-    maker_order::MakerOrder, maker_order_builder::MakerOrderBuilder,
-    trade_engine_details::TradeEngineSpecfiicsTrait,
-};
-
-pub trait Order {
+pub trait OrderSM {
     // Common Order properties
     fn identifier(&self) -> String;
 

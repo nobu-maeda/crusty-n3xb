@@ -1,6 +1,6 @@
 #[cfg(test)]
 
-pub mod test {
+pub mod tests {
     use super::super::{obligation::*, trade_details::*, trade_engine_details::*};
     use crate::common::*;
     use iso_currency::Currency;

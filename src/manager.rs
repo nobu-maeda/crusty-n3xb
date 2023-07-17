@@ -1,6 +1,5 @@
-use crate::common::*;
-use crate::order::{MakerOrderBuilder, Order};
-use crate::{nostr::*, order::TradeEngineSpecfiicsTrait};
+use crate::nostr::*;
+use crate::order::{OrderBuilder, TradeEngineSpecfiicsTrait};
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -13,6 +12,11 @@ use std::{
 pub struct Manager<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize> {
     event_msg_client: ArcClient,
     subscription_client: ArcClient,
+
+    // order_cache: HashMap<Order>,
+    // maker_sms: HashMap<MakerSM>,
+    // taker_sms: HashMap<TakerSM>,
+
     // TODO: Local DB
     _phantom_engine_specifics: PhantomData<EngineSpecificsType>,
 }
@@ -55,8 +59,8 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize>
 
     // Order Management
 
-    pub fn build_maker_order(&self) -> MakerOrderBuilder<EngineSpecificsType> {
-        MakerOrderBuilder::new(&self.event_msg_client)
+    pub fn build_maker_order(&self) -> OrderBuilder<EngineSpecificsType> {
+        OrderBuilder::new()
     }
 
     pub async fn query_orders(&self) -> Vec<dyn Order> {
