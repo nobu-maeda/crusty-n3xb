@@ -1,6 +1,8 @@
 use crate::common::OrderTag;
 pub use nostr_sdk::event::Error;
-pub use nostr_sdk::{Event, EventBuilder, EventId, Keys, Kind, Options, Tag, TagKind};
+pub use nostr_sdk::{
+    Event, EventBuilder, EventId, Filter, Keys, Kind, Options, Tag, TagKind, Timestamp,
+};
 use std::sync::{Arc, Mutex};
 
 #[cfg(not(test))]
@@ -46,6 +48,9 @@ use mockall::*;
 use std::net::SocketAddr;
 
 #[cfg(test)]
+use std::time::Duration;
+
+#[cfg(test)]
 mock! {
     pub Client {
         pub fn with_opts(keys: &Keys, opts: Options) -> Self;
@@ -53,6 +58,7 @@ mock! {
         pub async fn add_relay<S>(&self, url: S, proxy: Option<SocketAddr>) -> Result<(), Error> where S: Into<String> + 'static;
         pub async fn connect(&self);
         pub async fn send_event(&self, event: Event) -> Result<EventId, Error>;
+        pub async fn get_events_of(&self, filters: Vec<Filter>, timeout: Option<Duration>) -> Result<Vec<Event>, Error>;
     }
 }
 

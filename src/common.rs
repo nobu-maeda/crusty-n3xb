@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::any::Any;
 use std::collections::HashSet;
 use std::fmt::Result;
 use std::fmt::*;
@@ -35,6 +36,10 @@ impl OrderTag {
             OrderTag::ApplicationTag(_) => "d",
         };
         str.to_string()
+    }
+
+    pub fn key_for(tag: OrderTag) -> String {
+        tag.key()
     }
 }
 

@@ -1,10 +1,13 @@
-use crate::order::MakerOrderBuilder;
+use crate::common::*;
+use crate::order::{MakerOrderBuilder, Order};
 use crate::{nostr::*, order::TradeEngineSpecfiicsTrait};
 use serde::Serialize;
+use serde_json::{Map, Value};
 
 use std::{
     marker::PhantomData,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 pub struct Manager<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize> {
@@ -54,6 +57,33 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize>
 
     pub fn build_maker_order(&self) -> MakerOrderBuilder<EngineSpecificsType> {
         MakerOrderBuilder::new(&self.event_msg_client)
+    }
+
+    pub async fn query_orders(&self) -> Vec<dyn Order> {
+        let application_tag = OrderTag::ApplicationTag(N3XB_APPLICATION_TAG.to_string());
+
+        let mut filter_tags = Map::new();
+        filter_tags.insert(
+            application_tag.key(),
+            Value::Array(vec![Value::String(N3XB_APPLICATION_TAG.to_string())]),
+        );
+
+        let filter = Filter::new()
+            .since(Timestamp::now())
+            .kind(Kind::ParameterizedReplaceable(30078))
+            .custom(filter_tags);
+
+        let timeout = Duration::from_secs(1);
+
+        let events = self
+            .event_msg_client
+            .lock()
+            .unwrap()
+            .get_events_of(vec![filter], Some(timeout))
+            .await
+            .unwrap();
+
+        vec![]
     }
 
     // Private Functions
