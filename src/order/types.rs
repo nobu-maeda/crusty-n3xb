@@ -4,9 +4,6 @@ use std::collections::HashSet;
 use std::fmt::Result;
 use std::fmt::*;
 use std::hash::Hash;
-use std::sync::{Arc, Mutex};
-
-pub type ArcMutex = Arc<Mutex<i32>>;
 
 pub enum BuySell {
     Buy,

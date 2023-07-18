@@ -92,7 +92,7 @@ impl<T: TradeEngineSpecfiicsTrait + Clone + Serialize> OrderBuilder<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::common::tests::*;
+    use super::super::testing::*;
     use super::*;
     use core::panic;
 

@@ -1,8 +1,7 @@
+use super::peer_messaging::*;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use typetag;
-
-use crate::peer_messaging::*;
 
 // Trade Response Message Data Structure
 
