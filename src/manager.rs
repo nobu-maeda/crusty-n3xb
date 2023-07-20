@@ -1,5 +1,6 @@
 use crate::interface::{nostr::*, *};
-use crate::order::{OrderBuilder, TradeEngineSpecfiicsTrait};
+use crate::order::{Order, TradeEngineSpecfiicsTrait};
+use crate::order_sm::maker::MakerSM;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -10,12 +11,10 @@ use std::{
 };
 
 pub struct Manager<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize> {
-    interface: NostrInterface<EngineSpecificsType>,
+    interface: ArcInterface<EngineSpecificsType>,
     // order_cache: HashMap<Order>,
     // maker_sms: HashMap<MakerSM>,
     // taker_sms: HashMap<TakerSM>,
-
-    // TODO: Local DB
     _phantom_engine_specifics: PhantomData<EngineSpecificsType>,
 }
 
@@ -26,34 +25,36 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize>
 
     // Constructors
 
+    // TODO: Should take in genericized Keys or Client, but also Trade Engine Specifics
+    // TODO: Should also take in custom path for n3xB file locations
+
     pub async fn new() -> Self {
+        let nostr_interface = NostrInterface::new().await;
         Manager {
-            interface: NostrInterface::new().await,
-            // TODO: Create Local DB
+            interface: Arc::new(Mutex::new(nostr_interface)),
             _phantom_engine_specifics: PhantomData,
         }
     }
 
     pub async fn new_with_keys(keys: Keys) -> Self {
+        let nostr_interface = NostrInterface::new_with_keys(keys).await;
         Manager {
-            interface: NostrInterface::new_with_keys(keys).await,
-            // TODO: Create Local DB
+            interface: Arc::new(Mutex::new(nostr_interface)),
             _phantom_engine_specifics: PhantomData,
         }
     }
 
     pub fn new_with_nostr(event_msg_client: Client, subscription_client: Client) -> Self {
+        let nostr_interface = NostrInterface::new_with_nostr(event_msg_client, subscription_client);
         Manager {
-            interface: NostrInterface::new_with_nostr(event_msg_client, subscription_client),
-            // TODO: Create Local DB
+            interface: Arc::new(Mutex::new(nostr_interface)),
             _phantom_engine_specifics: PhantomData,
         }
     }
 
-    // Order Management
-
-    pub fn build_maker_order(&self) -> OrderBuilder<EngineSpecificsType> {
-        OrderBuilder::new()
+    fn load_settings() {
+        // TODO: Read all files from relevant directories, scan for settings, and load into memory
+        // Settings should be applied later as applicable from the memory location
     }
 
     pub async fn query_orders(&self) -> Vec<dyn Order> {

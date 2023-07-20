@@ -71,9 +71,9 @@ impl SomeTestParams {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct SomeTradeEngineSpecifics {
+pub struct SomeTradeEngineMakerOrderSpecifics {
     pub test_specific_field: String,
 }
 
 #[typetag::serde(name = "test-trade-engine")]
-impl TradeEngineSpecfiicsTrait for SomeTradeEngineSpecifics {}
+impl TradeEngineSpecfiicsTrait for SomeTradeEngineMakerOrderSpecifics {}

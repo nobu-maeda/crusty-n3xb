@@ -53,7 +53,7 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize>
 
     // Send Maker Order
 
-    pub async fn send_event_note(&self, order: Order<EngineSpecificsType>) {
+    pub async fn send_maker_order_note(&self, order: Order<EngineSpecificsType>) {
         // Create Note Content
         let maker_order_note = MakerOrderNote {
             maker_obligation: order.maker_obligation.content.to_owned(),
@@ -137,7 +137,7 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::order::*;
+    use crate::order::testing::*;
 
     fn send_event_expectation(event: Event) -> Result<EventId, Error> {
         print!("Nostr Event: {:?}", event); // TODO: Actually validate the event, Tags and JSON content is as expected
@@ -156,7 +156,7 @@ mod tests {
 
         let subscription_client = Client::new();
 
-        let interface: NostrInterface<SomeTradeEngineSpecifics> =
+        let interface: NostrInterface<SomeTradeEngineMakerOrderSpecifics> =
             NostrInterface::new_with_nostr(event_msg_client, subscription_client);
 
         let maker_obligation = MakerObligation {
@@ -176,7 +176,7 @@ mod tests {
 
         let engine_details = TradeEngineDetails {
             trade_engine_name: SomeTestParams::engine_name_str(),
-            trade_engine_specifics: SomeTradeEngineSpecifics {
+            trade_engine_specifics: SomeTradeEngineMakerOrderSpecifics {
                 test_specific_field: SomeTestParams::engine_specific_str(),
             },
         };
