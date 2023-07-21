@@ -3,12 +3,13 @@ mod make_order_tests {
     use crusty_n3xb::order::testing::*;
     use crusty_n3xb::{
         manager::Manager,
-        order::{MakerObligation, OrderBuilder, TakerObligation, TradeDetails, TradeEngineDetails},
+        order::{MakerObligation, OrderBuilder, TakerObligation, TradeDetails},
     };
 
     #[tokio::test]
     async fn make_new_order() {
-        let manager: Manager<SomeTradeEngineMakerOrderSpecifics> = Manager::new().await;
+        let manager: Manager<SomeTradeEngineMakerOrderSpecifics> =
+            Manager::new(&SomeTestParams::engine_name_str()).await;
         let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
@@ -28,11 +29,8 @@ mod make_order_tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        builder.engine_details(TradeEngineDetails {
-            trade_engine_name: SomeTestParams::engine_name_str(),
-            trade_engine_specifics: SomeTradeEngineMakerOrderSpecifics {
-                test_specific_field: SomeTestParams::engine_specific_str(),
-            },
+        builder.trade_engine_specifics(SomeTradeEngineMakerOrderSpecifics {
+            test_specific_field: SomeTestParams::engine_specific_str(),
         });
 
         builder.pow_difficulty(SomeTestParams::pow_difficulty());

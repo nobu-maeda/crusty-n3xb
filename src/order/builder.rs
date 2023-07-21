@@ -7,7 +7,7 @@ pub struct OrderBuilder<T: TradeEngineSpecfiicsTrait + Clone + Serialize> {
     maker_obligation: Option<MakerObligation>,
     taker_obligation: Option<TakerObligation>,
     trade_details: Option<TradeDetails>,
-    engine_details: Option<TradeEngineDetails<T>>,
+    trade_engine_specifics: Option<T>,
     pow_difficulty: Option<u64>,
 }
 
@@ -18,7 +18,7 @@ impl<T: TradeEngineSpecfiicsTrait + Clone + Serialize> OrderBuilder<T> {
             maker_obligation: Option::<MakerObligation>::None,
             taker_obligation: Option::<TakerObligation>::None,
             trade_details: Option::<TradeDetails>::None,
-            engine_details: Option::<TradeEngineDetails<T>>::None,
+            trade_engine_specifics: Option::<T>::None,
             pow_difficulty: Option::<u64>::None,
         }
     }
@@ -43,11 +43,8 @@ impl<T: TradeEngineSpecfiicsTrait + Clone + Serialize> OrderBuilder<T> {
         self
     }
 
-    pub fn engine_details(
-        &mut self,
-        engine_details: impl Into<TradeEngineDetails<T>>,
-    ) -> &mut Self {
-        self.engine_details = Some(engine_details.into());
+    pub fn trade_engine_specifics(&mut self, trade_engine_specifics: impl Into<T>) -> &mut Self {
+        self.trade_engine_specifics = Some(trade_engine_specifics.into());
         self
     }
 
@@ -73,7 +70,7 @@ impl<T: TradeEngineSpecfiicsTrait + Clone + Serialize> OrderBuilder<T> {
       return Err(N3xbError::Other("No Trade Details defined".to_string()));  // TODO: Error handling?
     };
 
-        let Some(engine_details) = self.engine_details.as_ref() else {
+        let Some(trade_engine_specifics) = self.trade_engine_specifics.as_ref() else {
       return Err(N3xbError::Other("No Engine Details defined".to_string()));  // TODO: Error handling?
     };
 
@@ -84,7 +81,7 @@ impl<T: TradeEngineSpecfiicsTrait + Clone + Serialize> OrderBuilder<T> {
             maker_obligation: maker_obligation.to_owned(),
             taker_obligation: taker_obligation.to_owned(),
             trade_details: trade_details.to_owned(),
-            engine_details: engine_details.to_owned(),
+            trade_engine_specifics: trade_engine_specifics.to_owned(),
             pow_difficulty,
         })
     }
@@ -117,11 +114,8 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        builder.engine_details(TradeEngineDetails {
-            trade_engine_name: SomeTestParams::engine_name_str(),
-            trade_engine_specifics: SomeTradeEngineMakerOrderSpecifics {
-                test_specific_field: SomeTestParams::engine_specific_str(),
-            },
+        builder.trade_engine_specifics(SomeTradeEngineMakerOrderSpecifics {
+            test_specific_field: SomeTestParams::engine_specific_str(),
         });
 
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
@@ -156,14 +150,7 @@ mod tests {
                     SomeTestParams::trade_details_content()
                 );
                 assert_eq!(
-                    order.engine_details.trade_engine_name,
-                    SomeTestParams::engine_name_str()
-                );
-                assert_eq!(
-                    order
-                        .engine_details
-                        .trade_engine_specifics
-                        .test_specific_field,
+                    order.trade_engine_specifics.test_specific_field,
                     SomeTestParams::engine_specific_str()
                 );
                 assert_eq!(order.pow_difficulty, SomeTestParams::pow_difficulty());
@@ -196,11 +183,8 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        builder.engine_details(TradeEngineDetails {
-            trade_engine_name: SomeTestParams::engine_name_str(),
-            trade_engine_specifics: SomeTradeEngineMakerOrderSpecifics {
-                test_specific_field: SomeTestParams::engine_specific_str(),
-            },
+        builder.trade_engine_specifics(SomeTradeEngineMakerOrderSpecifics {
+            test_specific_field: SomeTestParams::engine_specific_str(),
         });
 
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
@@ -233,11 +217,8 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        builder.engine_details(TradeEngineDetails {
-            trade_engine_name: SomeTestParams::engine_name_str(),
-            trade_engine_specifics: SomeTradeEngineMakerOrderSpecifics {
-                test_specific_field: SomeTestParams::engine_specific_str(),
-            },
+        builder.trade_engine_specifics(SomeTradeEngineMakerOrderSpecifics {
+            test_specific_field: SomeTestParams::engine_specific_str(),
         });
 
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
@@ -268,11 +249,8 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        builder.engine_details(TradeEngineDetails {
-            trade_engine_name: SomeTestParams::engine_name_str(),
-            trade_engine_specifics: SomeTradeEngineMakerOrderSpecifics {
-                test_specific_field: SomeTestParams::engine_specific_str(),
-            },
+        builder.trade_engine_specifics(SomeTradeEngineMakerOrderSpecifics {
+            test_specific_field: SomeTestParams::engine_specific_str(),
         });
 
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
@@ -303,11 +281,8 @@ mod tests {
             content: SomeTestParams::taker_obligation_content(),
         });
 
-        builder.engine_details(TradeEngineDetails {
-            trade_engine_name: SomeTestParams::engine_name_str(),
-            trade_engine_specifics: SomeTradeEngineMakerOrderSpecifics {
-                test_specific_field: SomeTestParams::engine_specific_str(),
-            },
+        builder.trade_engine_specifics(SomeTradeEngineMakerOrderSpecifics {
+            test_specific_field: SomeTestParams::engine_specific_str(),
         });
 
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
@@ -376,11 +351,8 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        builder.engine_details(TradeEngineDetails {
-            trade_engine_name: SomeTestParams::engine_name_str(),
-            trade_engine_specifics: SomeTradeEngineMakerOrderSpecifics {
-                test_specific_field: SomeTestParams::engine_specific_str(),
-            },
+        builder.trade_engine_specifics(SomeTradeEngineMakerOrderSpecifics {
+            test_specific_field: SomeTestParams::engine_specific_str(),
         });
 
         let result = builder.build();
@@ -413,14 +385,7 @@ mod tests {
                     SomeTestParams::trade_details_content()
                 );
                 assert_eq!(
-                    order.engine_details.trade_engine_name,
-                    SomeTestParams::engine_name_str()
-                );
-                assert_eq!(
-                    order
-                        .engine_details
-                        .trade_engine_specifics
-                        .test_specific_field,
+                    order.trade_engine_specifics.test_specific_field,
                     SomeTestParams::engine_specific_str()
                 );
                 assert_eq!(order.pow_difficulty, 0);

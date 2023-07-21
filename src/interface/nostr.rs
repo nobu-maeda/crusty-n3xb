@@ -1,5 +1,5 @@
 pub use nostr_sdk::event::Error;
-pub use nostr_sdk::{Event, EventBuilder, EventId, Keys, Kind, Options, Tag, TagKind};
+pub use nostr_sdk::{Event, EventBuilder, EventId, Filter, Keys, Kind, Options, Tag, TagKind};
 use std::sync::{Arc, Mutex};
 
 #[cfg(not(test))]

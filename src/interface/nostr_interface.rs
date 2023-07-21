@@ -1,12 +1,15 @@
 use super::{maker_order_note::*, nostr::*};
 use crate::order::*;
 use serde::Serialize;
+pub use serde_json::{Map, Value};
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 pub struct NostrInterface<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize> {
     event_msg_client: ArcClient,
     subscription_client: ArcClient,
+    trade_engine_name: String,
     _phantom_engine_specifics: PhantomData<EngineSpecificsType>,
 }
 
@@ -14,27 +17,34 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize>
     NostrInterface<EngineSpecificsType>
 {
     // Constructors
-    pub async fn new() -> Self {
+    pub async fn new(trade_engine_name: &str) -> Self {
         let keys = Keys::generate();
         NostrInterface {
             event_msg_client: Self::new_nostr_client(&keys).await,
             subscription_client: Self::new_nostr_client(&keys).await,
+            trade_engine_name: trade_engine_name.to_owned(),
             _phantom_engine_specifics: PhantomData,
         }
     }
 
-    pub async fn new_with_keys(keys: Keys) -> Self {
+    pub async fn new_with_keys(keys: Keys, trade_engine_name: &str) -> Self {
         NostrInterface {
             event_msg_client: Self::new_nostr_client(&keys).await,
             subscription_client: Self::new_nostr_client(&keys).await,
+            trade_engine_name: trade_engine_name.to_owned(),
             _phantom_engine_specifics: PhantomData,
         }
     }
 
-    pub fn new_with_nostr(event_msg_client: Client, subscription_client: Client) -> Self {
+    pub fn new_with_nostr(
+        event_msg_client: Client,
+        subscription_client: Client,
+        trade_engine_name: &str,
+    ) -> Self {
         NostrInterface {
             event_msg_client: Arc::new(Mutex::new(event_msg_client)),
             subscription_client: Arc::new(Mutex::new(subscription_client)),
+            trade_engine_name: trade_engine_name.to_owned(),
             _phantom_engine_specifics: PhantomData,
         }
     }
@@ -59,7 +69,7 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize>
             maker_obligation: order.maker_obligation.content.to_owned(),
             taker_obligation: order.taker_obligation.content.to_owned(),
             trade_details: order.trade_details.content.to_owned(),
-            trade_engine_specifics: order.engine_details.trade_engine_specifics.to_owned(),
+            trade_engine_specifics: order.trade_engine_specifics.to_owned(),
             pow_difficulty: order.pow_difficulty,
         };
 
@@ -78,9 +88,7 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize>
         tag_set.push(OrderTag::TradeDetailParameters(
             order.trade_details.parameters_to_tags(),
         ));
-        tag_set.push(OrderTag::TradeEngineName(
-            order.engine_details.trade_engine_name.clone(),
-        ));
+        tag_set.push(OrderTag::TradeEngineName(self.trade_engine_name.to_owned()));
         tag_set.push(OrderTag::EventKind(EventKind::MakerOrder));
         tag_set.push(OrderTag::ApplicationTag(N3XB_APPLICATION_TAG.to_string()));
 
@@ -100,9 +108,8 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize>
             .unwrap();
     }
 
-    fn create_event_tags(order_tags: Vec<OrderTag>) -> Vec<Tag> {
-        order_tags
-            .iter()
+    fn create_event_tags(tags: Vec<OrderTag>) -> Vec<Tag> {
+        tags.iter()
             .map(|event_tag| match event_tag {
                 OrderTag::TradeUUID(trade_uuid_string) => Tag::Generic(
                     TagKind::Custom(event_tag.key().to_string()),
@@ -157,7 +164,11 @@ mod tests {
         let subscription_client = Client::new();
 
         let interface: NostrInterface<SomeTradeEngineMakerOrderSpecifics> =
-            NostrInterface::new_with_nostr(event_msg_client, subscription_client);
+            NostrInterface::new_with_nostr(
+                event_msg_client,
+                subscription_client,
+                &SomeTestParams::engine_name_str(),
+            );
 
         let maker_obligation = MakerObligation {
             kind: SomeTestParams::maker_obligation_kind(),
@@ -174,11 +185,8 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         };
 
-        let engine_details = TradeEngineDetails {
-            trade_engine_name: SomeTestParams::engine_name_str(),
-            trade_engine_specifics: SomeTradeEngineMakerOrderSpecifics {
-                test_specific_field: SomeTestParams::engine_specific_str(),
-            },
+        let trade_engine_specifics = SomeTradeEngineMakerOrderSpecifics {
+            test_specific_field: SomeTestParams::engine_specific_str(),
         };
 
         let order = Order {
@@ -186,7 +194,7 @@ mod tests {
             maker_obligation,
             taker_obligation,
             trade_details,
-            engine_details,
+            trade_engine_specifics,
             pow_difficulty: SomeTestParams::pow_difficulty(),
         };
     }

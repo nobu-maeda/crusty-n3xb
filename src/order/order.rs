@@ -7,6 +7,6 @@ pub struct Order<T: TradeEngineSpecfiicsTrait + Clone + Serialize> {
     pub maker_obligation: MakerObligation,
     pub taker_obligation: TakerObligation,
     pub trade_details: TradeDetails,
-    pub engine_details: TradeEngineDetails<T>,
+    pub trade_engine_specifics: T,
     pub pow_difficulty: u64,
 }
