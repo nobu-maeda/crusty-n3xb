@@ -56,7 +56,6 @@ impl Display for EventKind {
 pub static N3XB_APPLICATION_TAG: &str = "n3xb";
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug, EnumString, Display, IntoStaticStr)]
-#[strum(serialize_all = "lowercase")]
 pub enum BitcoinSettlementMethod {
     Onchain,
     Lightning,
@@ -69,7 +68,6 @@ pub enum BitcoinSettlementMethod {
 #[derive(
     PartialEq, Eq, Hash, Clone, Debug, Serialize, Deserialize, EnumString, Display, IntoStaticStr,
 )]
-#[strum(serialize_all = "lowercase")]
 pub enum FiatPaymentMethod {
     Uphold,
     MoneyBeam,
