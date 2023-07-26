@@ -1,6 +1,10 @@
+use crate::error::N3xbError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use std::fmt::*;
+use std::fmt::Debug;
+use std::result::Result;
+use std::str::FromStr;
+use strum_macros::{Display, EnumString, IntoStaticStr};
 
 #[derive(Clone, Debug)]
 pub struct TradeDetails {
@@ -12,12 +16,33 @@ impl TradeDetails {
     pub fn parameters_to_tags(&self) -> HashSet<String> {
         let mut tag_string_set: HashSet<String> = HashSet::new();
         for parameter in self.parameters.iter() {
-            tag_string_set.insert(parameter.to_tag());
-            if let Some(parameter_prefix) = parameter.prefix() {
-                tag_string_set.insert(parameter_prefix);
+            tag_string_set.insert(parameter.to_string());
+            if parameter.to_tag() != parameter.to_string() {
+                tag_string_set.insert(parameter.to_tag());
             }
         }
         tag_string_set
+    }
+
+    pub fn tags_to_parameters(tags: HashSet<String>) -> HashSet<TradeParameter> {
+        let mut parameters_set: HashSet<TradeParameter> = HashSet::new();
+        let mut parse_failed_tags: Vec<N3xbError> = Vec::new(); // TODO: What do we do with errors when parsing some tags?
+
+        for tag in tags {
+            let some_parameter = match TradeParameter::from_tag(&tag) {
+                Ok(parameter) => parameter,
+                Err(_) => {
+                    // TODO: What do we do with the prior error?
+                    parse_failed_tags.push(N3xbError::TagParsing(tag.clone()));
+                    None
+                }
+            };
+
+            if let Some(parameter) = some_parameter {
+                parameters_set.insert(parameter);
+            }
+        }
+        parameters_set
     }
 }
 
@@ -28,7 +53,7 @@ pub struct TradeDetailsContent {
     pub trade_timeout: Option<u32>,
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug, EnumString, Display, IntoStaticStr)]
 pub enum TradeParameter {
     MakerHasReputation,
     TakerReputationRequired,
@@ -40,86 +65,49 @@ pub enum TradeParameter {
     TradeTimesOut(TradeTimeOutLimit),
 }
 
+const OBLIGATION_KIND_SPLIT_CHAR: &str = "-";
+
 impl TradeParameter {
     fn to_tag(&self) -> String {
         match self {
-            TradeParameter::MakerHasReputation => "maker-has-reputation".to_string(),
-            TradeParameter::TakerReputationRequired => "taker-reputation-required".to_string(),
-            TradeParameter::BondsRequired => "bonds-required".to_string(),
-            TradeParameter::TrustedEscrow => "trusted-escrow".to_string(),
-            TradeParameter::TrustlessEscrow => "trustless-escrow".to_string(),
-            TradeParameter::TrustedArbitration => "trusted-arbitration".to_string(),
-            TradeParameter::AcceptsPartialTake => "accepts-partial-take".to_string(),
             TradeParameter::TradeTimesOut(timelimit) => {
-                format!("trade-times-out{}", timelimit.to_tag())
+                format!(
+                    "{}{}{}",
+                    self.to_string(),
+                    OBLIGATION_KIND_SPLIT_CHAR,
+                    timelimit.to_string()
+                )
             }
+            _ => self.to_string(),
         }
     }
 
-    fn prefix(&self) -> Option<String> {
-        match self {
-            TradeParameter::TradeTimesOut(timelimit) => match timelimit {
-                TradeTimeOutLimit::TradeEngineSpecific => None,
-                TradeTimeOutLimit::FourDays => Some("trade-times-out".to_string()),
-                TradeTimeOutLimit::OneDay => Some("trade-times-out".to_string()),
-                TradeTimeOutLimit::NoTimeout => Some("trade-times-out".to_string()),
-            },
-            TradeParameter::MakerHasReputation => None,
-            TradeParameter::TakerReputationRequired => None,
-            TradeParameter::BondsRequired => None,
-            TradeParameter::TrustedEscrow => None,
-            TradeParameter::TrustlessEscrow => None,
-            TradeParameter::TrustedArbitration => None,
-            TradeParameter::AcceptsPartialTake => None,
+    fn from_tag(tag_string: &str) -> Result<Option<Self>, N3xbError> {
+        let trade_parameter_trade_times_out_prefix =
+            TradeParameter::TradeTimesOut(TradeTimeOutLimit::default()).to_string();
+        let splits_set: Vec<&str> = tag_string.split(OBLIGATION_KIND_SPLIT_CHAR).collect();
+
+        if splits_set[0] == trade_parameter_trade_times_out_prefix {
+            if splits_set.len() > 1 {
+                let timeout_limit = TradeTimeOutLimit::from_str(splits_set[1])?;
+                return Ok(Some(TradeParameter::TradeTimesOut(timeout_limit)));
+            } else {
+                return Ok(None);
+            }
+        } else {
+            let parameter = TradeParameter::from_str(splits_set[0])?;
+            return Ok(Some(parameter));
         }
     }
 }
 
-impl Display for TradeParameter {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        match self {
-            TradeParameter::MakerHasReputation => write!(f, "Maker has reputation"),
-            TradeParameter::TakerReputationRequired => write!(f, "Taker reputation required"),
-            TradeParameter::BondsRequired => write!(f, "Bonds required"),
-            TradeParameter::TrustedEscrow => write!(f, "Trusted escrow"),
-            TradeParameter::TrustlessEscrow => write!(f, "Trustless escrow"),
-            TradeParameter::TrustedArbitration => write!(f, "Trusted arbitration"),
-            TradeParameter::AcceptsPartialTake => write!(f, "Accepts partial take"),
-            TradeParameter::TradeTimesOut(timelimit) => {
-                write!(f, "Trade Times out with {:?} limit", timelimit)
-            }
-        }
-    }
-}
-
-#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug, Default, EnumString, Display, IntoStaticStr)]
 pub enum TradeTimeOutLimit {
-    FourDays,
-    OneDay,
+    #[default]
     NoTimeout,
+    OneDay,
+    FourDays,
     TradeEngineSpecific,
-}
-
-impl TradeTimeOutLimit {
-    fn to_tag(&self) -> String {
-        match self {
-            TradeTimeOutLimit::FourDays => "-4-days".to_string(),
-            TradeTimeOutLimit::OneDay => "-24-hours".to_string(),
-            TradeTimeOutLimit::NoTimeout => "-none".to_string(),
-            TradeTimeOutLimit::TradeEngineSpecific => "".to_string(),
-        }
-    }
-}
-
-impl Display for TradeTimeOutLimit {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        match self {
-            TradeTimeOutLimit::FourDays => write!(f, "4 days"),
-            TradeTimeOutLimit::OneDay => write!(f, "1 day"),
-            TradeTimeOutLimit::NoTimeout => write!(f, "no timeout"),
-            TradeTimeOutLimit::TradeEngineSpecific => write!(f, "trade engine specific"),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -132,8 +120,8 @@ mod tests {
         let trade_details = test_details_for_(parameters);
         let trade_parameter_tags = trade_details.parameters_to_tags();
         let expected_parameter_tags = HashSet::from([
-            "trade-times-out-24-hours".to_string(),
-            "trade-times-out".to_string(),
+            "TradeTimesOut-OneDay".to_string(),
+            "TradeTimesOut".to_string(),
         ]);
         print!(
             "Parameters: {:?} Expected: {:?}",
@@ -156,12 +144,12 @@ mod tests {
         let trade_parameter_tags = trade_details.parameters_to_tags();
 
         let expected_parameter_tags = HashSet::from([
-            "bonds-required".to_string(),
-            "trustless-escrow".to_string(),
-            "trusted-arbitration".to_string(),
-            "accepts-partial-take".to_string(),
-            "trade-times-out-4-days".to_string(),
-            "trade-times-out".to_string(),
+            "BondsRequired".to_string(),
+            "TrustlessEscrow".to_string(),
+            "TrustedArbitration".to_string(),
+            "AcceptsPartialTake".to_string(),
+            "TradeTimesOut-FourDays".to_string(),
+            "TradeTimesOut".to_string(),
         ]);
 
         print!(
@@ -169,6 +157,34 @@ mod tests {
             trade_parameter_tags, expected_parameter_tags
         );
         assert_eq!(trade_parameter_tags, expected_parameter_tags);
+    }
+
+    #[test]
+    fn trade_details_some_parameters_from_tags() {
+        let parameter_tags = HashSet::from([
+            "BondsRequired".to_string(),
+            "TrustlessEscrow".to_string(),
+            "TrustedArbitration".to_string(),
+            "AcceptsPartialTake".to_string(),
+            "TradeTimesOut-FourDays".to_string(),
+            "TradeTimesOut".to_string(),
+        ]);
+
+        let expected_parameters = HashSet::from([
+            TradeParameter::BondsRequired,
+            TradeParameter::TrustlessEscrow,
+            TradeParameter::TrustedArbitration,
+            TradeParameter::AcceptsPartialTake,
+            TradeParameter::TradeTimesOut(TradeTimeOutLimit::FourDays),
+        ]);
+
+        let parameters = TradeDetails::tags_to_parameters(parameter_tags);
+
+        print!(
+            "Parameters: {:?} Expected: {:?}",
+            parameters, expected_parameters
+        );
+        assert_eq!(parameters, expected_parameters);
     }
 
     #[test]
@@ -187,13 +203,14 @@ mod tests {
         let trade_parameter_tags = trade_details.parameters_to_tags();
 
         let expected_parameter_tags = HashSet::from([
-            "maker-has-reputation".to_string(),
-            "taker-reputation-required".to_string(),
-            "bonds-required".to_string(),
-            "trusted-escrow".to_string(),
-            "trusted-arbitration".to_string(),
-            "accepts-partial-take".to_string(),
-            "trade-times-out".to_string(),
+            "MakerHasReputation".to_string(),
+            "TakerReputationRequired".to_string(),
+            "BondsRequired".to_string(),
+            "TrustedEscrow".to_string(),
+            "TrustedArbitration".to_string(),
+            "AcceptsPartialTake".to_string(),
+            "TradeTimesOut".to_string(),
+            "TradeTimesOut-TradeEngineSpecific".to_string(),
         ]);
 
         print!(
@@ -201,6 +218,38 @@ mod tests {
             trade_parameter_tags, expected_parameter_tags
         );
         assert_eq!(trade_parameter_tags, expected_parameter_tags);
+    }
+
+    #[test]
+    fn trade_details_all_parameters_from_tags() {
+        let parameter_tags = HashSet::from([
+            "MakerHasReputation".to_string(),
+            "TakerReputationRequired".to_string(),
+            "BondsRequired".to_string(),
+            "TrustedEscrow".to_string(),
+            "TrustedArbitration".to_string(),
+            "AcceptsPartialTake".to_string(),
+            "TradeTimesOut".to_string(),
+            "TradeTimesOut-TradeEngineSpecific".to_string(),
+        ]);
+
+        let expected_parameters = HashSet::from([
+            TradeParameter::MakerHasReputation,
+            TradeParameter::TakerReputationRequired,
+            TradeParameter::BondsRequired,
+            TradeParameter::TrustedEscrow,
+            TradeParameter::TrustedArbitration,
+            TradeParameter::AcceptsPartialTake,
+            TradeParameter::TradeTimesOut(TradeTimeOutLimit::TradeEngineSpecific),
+        ]);
+
+        let parameters = TradeDetails::tags_to_parameters(parameter_tags);
+
+        print!(
+            "Parameters: {:?} Expected: {:?}",
+            parameters, expected_parameters
+        );
+        assert_eq!(parameters, expected_parameters);
     }
 
     fn test_details_for_(parameters: HashSet<TradeParameter>) -> TradeDetails {

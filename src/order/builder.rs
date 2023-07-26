@@ -55,23 +55,23 @@ impl<T: TradeEngineSpecfiicsTrait + Clone + Serialize> OrderBuilder<T> {
 
     pub fn build(&self) -> std::result::Result<Order<T>, N3xbError> {
         let Some(trade_uuid) = self.trade_uuid.as_ref() else {
-      return Err(N3xbError::Native("No Trade UUID".to_string()));  // TODO: Error handling?
+      return Err(N3xbError::Simple("No Trade UUID".to_string()));  // TODO: Error handling?
     };
 
         let Some(maker_obligation) = self.maker_obligation.as_ref() else {
-      return Err(N3xbError::Native("No Maker Obligations defined".to_string()));  // TODO: Error handling?
+      return Err(N3xbError::Simple("No Maker Obligations defined".to_string()));  // TODO: Error handling?
     };
 
         let Some(taker_obligation) = self.taker_obligation.as_ref() else {
-      return Err(N3xbError::Native("No Taker Obligations defined".to_string()));  // TODO: Error handling?
+      return Err(N3xbError::Simple("No Taker Obligations defined".to_string()));  // TODO: Error handling?
     };
 
         let Some(trade_details) = self.trade_details.as_ref() else {
-      return Err(N3xbError::Native("No Trade Details defined".to_string()));  // TODO: Error handling?
+      return Err(N3xbError::Simple("No Trade Details defined".to_string()));  // TODO: Error handling?
     };
 
         let Some(trade_engine_specifics) = self.trade_engine_specifics.as_ref() else {
-      return Err(N3xbError::Native("No Engine Details defined".to_string()));  // TODO: Error handling?
+      return Err(N3xbError::Simple("No Engine Details defined".to_string()));  // TODO: Error handling?
     };
 
         let pow_difficulty = self.pow_difficulty.unwrap_or_else(|| 0);

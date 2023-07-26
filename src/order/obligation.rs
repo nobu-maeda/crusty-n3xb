@@ -122,7 +122,7 @@ impl ObligationKind {
 
             let splits_prefix = splits_set[0];
             if !obligation_kind_prefix_set.contains(splits_prefix) {
-                return Err(N3xbError::Native(
+                return Err(N3xbError::Simple(
                     "Unrecgonized Obligation Kind Prefix".to_string(),
                 ));
             } else if let Some(kind_prefix_unwrapped) = &kind_prefix {
@@ -131,7 +131,7 @@ impl ObligationKind {
                         "Obligation tag set contains contradictory prefixes\n {:?}",
                         tags
                     );
-                    return Err(N3xbError::Native(err_string));
+                    return Err(N3xbError::Simple(err_string));
                 }
             } else {
                 kind_prefix = Some(splits_prefix.to_string());

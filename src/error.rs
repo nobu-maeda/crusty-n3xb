@@ -4,7 +4,8 @@ use iso_currency::ParseCurrencyError;
 
 #[derive(Debug)]
 pub enum N3xbError {
-    Native(String),
+    Simple(String),
+    TagParsing(String),
     StrumParsing(strum::ParseError),
     CurrencyParsing(ParseCurrencyError),
 }
@@ -14,7 +15,10 @@ impl Error for N3xbError {}
 impl fmt::Display for N3xbError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let error_string = match self {
-            N3xbError::Native(msg) => format!("n3xB-Error | Other - {}", msg),
+            N3xbError::Simple(msg) => format!("n3xB-Error | Other - {}", msg),
+            N3xbError::TagParsing(tag) => {
+                format!("n3xB-Error | TagParsing - Cannot parse tag {}", tag)
+            }
             N3xbError::StrumParsing(err) => {
                 format!("n3xB-Error | StrumParseError - {}", err.to_string())
             }
