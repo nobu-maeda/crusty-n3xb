@@ -1,8 +1,7 @@
 use super::{obligation::*, trade_details::*, trade_engine_details::*};
-use serde::Serialize;
 
 #[derive(Clone)]
-pub struct Order<T: TradeEngineSpecfiicsTrait + Clone + Serialize> {
+pub struct Order<T: TradeEngineSpecfiicsTrait> {
     pub trade_uuid: String, // TODO: Change to UUID type
     pub maker_obligation: MakerObligation,
     pub taker_obligation: TakerObligation,

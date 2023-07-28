@@ -1,4 +1,4 @@
-use std::fmt::*;
+use serde::{de::DeserializeOwned, Serialize};
+use std::fmt::Debug;
 
-#[typetag::serde(tag = "type")]
-pub trait TradeEngineSpecfiicsTrait: Debug {}
+pub trait TradeEngineSpecfiicsTrait: Serialize + DeserializeOwned + Clone + Debug {}

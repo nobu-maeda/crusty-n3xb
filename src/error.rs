@@ -1,13 +1,14 @@
 use std::{error::Error, fmt};
 
-use iso_currency::ParseCurrencyError;
-
 #[derive(Debug)]
 pub enum N3xbError {
     Simple(String),
     TagParsing(String),
     StrumParsing(strum::ParseError),
-    CurrencyParsing(ParseCurrencyError),
+    CurrencyParsing(iso_currency::ParseCurrencyError),
+    NostrClient(nostr_sdk::client::Error),
+    NostrEvent(nostr_sdk::event::Error),
+    SerdesJson(serde_json::Error),
 }
 
 impl Error for N3xbError {}
@@ -25,6 +26,15 @@ impl fmt::Display for N3xbError {
             N3xbError::CurrencyParsing(err) => {
                 format!("n3xB-Error | ParseCurrencyError - {}", err.to_string())
             }
+            N3xbError::NostrClient(err) => {
+                format!("n3xB-Error | NostrClientError - {}", err.to_string())
+            }
+            N3xbError::NostrEvent(err) => {
+                format!("n3xB-Error | NostrEventError - {}", err.to_string())
+            }
+            N3xbError::SerdesJson(err) => {
+                format!("n3xB-Error | SerdesJsonError - {}", err.to_string())
+            }
         };
         write!(f, "{}", error_string)
     }
@@ -37,7 +47,25 @@ impl From<strum::ParseError> for N3xbError {
 }
 
 impl From<iso_currency::ParseCurrencyError> for N3xbError {
-    fn from(e: ParseCurrencyError) -> N3xbError {
+    fn from(e: iso_currency::ParseCurrencyError) -> N3xbError {
         N3xbError::CurrencyParsing(e)
+    }
+}
+
+impl From<nostr_sdk::client::Error> for N3xbError {
+    fn from(e: nostr_sdk::client::Error) -> N3xbError {
+        N3xbError::NostrClient(e)
+    }
+}
+
+impl From<nostr_sdk::event::Error> for N3xbError {
+    fn from(e: nostr_sdk::event::Error) -> N3xbError {
+        N3xbError::NostrEvent(e)
+    }
+}
+
+impl From<serde_json::Error> for N3xbError {
+    fn from(e: serde_json::Error) -> N3xbError {
+        N3xbError::SerdesJson(e)
     }
 }

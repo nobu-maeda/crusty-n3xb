@@ -3,7 +3,10 @@ use std::any::Any;
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter, Result};
 use std::hash::Hash;
+use std::{collections::HashSet, str::FromStr};
 use strum_macros::{Display, EnumString, IntoStaticStr};
+
+use crate::error::N3xbError;
 
 pub enum BuySell {
     Buy,
@@ -21,16 +24,24 @@ pub enum OrderTag {
     ApplicationTag(String),
 }
 
+const ORDER_TAG_TRADE_UUID_KEY: &str = "i";
+const ORDER_TAG_MAKER_OBLIGATIONS_KEY: &str = "m";
+const ORDER_TAG_TAKER_OBLIGATIONS_KEY: &str = "t";
+const ORDER_TAG_TRADE_DETAIL_PARAMETERS_KEY: &str = "p";
+const ORDER_TAG_TRADE_ENGINE_NAME_KEY: &str = "n";
+const ORDER_TAG_EVENT_KIND_KEY: &str = "k";
+const ORDER_TAG_APPLICATION_TAG_KEY: &str = "d";
+
 impl OrderTag {
     pub fn key(&self) -> String {
         let str = match self {
-            OrderTag::TradeUUID(_) => "i",
-            OrderTag::MakerObligations(_) => "m",
-            OrderTag::TakerObligations(_) => "t",
-            OrderTag::TradeDetailParameters(_) => "p",
-            OrderTag::TradeEngineName(_) => "n",
-            OrderTag::EventKind(_) => "k",
-            OrderTag::ApplicationTag(_) => "d",
+            OrderTag::TradeUUID(_) => ORDER_TAG_TRADE_UUID_KEY,
+            OrderTag::MakerObligations(_) => ORDER_TAG_MAKER_OBLIGATIONS_KEY,
+            OrderTag::TakerObligations(_) => ORDER_TAG_TAKER_OBLIGATIONS_KEY,
+            OrderTag::TradeDetailParameters(_) => ORDER_TAG_TRADE_DETAIL_PARAMETERS_KEY,
+            OrderTag::TradeEngineName(_) => ORDER_TAG_TRADE_ENGINE_NAME_KEY,
+            OrderTag::EventKind(_) => ORDER_TAG_EVENT_KIND_KEY,
+            OrderTag::ApplicationTag(_) => ORDER_TAG_APPLICATION_TAG_KEY,
         };
         str.to_string()
     }
@@ -40,17 +51,36 @@ impl OrderTag {
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum EventKind {
-    MakerOrder,
-}
-
-impl Display for EventKind {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        match self {
-            EventKind::MakerOrder => write!(f, "maker-order"),
+    pub fn from_key(key: String, value: Vec<String>) -> Result<Self, N3xbError> {
+        match key.as_str() {
+            ORDER_TAG_TRADE_UUID_KEY => Ok(OrderTag::TradeUUID(value[0].clone())),
+            ORDER_TAG_MAKER_OBLIGATIONS_KEY => {
+                let tag_set: HashSet<String> = HashSet::from_iter(value);
+                Ok(OrderTag::MakerObligations(tag_set))
+            }
+            ORDER_TAG_TAKER_OBLIGATIONS_KEY => {
+                Ok(OrderTag::TakerObligations(HashSet::from_iter(value)))
+            }
+            ORDER_TAG_TRADE_DETAIL_PARAMETERS_KEY => {
+                Ok(OrderTag::TradeDetailParameters(HashSet::from_iter(value)))
+            }
+            ORDER_TAG_TRADE_ENGINE_NAME_KEY => Ok(OrderTag::TradeEngineName(value[0].clone())),
+            ORDER_TAG_EVENT_KIND_KEY => {
+                let event_kind = EventKind::from_str(value[0].as_str())?;
+                Ok(OrderTag::EventKind(event_kind))
+            }
+            ORDER_TAG_APPLICATION_TAG_KEY => Ok(OrderTag::ApplicationTag(value[0].clone())),
+            _ => Err(N3xbError::Simple(format!(
+                "Unrecognized key '{}' for Order Tag",
+                key
+            ))),
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Display, EnumString, IntoStaticStr)]
+pub enum EventKind {
+    MakerOrder,
 }
 
 pub static N3XB_APPLICATION_TAG: &str = "n3xb";

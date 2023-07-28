@@ -1,3 +1,4 @@
+use crate::error::N3xbError;
 use crate::interface::{nostr::*, *};
 use crate::order::{Order, TradeEngineSpecfiicsTrait};
 use crate::order_sm::maker::MakerSM;
@@ -12,7 +13,7 @@ use std::{
 
 // At the moment we only support a single Trade Engine at a time.
 // Might need to change to a dyn Trait if mulitple is to be supported at a time
-pub struct Manager<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize> {
+pub struct Manager<EngineSpecificsType: TradeEngineSpecfiicsTrait> {
     interface: ArcInterface<EngineSpecificsType>,
     // order_cache: HashMap<Order>,
     // maker_sms: HashMap<MakerSM>,
@@ -21,9 +22,7 @@ pub struct Manager<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Seri
     _phantom_engine_specifics: PhantomData<EngineSpecificsType>,
 }
 
-impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize>
-    Manager<EngineSpecificsType>
-{
+impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone> Manager<EngineSpecificsType> {
     // Public Functions
 
     // Constructors
@@ -64,6 +63,12 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize>
             trade_engine_name: trade_engine_name.to_string(),
             _phantom_engine_specifics: PhantomData,
         }
+    }
+
+    // Query Orders
+
+    pub async fn query_order_notes(&self) -> Result<Vec<Order<EngineSpecificsType>>, N3xbError> {
+        self.interface.lock().unwrap().query_order_notes().await
     }
 
     fn load_settings() {

@@ -1,7 +1,6 @@
 use super::peer_messaging::*;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use typetag;
 
 // Take Order Message Data Structure
 
@@ -13,7 +12,6 @@ pub struct Obligation {
     bond_amount: Option<u64>,
 }
 
-#[typetag::serialize(tag = "type")]
 pub trait TradeEngineSpecfiicsTrait: Debug {}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -24,6 +22,5 @@ pub struct TakeOrderMessage<T: TradeEngineSpecfiicsTrait + Serialize + Clone> {
     trade_engine_specifics: T,
     pow_difficulty: u64,
 }
-
-#[typetag::serialize(name = "n3xB-take-order")] // TODO: What about deserialization?
+// TODO: What about deserialization?
 impl<T: TradeEngineSpecfiicsTrait + Serialize + Clone> PeerMessageTrait for TakeOrderMessage<T> {}

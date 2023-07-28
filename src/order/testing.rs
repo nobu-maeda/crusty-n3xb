@@ -2,7 +2,6 @@ use super::{obligation::*, trade_details::*, trade_engine_details::*, types::*};
 use iso_currency::Currency;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use typetag;
 
 pub struct SomeTestParams {}
 
@@ -75,5 +74,4 @@ pub struct SomeTradeEngineMakerOrderSpecifics {
     pub test_specific_field: String,
 }
 
-#[typetag::serde(name = "test-trade-engine")]
 impl TradeEngineSpecfiicsTrait for SomeTradeEngineMakerOrderSpecifics {}

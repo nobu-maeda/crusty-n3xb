@@ -2,16 +2,13 @@ use crate::{
     interface::ArcInterface,
     order::{Order, TradeEngineSpecfiicsTrait},
 };
-use serde::Serialize;
 
-pub struct MakerSM<'a, EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize> {
+pub struct MakerSM<'a, EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone> {
     interface: &'a ArcInterface<EngineSpecificsType>,
     order: Order<EngineSpecificsType>,
 }
 
-impl<'a, EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone + Serialize>
-    MakerSM<'a, EngineSpecificsType>
-{
+impl<'a, EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone> MakerSM<'a, EngineSpecificsType> {
     pub async fn new(
         interface: &'a ArcInterface<EngineSpecificsType>,
         order: Order<EngineSpecificsType>,

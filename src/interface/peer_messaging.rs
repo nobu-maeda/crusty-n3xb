@@ -1,10 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use typetag;
 
 // Peer Messaging Data Structure
 
-#[typetag::serialize(tag = "type")]
 pub trait PeerMessageTrait: Debug {}
 
 #[derive(Debug, Deserialize, Serialize)]
