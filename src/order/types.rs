@@ -1,7 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::any::Any;
-use std::collections::HashSet;
-use std::fmt::{Display, Formatter, Result};
 use std::hash::Hash;
 use std::{collections::HashSet, str::FromStr};
 use strum_macros::{Display, EnumString, IntoStaticStr};
@@ -49,9 +46,8 @@ impl OrderTag {
     pub fn key_for(tag: OrderTag) -> String {
         tag.key()
     }
-}
 
-    pub fn from_key(key: String, value: Vec<String>) -> Result<Self, N3xbError> {
+    pub fn from_key(key: String, value: Vec<String>) -> Result<OrderTag, N3xbError> {
         match key.as_str() {
             ORDER_TAG_TRADE_UUID_KEY => Ok(OrderTag::TradeUUID(value[0].clone())),
             ORDER_TAG_MAKER_OBLIGATIONS_KEY => {

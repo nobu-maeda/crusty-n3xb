@@ -36,7 +36,7 @@ mod make_order_tests {
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
 
         let order = builder.build().unwrap();
-        let _ = manager.make_new_order(order).await;
+        let _ = manager.make_new_order(order).await.unwrap();
 
         // TODO: Actually validate by reading back the order, Tags and JSON content is as expected
     }

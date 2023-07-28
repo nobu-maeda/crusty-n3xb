@@ -66,7 +66,10 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait> NostrInterface<EngineSpecif
 
     // Send Maker Order
 
-    pub async fn send_maker_order_note(&self, order: Order<EngineSpecificsType>) {
+    pub async fn send_maker_order_note(
+        &self,
+        order: Order<EngineSpecificsType>,
+    ) -> Result<(), N3xbError> {
         // Create Note Content
         let maker_order_note = MakerOrderNote {
             maker_obligation: order.maker_obligation.content.to_owned(),
@@ -76,7 +79,7 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait> NostrInterface<EngineSpecif
             pow_difficulty: order.pow_difficulty,
         };
 
-        let content_string = serde_json::to_string(&maker_order_note).unwrap(); // TODO: Error Handling?
+        let content_string = serde_json::to_string(&maker_order_note)?;
 
         // Create Note Tags
         let mut tag_set: Vec<OrderTag> = Vec::new();
@@ -107,8 +110,8 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait> NostrInterface<EngineSpecif
             .lock()
             .unwrap()
             .send_event(builder.to_event(&keys).unwrap())
-            .await
-            .unwrap();
+            .await?;
+        Ok(())
     }
 
     fn create_event_tags(tags: Vec<OrderTag>) -> Vec<Tag> {

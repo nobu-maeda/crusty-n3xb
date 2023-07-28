@@ -1,14 +1,11 @@
 use crate::error::N3xbError;
 use crate::interface::{nostr::*, *};
-use crate::order::{Order, TradeEngineSpecfiicsTrait};
+use crate::order::{Order, OrderBuilder, TradeEngineSpecfiicsTrait};
 use crate::order_sm::maker::MakerSM;
-use serde::Serialize;
-use serde_json::{Map, Value};
 
 use std::{
     marker::PhantomData,
     sync::{Arc, Mutex},
-    time::Duration,
 };
 
 // At the moment we only support a single Trade Engine at a time.
@@ -65,7 +62,14 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone> Manager<EngineSpeci
         }
     }
 
-    // Query Orders
+    // Order Management
+
+    pub async fn make_new_order(
+        &self,
+        order: Order<EngineSpecificsType>,
+    ) -> Result<MakerSM<EngineSpecificsType>, N3xbError> {
+        MakerSM::new(&self.interface, order).await
+    }
 
     pub async fn query_order_notes(&self) -> Result<Vec<Order<EngineSpecificsType>>, N3xbError> {
         self.interface.lock().unwrap().query_order_notes().await
@@ -74,33 +78,6 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone> Manager<EngineSpeci
     fn load_settings() {
         // TODO: Read all files from relevant directories, scan for settings, and load into memory
         // Settings should be applied later as applicable from the memory location
-    }
-
-    pub async fn query_orders(&self) -> Vec<dyn Order> {
-        let application_tag = OrderTag::ApplicationTag(N3XB_APPLICATION_TAG.to_string());
-
-        let mut filter_tags = Map::new();
-        filter_tags.insert(
-            application_tag.key(),
-            Value::Array(vec![Value::String(N3XB_APPLICATION_TAG.to_string())]),
-        );
-
-        let filter = Filter::new()
-            .since(Timestamp::now())
-            .kind(Kind::ParameterizedReplaceable(30078))
-            .custom(filter_tags);
-
-        let timeout = Duration::from_secs(1);
-
-        let events = self
-            .event_msg_client
-            .lock()
-            .unwrap()
-            .get_events_of(vec![filter], Some(timeout))
-            .await
-            .unwrap();
-
-        vec![]
     }
 
     // Private Functions

@@ -1,4 +1,5 @@
 use crate::{
+    error::N3xbError,
     interface::ArcInterface,
     order::{Order, TradeEngineSpecfiicsTrait},
 };
@@ -12,12 +13,16 @@ impl<'a, EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone> MakerSM<'a, Eng
     pub async fn new(
         interface: &'a ArcInterface<EngineSpecificsType>,
         order: Order<EngineSpecificsType>,
-    ) -> MakerSM<'a, EngineSpecificsType> {
+    ) -> Result<MakerSM<'a, EngineSpecificsType>, N3xbError> {
         let maker_sm = MakerSM {
             interface,
             order: order.clone(),
         };
-        interface.lock().unwrap().send_maker_order_note(order).await;
-        maker_sm
+        interface
+            .lock()
+            .unwrap()
+            .send_maker_order_note(order)
+            .await?;
+        Ok(maker_sm)
     }
 }
