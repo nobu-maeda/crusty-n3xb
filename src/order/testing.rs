@@ -67,6 +67,10 @@ impl SomeTestParams {
     pub fn pow_difficulty() -> u64 {
         8u64
     }
+
+    pub fn expected_json_string() -> String {
+        "{\"maker_obligation\":{\"amount\":1000000,\"amount_min\":null},\"taker_obligation\":{\"limit_rate\":1e-6,\"market_offset_pct\":null,\"market_oracles\":null},\"trade_details\":{\"maker_bond_pct\":null,\"taker_bond_pct\":null,\"trade_timeout\":null},\"trade_engine_specifics\":{\"test_specific_field\":\"some-test-specific-info\"},\"pow_difficulty\":8}".to_string()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

@@ -64,7 +64,7 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait> NostrInterface<EngineSpecif
         Arc::new(Mutex::new(client))
     }
 
-    // Send Maker Order
+    // Send Maker Order Note
 
     pub async fn send_maker_order_note(
         &self,
@@ -146,6 +146,8 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait> NostrInterface<EngineSpecif
             .collect()
     }
 
+    // Query Order Notes
+
     pub async fn query_order_notes(&self) -> Result<Vec<Order<EngineSpecificsType>>, N3xbError> {
         let mut tag_set: Vec<OrderTag> = Vec::new();
         tag_set.push(OrderTag::TradeEngineName(self.trade_engine_name.to_owned()));
@@ -155,7 +157,7 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait> NostrInterface<EngineSpecif
         let filter = Self::create_event_tag_filter(tag_set);
         let timeout = Duration::from_secs(1);
         let events = self
-            .subscription_client
+            .event_msg_client
             .lock()
             .unwrap()
             .get_events_of(vec![filter], Some(timeout))
@@ -351,20 +353,21 @@ mod tests {
     use super::*;
     use crate::order::testing::*;
 
-    fn send_event_expectation(event: Event) -> Result<EventId, Error> {
-        print!("Nostr Event: {:?}", event); // TODO: Actually validate the event, Tags and JSON content is as expected
-        Result::Ok(event.id)
+    fn send_maker_order_note_expectation(event: Event) -> Result<EventId, Error> {
+        print!("Nostr Event: {:?}", event);
+        assert!(event.content == SomeTestParams::expected_json_string());
+        Ok(event.id)
     }
 
     #[tokio::test]
-    async fn order_send_maker_note() {
+    async fn test_send_maker_order_note() {
         let mut event_msg_client = Client::new();
         event_msg_client
             .expect_keys()
             .returning(|| Keys::generate());
         event_msg_client
             .expect_send_event()
-            .returning(send_event_expectation);
+            .returning(send_maker_order_note_expectation);
 
         let subscription_client = Client::new();
 
@@ -402,5 +405,48 @@ mod tests {
             trade_engine_specifics,
             pow_difficulty: SomeTestParams::pow_difficulty(),
         };
+
+        interface.send_maker_order_note(order).await.unwrap();
+    }
+
+    fn query_order_notes_expectation(
+        filters: Vec<Filter>,
+        timeout: Option<Duration>,
+    ) -> Result<Vec<Event>, Error> {
+        let mut tag_set: Vec<OrderTag> = Vec::new();
+        tag_set.push(OrderTag::TradeEngineName(SomeTestParams::engine_name_str()));
+        tag_set.push(OrderTag::EventKind(EventKind::MakerOrder));
+        tag_set.push(OrderTag::ApplicationTag(N3XB_APPLICATION_TAG.to_string()));
+        let expected_filter =
+            NostrInterface::<SomeTradeEngineMakerOrderSpecifics>::create_event_tag_filter(tag_set);
+        assert!(vec![expected_filter] == filters);
+
+        let expected_timeout = Duration::from_secs(1);
+        assert!(expected_timeout == timeout.unwrap());
+
+        let empty_event_vec: Vec<Event> = Vec::new();
+        Ok(empty_event_vec)
+    }
+
+    #[tokio::test]
+    async fn test_query_order_notes() {
+        let mut event_msg_client = Client::new();
+        event_msg_client
+            .expect_keys()
+            .returning(|| Keys::generate());
+        event_msg_client
+            .expect_get_events_of()
+            .returning(query_order_notes_expectation);
+
+        let subscription_client = Client::new();
+
+        let interface: NostrInterface<SomeTradeEngineMakerOrderSpecifics> =
+            NostrInterface::new_with_nostr(
+                event_msg_client,
+                subscription_client,
+                &SomeTestParams::engine_name_str(),
+            );
+
+        let _ = interface.query_order_notes().await.unwrap();
     }
 }

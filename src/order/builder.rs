@@ -94,7 +94,7 @@ mod tests {
     use core::panic;
 
     #[tokio::test]
-    async fn order_builder_build() {
+    async fn test_order_builder_build() {
         let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
@@ -165,7 +165,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn order_builder_build_trade_uuid_missing() {
+    async fn test_order_builder_build_trade_uuid_missing() {
         let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
 
         builder.maker_obligation(MakerObligation {
@@ -202,7 +202,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn order_builder_build_maker_obligation_missing() {
+    async fn test_order_builder_build_maker_obligation_missing() {
         let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
@@ -234,7 +234,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn order_builder_build_taker_obligation_missing() {
+    async fn test_order_builder_build_taker_obligation_missing() {
         let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
@@ -266,7 +266,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn order_builder_build_trade_details_missing() {
+    async fn test_order_builder_build_trade_details_missing() {
         let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
@@ -298,7 +298,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn order_builder_build_engine_details_missing() {
+    async fn test_order_builder_build_engine_details_missing() {
         let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
@@ -331,7 +331,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn order_builder_build_pow_difficulty_default() {
+    async fn test_order_builder_build_pow_difficulty_default() {
         let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());

@@ -7,7 +7,7 @@ mod make_order_tests {
     };
 
     #[tokio::test]
-    async fn make_new_order() {
+    async fn test_make_new_order() {
         let manager: Manager<SomeTradeEngineMakerOrderSpecifics> =
             Manager::new(&SomeTestParams::engine_name_str()).await;
         let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();

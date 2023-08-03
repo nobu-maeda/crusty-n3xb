@@ -1,6 +1,6 @@
 use crate::error::N3xbError;
 use crate::interface::{nostr::*, *};
-use crate::order::{Order, OrderBuilder, TradeEngineSpecfiicsTrait};
+use crate::order::{Order, TradeEngineSpecfiicsTrait};
 use crate::order_sm::maker::MakerSM;
 
 use std::{
