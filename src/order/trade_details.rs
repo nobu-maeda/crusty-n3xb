@@ -6,7 +6,7 @@ use std::result::Result;
 use std::str::FromStr;
 use strum_macros::{Display, EnumString, IntoStaticStr};
 
-#[derive(Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TradeDetails {
     pub parameters: HashSet<TradeParameter>,
     pub content: TradeDetailsContent,
@@ -53,7 +53,9 @@ pub struct TradeDetailsContent {
     pub trade_timeout: Option<u32>,
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Debug, EnumString, Display, IntoStaticStr)]
+#[derive(
+    Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Debug, EnumString, Display, IntoStaticStr,
+)]
 pub enum TradeParameter {
     MakerHasReputation,
     TakerReputationRequired,
@@ -101,7 +103,19 @@ impl TradeParameter {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Debug, Default, EnumString, Display, IntoStaticStr)]
+#[derive(
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Eq,
+    Hash,
+    Clone,
+    Debug,
+    Default,
+    EnumString,
+    Display,
+    IntoStaticStr,
+)]
 pub enum TradeTimeOutLimit {
     #[default]
     NoTimeout,

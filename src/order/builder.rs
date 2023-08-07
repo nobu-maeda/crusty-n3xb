@@ -1,9 +1,8 @@
 use super::{obligation::*, order::*, trade_details::*};
 use crate::common::SerdeGenericTrait;
 use crate::error::*;
-use serde::Serialize;
 
-pub struct OrderBuilder<T: SerdeGenericTrait + Clone + Serialize> {
+pub struct OrderBuilder<T: SerdeGenericTrait> {
     trade_uuid: Option<String>, // TODO: Change to UUID type
     maker_obligation: Option<MakerObligation>,
     taker_obligation: Option<TakerObligation>,

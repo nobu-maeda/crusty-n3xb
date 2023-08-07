@@ -7,13 +7,13 @@ use std::str::FromStr;
 use std::{collections::HashSet, fmt::Debug};
 use strum_macros::{Display, IntoStaticStr};
 
-#[derive(Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct MakerObligation {
     pub kind: ObligationKind,
     pub content: MakerObligationContent,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TakerObligation {
     pub kind: ObligationKind,
     pub content: TakerObligationContent,
@@ -32,7 +32,7 @@ pub struct TakerObligationContent {
     pub market_oracles: Option<HashSet<String>>, // TODO: Change to hashset of URL type
 }
 
-#[derive(PartialEq, Clone, Display, Debug, IntoStaticStr)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Display, Debug, IntoStaticStr)]
 pub enum ObligationKind {
     Bitcoin(HashSet<BitcoinSettlementMethod>),
     Fiat(Currency, HashSet<FiatPaymentMethod>),

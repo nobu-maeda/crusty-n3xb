@@ -85,7 +85,9 @@ pub enum EventKind {
 
 pub static N3XB_APPLICATION_TAG: &str = "n3xb";
 
-#[derive(PartialEq, Eq, Hash, Clone, Debug, EnumString, Display, IntoStaticStr)]
+#[derive(
+    Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Debug, EnumString, Display, IntoStaticStr,
+)]
 pub enum BitcoinSettlementMethod {
     Onchain,
     Lightning,
