@@ -6,7 +6,7 @@ mod make_order_tests {
     use tracing::info;
 
     use super::relay;
-    use crusty_n3xb::order::testing::*;
+    use crusty_n3xb::testing::*;
     use crusty_n3xb::{
         manager::Manager,
         order::{MakerObligation, OrderBuilder, TakerObligation, TradeDetails},
@@ -59,8 +59,38 @@ mod make_order_tests {
         }
 
         let orders = manager.query_order_notes().await.unwrap();
-        assert!(orders.len() == 1);
-        // TODO: Actually validate by reading back the order, Tags and JSON content is as expected
+        assert_eq!(orders.len(), 1);
+
+        assert_eq!(orders[0].trade_uuid, SomeTestParams::some_uuid_string());
+        assert_eq!(
+            orders[0].maker_obligation.kind,
+            SomeTestParams::maker_obligation_kind()
+        );
+        assert_eq!(
+            orders[0].maker_obligation.content,
+            SomeTestParams::maker_obligation_content()
+        );
+        assert_eq!(
+            orders[0].taker_obligation.kind,
+            SomeTestParams::taker_obligation_kind()
+        );
+        assert_eq!(
+            orders[0].taker_obligation.content,
+            SomeTestParams::taker_obligation_content()
+        );
+        assert_eq!(
+            orders[0].trade_details.parameters,
+            SomeTestParams::trade_parameters()
+        );
+        assert_eq!(
+            orders[0].trade_details.content,
+            SomeTestParams::trade_details_content()
+        );
+        assert_eq!(
+            orders[0].trade_engine_specifics.test_specific_field,
+            SomeTestParams::engine_specific_str()
+        );
+        assert_eq!(orders[0].pow_difficulty, SomeTestParams::pow_difficulty());
 
         // Shutdown the relay
         relay.shutdown_tx.send(()).unwrap();

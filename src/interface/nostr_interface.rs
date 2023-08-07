@@ -1,8 +1,5 @@
 use super::{maker_order_note::*, nostr::*};
-use crate::{
-    error::N3xbError,
-    order::{types::*, *},
-};
+use crate::{error::N3xbError, order::*};
 use log::warn;
 pub use serde_json::{Map, Value};
 use std::time::Duration;
@@ -213,18 +210,13 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait> NostrInterface<EngineSpecif
     fn extract_order_tags_from_tags(&self, tags: Vec<Tag>) -> Vec<OrderTag> {
         let mut order_tags: Vec<OrderTag> = Vec::new();
         for tag in tags {
-            if let Tag::Generic(kind, value) = tag {
-                if let TagKind::Custom(key) = kind {
-                    if let Ok(order_tag) = OrderTag::from_key(key.clone(), value) {
-                        order_tags.push(order_tag);
-                    } else {
-                        warn!("Unrecognized Tag with key: {}", key);
-                    }
-                } else {
-                    warn!("Unexpected Tag with kind: {}", kind.to_string());
-                }
+            let mut tag_vec = tag.as_vec();
+            let tag_key = tag_vec.remove(0);
+
+            if let Ok(order_tag) = OrderTag::from_key(tag_key.clone(), tag_vec) {
+                order_tags.push(order_tag);
             } else {
-                warn!("Unexpected Tag extracted");
+                warn!("Unrecognized Tag with key: {}", tag_key);
             }
         }
         order_tags
@@ -382,7 +374,7 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait> NostrInterface<EngineSpecif
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::order::testing::*;
+    use crate::testing::*;
 
     fn send_maker_order_note_expectation(event: Event) -> Result<EventId, Error> {
         print!("Nostr Event: {:?}", event);
