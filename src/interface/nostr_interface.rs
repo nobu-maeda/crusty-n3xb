@@ -309,6 +309,7 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait> NostrInterface<EngineSpecif
         };
 
         Ok(Order {
+            event_id: event.id.to_string(),
             trade_uuid,
             maker_obligation,
             taker_obligation,
@@ -421,6 +422,7 @@ mod tests {
         };
 
         let order = Order {
+            event_id: "".to_string(),
             trade_uuid: SomeTestParams::some_uuid_string(),
             maker_obligation,
             taker_obligation,

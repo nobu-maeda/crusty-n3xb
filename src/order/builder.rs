@@ -77,6 +77,7 @@ impl<T: TradeEngineSpecfiicsTrait + Clone + Serialize> OrderBuilder<T> {
         let pow_difficulty = self.pow_difficulty.unwrap_or_else(|| 0);
 
         Ok(Order {
+            event_id: "".to_string(),
             trade_uuid: trade_uuid.to_owned(),
             maker_obligation: maker_obligation.to_owned(),
             taker_obligation: taker_obligation.to_owned(),

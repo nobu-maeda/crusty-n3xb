@@ -2,6 +2,7 @@ use crate::error::N3xbError;
 use crate::interface::{nostr::*, *};
 use crate::order::{Order, TradeEngineSpecfiicsTrait};
 use crate::order_sm::maker::MakerSM;
+use crate::order_sm::taker::TakerSM;
 
 use std::net::SocketAddr;
 use std::{
@@ -77,11 +78,20 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone> Manager<EngineSpeci
         &self,
         order: Order<EngineSpecificsType>,
     ) -> Result<MakerSM<EngineSpecificsType>, N3xbError> {
+        //TODO: Persist MakerSM
         MakerSM::new(&self.interface, order).await
     }
 
     pub async fn query_order_notes(&self) -> Result<Vec<Order<EngineSpecificsType>>, N3xbError> {
         self.interface.lock().unwrap().query_order_notes().await
+    }
+
+    pub async fn take_order(
+        &self,
+        order: Order<EngineSpecificsType>,
+    ) -> Result<TakerSM<EngineSpecificsType>, N3xbError> {
+        //TODO: Persist TakerSM
+        TakerSM::new(&self.interface, order).await
     }
 
     fn load_settings() {
