@@ -1,3 +1,4 @@
+use crate::common::SerdeGenericTrait;
 use crate::order::*;
 use iso_currency::Currency;
 use serde::{Deserialize, Serialize};
@@ -78,4 +79,4 @@ pub struct SomeTradeEngineMakerOrderSpecifics {
     pub test_specific_field: String,
 }
 
-impl TradeEngineSpecfiicsTrait for SomeTradeEngineMakerOrderSpecifics {}
+impl SerdeGenericTrait for SomeTradeEngineMakerOrderSpecifics {}

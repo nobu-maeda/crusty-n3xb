@@ -1,7 +1,6 @@
-use super::{maker_order_note::*, nostr::*};
-use crate::{error::N3xbError, order::*};
-use log::warn;
 pub use serde_json::{Map, Value};
+
+use log::warn;
 use std::time::Duration;
 use std::{collections::HashSet, marker::PhantomData};
 use std::{
@@ -9,14 +8,18 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-pub struct NostrInterface<EngineSpecificsType: TradeEngineSpecfiicsTrait> {
+use super::{maker_order_note::*, nostr::*};
+use crate::common::SerdeGenericTrait;
+use crate::{error::N3xbError, order::*};
+
+pub struct NostrInterface<EngineSpecificsType: SerdeGenericTrait> {
     event_msg_client: ArcClient,
     subscription_client: ArcClient,
     trade_engine_name: String,
     _phantom_engine_specifics: PhantomData<EngineSpecificsType>,
 }
 
-impl<EngineSpecificsType: TradeEngineSpecfiicsTrait> NostrInterface<EngineSpecificsType> {
+impl<EngineSpecificsType: SerdeGenericTrait> NostrInterface<EngineSpecificsType> {
     const MAKER_ORDER_NOTE_KIND: Kind = Kind::ParameterizedReplaceable(30078);
 
     // Constructors

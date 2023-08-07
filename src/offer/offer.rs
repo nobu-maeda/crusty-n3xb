@@ -1,4 +1,6 @@
-use super::peer_messaging::*;
+use crate::common::SerdeGenericTrait;
+use create::interface::peer_messaging::*;
+
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
@@ -12,10 +14,10 @@ pub struct Obligation {
     bond_amount: Option<u64>,
 }
 
-pub trait TradeEngineSpecfiicsTrait: Debug {}
+pub trait SerdeGenericTrait: Debug {}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct TakeOrderMessage<T: TradeEngineSpecfiicsTrait + Serialize + Clone> {
+pub struct TakeOrderMessage<T: SerdeGenericTrait> {
     maker_obligation: Obligation,
     taker_obligation: Obligation,
     market_oracle_used: Option<String>, // TODO: Change to URL type
@@ -23,4 +25,4 @@ pub struct TakeOrderMessage<T: TradeEngineSpecfiicsTrait + Serialize + Clone> {
     pow_difficulty: u64,
 }
 // TODO: What about deserialization?
-impl<T: TradeEngineSpecfiicsTrait + Serialize + Clone> PeerMessageTrait for TakeOrderMessage<T> {}
+impl<T: SerdeGenericTrait> PeerMessageTrait for TakeOrderMessage<T> {}

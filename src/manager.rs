@@ -1,6 +1,7 @@
+use crate::common::SerdeGenericTrait;
 use crate::error::N3xbError;
 use crate::interface::{nostr::*, *};
-use crate::order::{Order, TradeEngineSpecfiicsTrait};
+use crate::order::Order;
 use crate::order_sm::maker::MakerSM;
 use crate::order_sm::taker::TakerSM;
 
@@ -12,7 +13,7 @@ use std::{
 
 // At the moment we only support a single Trade Engine at a time.
 // Might need to change to a dyn Trait if mulitple is to be supported at a time
-pub struct Manager<EngineSpecificsType: TradeEngineSpecfiicsTrait> {
+pub struct Manager<EngineSpecificsType: SerdeGenericTrait> {
     interface: ArcInterface<EngineSpecificsType>,
     // order_cache: HashMap<Order>,
     // maker_sms: HashMap<MakerSM>,
@@ -21,7 +22,7 @@ pub struct Manager<EngineSpecificsType: TradeEngineSpecfiicsTrait> {
     _phantom_engine_specifics: PhantomData<EngineSpecificsType>,
 }
 
-impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone> Manager<EngineSpecificsType> {
+impl<EngineSpecificsType: SerdeGenericTrait> Manager<EngineSpecificsType> {
     // Public Functions
 
     // Constructors

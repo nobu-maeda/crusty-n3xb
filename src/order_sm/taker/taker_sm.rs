@@ -1,15 +1,11 @@
-use crate::{
-    error::N3xbError,
-    interface::ArcInterface,
-    order::{Order, TradeEngineSpecfiicsTrait},
-};
+use crate::{common::SerdeGenericTrait, error::N3xbError, interface::ArcInterface, order::Order};
 
-pub struct TakerSM<'a, EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone> {
+pub struct TakerSM<'a, EngineSpecificsType: SerdeGenericTrait> {
     interface: &'a ArcInterface<EngineSpecificsType>,
     order: Order<EngineSpecificsType>,
 }
 
-impl<'a, EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone> TakerSM<'a, EngineSpecificsType> {
+impl<'a, EngineSpecificsType: SerdeGenericTrait> TakerSM<'a, EngineSpecificsType> {
     pub async fn new(
         interface: &'a ArcInterface<EngineSpecificsType>,
         order: Order<EngineSpecificsType>,

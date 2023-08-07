@@ -1,15 +1,11 @@
-use crate::{
-    error::N3xbError,
-    interface::ArcInterface,
-    order::{Order, TradeEngineSpecfiicsTrait},
-};
+use crate::{common::SerdeGenericTrait, error::N3xbError, interface::ArcInterface, order::Order};
 
-pub struct MakerSM<'a, EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone> {
+pub struct MakerSM<'a, EngineSpecificsType: SerdeGenericTrait> {
     interface: &'a ArcInterface<EngineSpecificsType>,
     order: Order<EngineSpecificsType>,
 }
 
-impl<'a, EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone> MakerSM<'a, EngineSpecificsType> {
+impl<'a, EngineSpecificsType: SerdeGenericTrait> MakerSM<'a, EngineSpecificsType> {
     pub async fn new(
         interface: &'a ArcInterface<EngineSpecificsType>,
         order: Order<EngineSpecificsType>,
