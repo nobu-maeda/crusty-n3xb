@@ -1,6 +1,6 @@
 use super::{obligation::*, trade_details::*, trade_engine_details::*};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Order<T: TradeEngineSpecfiicsTrait> {
     pub trade_uuid: String, // TODO: Change to UUID type
     pub maker_obligation: MakerObligation,

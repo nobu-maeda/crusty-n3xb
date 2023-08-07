@@ -5,9 +5,12 @@ use crate::{
 };
 use log::warn;
 pub use serde_json::{Map, Value};
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::{collections::HashSet, marker::PhantomData};
+use std::{
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+};
 
 pub struct NostrInterface<EngineSpecificsType: TradeEngineSpecfiicsTrait> {
     event_msg_client: ArcClient,
@@ -58,10 +61,38 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait> NostrInterface<EngineSpecif
             .wait_for_send(true)
             .difficulty(8);
         let client = Client::with_opts(&keys, opts);
-
-        client.add_relay("ws://localhost:8008", None).await.unwrap(); // TODO: Should add to existing list of relay, or default relay list, vs localhost test mode?
         client.connect().await;
         Arc::new(Mutex::new(client))
+    }
+
+    // Nostr Client Management
+
+    async fn add_relay(&self, url: String, proxy: Option<SocketAddr>) {
+        self.event_msg_client
+            .lock()
+            .unwrap()
+            .add_relay(url.clone(), proxy)
+            .await
+            .unwrap();
+        self.subscription_client
+            .lock()
+            .unwrap()
+            .add_relay(url, proxy)
+            .await
+            .unwrap();
+    }
+
+    pub async fn add_relays<S>(&self, relays: Vec<(S, u16, Option<SocketAddr>)>)
+    where
+        S: Into<String>,
+    {
+        for relay in relays {
+            let (url, port, proxy) = relay;
+            let full_url = format!("{}:{}", url.into(), port);
+            self.add_relay(full_url, proxy).await;
+        }
+        self.event_msg_client.lock().unwrap().connect().await;
+        self.subscription_client.lock().unwrap().connect().await;
     }
 
     // Send Maker Order Note
@@ -311,32 +342,32 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait> NostrInterface<EngineSpecif
         let mut tag_map = Map::new();
         tags.iter().for_each(|tag| match tag {
             OrderTag::TradeUUID(trade_uuid_string) => {
-                tag_map.insert(tag.key(), Value::String(trade_uuid_string.to_owned()));
+                tag_map.insert(tag.hash_key(), Value::String(trade_uuid_string.to_owned()));
             }
             OrderTag::MakerObligations(obligations) => {
-                tag_map.insert(tag.key(), obligations.to_owned().into_iter().collect());
+                tag_map.insert(tag.hash_key(), obligations.to_owned().into_iter().collect());
             }
             OrderTag::TakerObligations(obligations) => {
-                tag_map.insert(tag.key(), obligations.to_owned().into_iter().collect());
+                tag_map.insert(tag.hash_key(), obligations.to_owned().into_iter().collect());
             }
             OrderTag::TradeDetailParameters(parameters) => {
-                tag_map.insert(tag.key(), parameters.to_owned().into_iter().collect());
+                tag_map.insert(tag.hash_key(), parameters.to_owned().into_iter().collect());
             }
             OrderTag::TradeEngineName(name) => {
                 tag_map.insert(
-                    tag.key(),
+                    tag.hash_key(),
                     Value::Array(vec![Value::String(name.to_owned())]),
                 );
             }
             OrderTag::EventKind(kind) => {
                 tag_map.insert(
-                    tag.key(),
+                    tag.hash_key(),
                     Value::Array(vec![Value::String(kind.to_string())]),
                 );
             }
             OrderTag::ApplicationTag(app_tag) => {
                 tag_map.insert(
-                    tag.key(),
+                    tag.hash_key(),
                     Value::Array(vec![Value::String(app_tag.to_owned())]),
                 );
             }

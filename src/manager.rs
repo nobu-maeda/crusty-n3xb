@@ -3,6 +3,7 @@ use crate::interface::{nostr::*, *};
 use crate::order::{Order, TradeEngineSpecfiicsTrait};
 use crate::order_sm::maker::MakerSM;
 
+use std::net::SocketAddr;
 use std::{
     marker::PhantomData,
     sync::{Arc, Mutex},
@@ -60,6 +61,14 @@ impl<EngineSpecificsType: TradeEngineSpecfiicsTrait + Clone> Manager<EngineSpeci
             trade_engine_name: trade_engine_name.to_string(),
             _phantom_engine_specifics: PhantomData,
         }
+    }
+
+    // Nostr Management
+    pub async fn add_relays<S>(&self, relays: Vec<(S, u16, Option<SocketAddr>)>)
+    where
+        S: Into<String>,
+    {
+        self.interface.lock().unwrap().add_relays(relays).await;
     }
 
     // Order Management

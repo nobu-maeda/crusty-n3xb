@@ -23,8 +23,8 @@ pub enum OrderTag {
 
 const ORDER_TAG_TRADE_UUID_KEY: &str = "i";
 const ORDER_TAG_MAKER_OBLIGATIONS_KEY: &str = "m";
-const ORDER_TAG_TAKER_OBLIGATIONS_KEY: &str = "t";
-const ORDER_TAG_TRADE_DETAIL_PARAMETERS_KEY: &str = "p";
+const ORDER_TAG_TAKER_OBLIGATIONS_KEY: &str = "b"; // Using 'b' instead of the desired 't' for now to avoid TagKind collision. See https://github.com/rust-nostr/nostr/issues/146)
+const ORDER_TAG_TRADE_DETAIL_PARAMETERS_KEY: &str = "f"; // Using 'f' instead of the desired 'p' for now to avoid TagKind collision. See https://github.com/rust-nostr/nostr/issues/146)
 const ORDER_TAG_TRADE_ENGINE_NAME_KEY: &str = "n";
 const ORDER_TAG_EVENT_KIND_KEY: &str = "k";
 const ORDER_TAG_APPLICATION_TAG_KEY: &str = "d";
@@ -41,6 +41,10 @@ impl OrderTag {
             OrderTag::ApplicationTag(_) => ORDER_TAG_APPLICATION_TAG_KEY,
         };
         str.to_string()
+    }
+
+    pub fn hash_key(&self) -> String {
+        format!("#{}", self.key())
     }
 
     pub fn key_for(tag: OrderTag) -> String {
