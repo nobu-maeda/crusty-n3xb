@@ -1,4 +1,4 @@
-use crate::common::SerdeGenericTrait;
+use crate::common::types::SerdeGenericTrait;
 use crate::error::N3xbError;
 use crate::interface::{nostr::*, *};
 use crate::order::Order;

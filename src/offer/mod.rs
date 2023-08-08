@@ -1,3 +1,3 @@
 mod offer;
 
-pub use offer;
+pub use offer::*;

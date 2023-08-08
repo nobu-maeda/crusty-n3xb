@@ -1,4 +1,6 @@
-use crate::{common::SerdeGenericTrait, error::N3xbError, interface::ArcInterface, order::Order};
+use crate::{
+    common::types::SerdeGenericTrait, error::N3xbError, interface::ArcInterface, order::Order,
+};
 
 pub struct TakerSM<'a, EngineSpecificsType: SerdeGenericTrait> {
     interface: &'a ArcInterface<EngineSpecificsType>,

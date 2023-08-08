@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::hash::Hash;
-use std::{collections::HashSet, str::FromStr};
+use std::{collections::HashSet, fmt::Debug, str::FromStr};
 use strum_macros::{Display, EnumString, IntoStaticStr};
 
 use crate::error::N3xbError;
@@ -9,6 +9,8 @@ pub enum BuySell {
     Buy,
     Sell,
 }
+
+pub trait SerdeGenericTrait: Serialize + DeserializeOwned + Clone + Debug {}
 
 #[derive(Clone, Debug)]
 pub enum OrderTag {

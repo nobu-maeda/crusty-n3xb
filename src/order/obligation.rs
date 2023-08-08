@@ -1,4 +1,4 @@
-use super::types::*;
+use crate::common::types::*;
 use crate::error::N3xbError;
 use iso_currency::Currency;
 use serde::{Deserialize, Serialize};
@@ -9,13 +9,13 @@ use strum_macros::{Display, IntoStaticStr};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct MakerObligation {
-    pub kind: ObligationKind,
+    pub kinds: ObligationKinds,
     pub content: MakerObligationContent,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TakerObligation {
-    pub kind: ObligationKind,
+    pub kinds: ObligationKinds,
     pub content: TakerObligationContent,
 }
 
@@ -33,7 +33,7 @@ pub struct TakerObligationContent {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Display, Debug, IntoStaticStr)]
-pub enum ObligationKind {
+pub enum ObligationKinds {
     Bitcoin(HashSet<BitcoinSettlementMethod>),
     Fiat(Currency, HashSet<FiatPaymentMethod>),
     Custom(String),
@@ -41,16 +41,16 @@ pub enum ObligationKind {
 
 const OBLIGATION_KIND_SPLIT_CHAR: &str = "-";
 
-impl ObligationKind {
+impl ObligationKinds {
     pub fn to_tags(&self) -> HashSet<String> {
         let mut tag_string_set: HashSet<String>;
-        let obligation_kind_prefix_bitcoin = ObligationKind::Bitcoin([].into()).to_string();
+        let obligation_kind_prefix_bitcoin = ObligationKinds::Bitcoin([].into()).to_string();
         let obligation_kind_prefix_fiat =
-            ObligationKind::Fiat(Currency::XXX, [].into()).to_string();
-        let obligation_kind_prefix_custom = ObligationKind::Custom("".to_string()).to_string();
+            ObligationKinds::Fiat(Currency::XXX, [].into()).to_string();
+        let obligation_kind_prefix_custom = ObligationKinds::Custom("".to_string()).to_string();
 
         match self {
-            ObligationKind::Bitcoin(settlement_methods) => {
+            ObligationKinds::Bitcoin(settlement_methods) => {
                 let prefix_string = obligation_kind_prefix_bitcoin;
                 tag_string_set = HashSet::from([prefix_string.clone()]);
                 for settlment_method in settlement_methods {
@@ -64,7 +64,7 @@ impl ObligationKind {
                 }
             }
 
-            ObligationKind::Fiat(currency, payment_methods) => {
+            ObligationKinds::Fiat(currency, payment_methods) => {
                 let prefix_string = obligation_kind_prefix_fiat;
                 let currency_prefix_string = format!(
                     "{}{}{}",
@@ -85,7 +85,7 @@ impl ObligationKind {
                 }
             }
 
-            ObligationKind::Custom(obligation_string) => {
+            ObligationKinds::Custom(obligation_string) => {
                 let prefix_string = obligation_kind_prefix_custom;
                 tag_string_set = HashSet::from([
                     prefix_string.clone(),
@@ -99,11 +99,11 @@ impl ObligationKind {
         tag_string_set
     }
 
-    pub fn from_tags(tags: HashSet<String>) -> Result<ObligationKind, N3xbError> {
-        let obligation_kind_prefix_bitcoin = ObligationKind::Bitcoin([].into()).to_string();
+    pub fn from_tags(tags: HashSet<String>) -> Result<ObligationKinds, N3xbError> {
+        let obligation_kind_prefix_bitcoin = ObligationKinds::Bitcoin([].into()).to_string();
         let obligation_kind_prefix_fiat =
-            ObligationKind::Fiat(Currency::XXX, [].into()).to_string();
-        let obligation_kind_prefix_custom = ObligationKind::Custom("".to_string()).to_string();
+            ObligationKinds::Fiat(Currency::XXX, [].into()).to_string();
+        let obligation_kind_prefix_custom = ObligationKinds::Custom("".to_string()).to_string();
 
         let obligation_kind_prefix_set: HashSet<&str> = HashSet::from([
             obligation_kind_prefix_bitcoin.as_str(),
@@ -160,11 +160,11 @@ impl ObligationKind {
         }
 
         if &obligation_kind_prefix_bitcoin == kind_prefix.as_ref().unwrap() {
-            return Ok(ObligationKind::Bitcoin(bitcoin_methods));
+            return Ok(ObligationKinds::Bitcoin(bitcoin_methods));
         } else if &obligation_kind_prefix_fiat == kind_prefix.as_ref().unwrap() {
-            return Ok(ObligationKind::Fiat(currency.unwrap(), fiat_methods));
+            return Ok(ObligationKinds::Fiat(currency.unwrap(), fiat_methods));
         } else if &obligation_kind_prefix_custom == kind_prefix.as_ref().unwrap() {
-            return Ok(ObligationKind::Custom(custom_ob_string.unwrap()));
+            return Ok(ObligationKinds::Custom(custom_ob_string.unwrap()));
         } else {
             panic!("Unexpected Obligation Kind");
         }
@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn bitcoin_onchain_obligation_kind_to_tags() {
         let obligation_kind =
-            ObligationKind::Bitcoin(HashSet::from([BitcoinSettlementMethod::Onchain]));
+            ObligationKinds::Bitcoin(HashSet::from([BitcoinSettlementMethod::Onchain]));
         let obligation_tags = obligation_kind.to_tags();
         let expected_tags = HashSet::from(["Bitcoin-Onchain".to_string(), "Bitcoin".to_string()]);
         print!(
@@ -191,9 +191,9 @@ mod tests {
     #[test]
     fn bitcoin_onchain_obligation_kind_from_tags() {
         let obligation_tags = HashSet::from(["Bitcoin-Onchain".to_string(), "Bitcoin".to_string()]);
-        let obligation_kind = ObligationKind::from_tags(obligation_tags).unwrap();
+        let obligation_kind = ObligationKinds::from_tags(obligation_tags).unwrap();
         let expected_kind =
-            ObligationKind::Bitcoin(HashSet::from([BitcoinSettlementMethod::Onchain]));
+            ObligationKinds::Bitcoin(HashSet::from([BitcoinSettlementMethod::Onchain]));
         print!(
             "Obligation Kind: {:?} Expected: {:?}",
             obligation_kind, expected_kind
@@ -203,7 +203,7 @@ mod tests {
 
     #[test]
     fn fiat_usd_venmo_obligation_kind_to_tags() {
-        let obligation_kind = ObligationKind::Fiat(
+        let obligation_kind = ObligationKinds::Fiat(
             Currency::USD,
             HashSet::from([FiatPaymentMethod::Venmo, FiatPaymentMethod::CashApp]),
         );
@@ -229,8 +229,8 @@ mod tests {
             "Fiat-USD".to_string(),
             "Fiat".to_string(),
         ]);
-        let obligation_kind = ObligationKind::from_tags(obligation_tags).unwrap();
-        let expected_kind = ObligationKind::Fiat(
+        let obligation_kind = ObligationKinds::from_tags(obligation_tags).unwrap();
+        let expected_kind = ObligationKinds::Fiat(
             Currency::USD,
             HashSet::from([FiatPaymentMethod::Venmo, FiatPaymentMethod::CashApp]),
         );
@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn custom_obligation_kind_to_tags() {
-        let obligation_kind = ObligationKind::Custom("Barter".to_string());
+        let obligation_kind = ObligationKinds::Custom("Barter".to_string());
         let obligation_tags = obligation_kind.to_tags();
         let expected_tags = HashSet::from(["Custom-Barter".to_string(), "Custom".to_string()]);
         print!(
@@ -256,8 +256,8 @@ mod tests {
     #[test]
     fn custom_obligation_kind_from_tags() {
         let obligation_tags = HashSet::from(["Custom-Barter".to_string(), "Custom".to_string()]);
-        let obligation_kind = ObligationKind::from_tags(obligation_tags).unwrap();
-        let expected_kind = ObligationKind::Custom("Barter".to_string());
+        let obligation_kind = ObligationKinds::from_tags(obligation_tags).unwrap();
+        let expected_kind = ObligationKinds::Custom("Barter".to_string());
         print!(
             "Obligation: {:?} Expected: {:?}",
             obligation_kind, expected_kind

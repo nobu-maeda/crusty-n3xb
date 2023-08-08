@@ -1,5 +1,5 @@
 use super::{obligation::*, trade_details::*};
-use crate::common::SerdeGenericTrait;
+use crate::common::types::SerdeGenericTrait;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

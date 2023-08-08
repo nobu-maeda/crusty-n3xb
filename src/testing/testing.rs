@@ -1,4 +1,4 @@
-use crate::common::SerdeGenericTrait;
+use crate::common::types::*;
 use crate::order::*;
 use iso_currency::Currency;
 use serde::{Deserialize, Serialize};
@@ -11,8 +11,8 @@ impl SomeTestParams {
         "Some-UUID-String".to_string()
     }
 
-    pub fn maker_obligation_kind() -> ObligationKind {
-        ObligationKind::Fiat(
+    pub fn maker_obligation_kind() -> ObligationKinds {
+        ObligationKinds::Fiat(
             Currency::CNY,
             HashSet::from([FiatPaymentMethod::WeChatPay, FiatPaymentMethod::AliPay]),
         )
@@ -25,8 +25,8 @@ impl SomeTestParams {
         }
     }
 
-    pub fn taker_obligation_kind() -> ObligationKind {
-        ObligationKind::Bitcoin(HashSet::from([
+    pub fn taker_obligation_kind() -> ObligationKinds {
+        ObligationKinds::Bitcoin(HashSet::from([
             BitcoinSettlementMethod::Onchain,
             BitcoinSettlementMethod::Lightning,
         ]))

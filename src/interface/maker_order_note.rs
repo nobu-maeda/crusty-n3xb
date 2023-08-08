@@ -1,4 +1,4 @@
-use crate::common::SerdeGenericTrait;
+use crate::common::types::SerdeGenericTrait;
 use crate::order::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fmt::Debug;
