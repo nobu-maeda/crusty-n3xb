@@ -1,4 +1,4 @@
-use crate::error::N3xbError;
+use crate::common::error::N3xbError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fmt::Debug;

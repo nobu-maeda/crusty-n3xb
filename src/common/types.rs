@@ -3,7 +3,7 @@ use std::hash::Hash;
 use std::{collections::HashSet, fmt::Debug, str::FromStr};
 use strum_macros::{Display, EnumString, IntoStaticStr};
 
-use crate::error::N3xbError;
+use crate::common::error::N3xbError;
 
 pub enum BuySell {
     Buy,

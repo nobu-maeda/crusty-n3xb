@@ -1,25 +1,41 @@
+use std::sync::{Arc, Mutex};
+
 use crate::{
-    common::types::SerdeGenericTrait, error::N3xbError, interface::ArcInterface, order::Order,
+    common::{error::N3xbError, types::SerdeGenericTrait},
+    interface::ArcInterface,
+    offer::Offer,
+    order::Order,
 };
 
-pub struct TakerSM<'a, EngineSpecificsType: SerdeGenericTrait> {
-    interface: &'a ArcInterface<EngineSpecificsType>,
-    order: Order<EngineSpecificsType>,
+pub type ArcTakerSM<T, U> = Arc<Mutex<TakerSM<T, U>>>;
+
+#[derive(Clone)]
+pub struct TakerSM<
+    OrderEngineSpecificType: SerdeGenericTrait,
+    OfferEngineSpecificType: SerdeGenericTrait,
+> {
+    interface: ArcInterface<OrderEngineSpecificType>,
+    order: Order<OrderEngineSpecificType>,
+    offer: Offer<OfferEngineSpecificType>,
 }
 
-impl<'a, EngineSpecificsType: SerdeGenericTrait> TakerSM<'a, EngineSpecificsType> {
+impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeGenericTrait>
+    TakerSM<OrderEngineSpecificType, OfferEngineSpecificType>
+{
     pub async fn new(
-        interface: &'a ArcInterface<EngineSpecificsType>,
-        order: Order<EngineSpecificsType>,
-    ) -> Result<TakerSM<'a, EngineSpecificsType>, N3xbError> {
-        let taker_sm: TakerSM<'_, EngineSpecificsType> = TakerSM {
-            interface,
-            order: order.clone(),
+        interface: ArcInterface<OrderEngineSpecificType>,
+        order: Order<OrderEngineSpecificType>,
+        offer: Offer<OfferEngineSpecificType>,
+    ) -> Result<TakerSM<OrderEngineSpecificType, OfferEngineSpecificType>, N3xbError> {
+        let taker_sm = TakerSM {
+            interface: Arc::clone(&interface),
+            order,
+            offer,
         };
         // interface
         //     .lock()
         //     .unwrap()
-        //     .send_take_order_message(order)
+        //     .send_taker_order_message(offer)
         //     .await?;
         Ok(taker_sm)
     }

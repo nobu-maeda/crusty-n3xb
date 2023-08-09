@@ -21,7 +21,7 @@ pub struct Obligation {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(bound = "T: Serialize + DeserializeOwned")]
-pub struct TakeOrderMessage<T: SerdeGenericTrait> {
+pub struct Offer<T: SerdeGenericTrait> {
     maker_obligation: Obligation,
     taker_obligation: Obligation,
     market_oracle_used: Option<String>, // TODO: Change to URL type

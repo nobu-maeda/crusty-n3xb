@@ -79,4 +79,10 @@ pub struct SomeTradeEngineMakerOrderSpecifics {
     pub test_specific_field: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SomeTradeEngineTakerOfferSpecifics {
+    pub test_specific_field: String,
+}
+
 impl SerdeGenericTrait for SomeTradeEngineMakerOrderSpecifics {}
+impl SerdeGenericTrait for SomeTradeEngineTakerOfferSpecifics {}

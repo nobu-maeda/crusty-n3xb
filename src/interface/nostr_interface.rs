@@ -9,8 +9,9 @@ use std::{
 };
 
 use super::{maker_order_note::*, nostr::*};
+use crate::common::error::N3xbError;
 use crate::common::types::*;
-use crate::{error::N3xbError, order::*};
+use crate::order::*;
 
 pub struct NostrInterface<EngineSpecificsType: SerdeGenericTrait> {
     event_msg_client: ArcClient,

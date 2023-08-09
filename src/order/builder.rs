@@ -1,6 +1,6 @@
 use super::{obligation::*, order::*, trade_details::*};
+use crate::common::error::*;
 use crate::common::types::SerdeGenericTrait;
-use crate::error::*;
 
 pub struct OrderBuilder<T: SerdeGenericTrait> {
     trade_uuid: Option<String>, // TODO: Change to UUID type

@@ -1,19 +1,25 @@
+use std::sync::{Arc, Mutex};
+
 use crate::{
-    common::types::SerdeGenericTrait, error::N3xbError, interface::ArcInterface, order::Order,
+    common::error::N3xbError, common::types::SerdeGenericTrait, interface::ArcInterface,
+    order::Order,
 };
 
-pub struct MakerSM<'a, EngineSpecificsType: SerdeGenericTrait> {
-    interface: &'a ArcInterface<EngineSpecificsType>,
+pub type ArcMakerSM<T> = Arc<Mutex<MakerSM<T>>>;
+
+#[derive(Clone)]
+pub struct MakerSM<EngineSpecificsType: SerdeGenericTrait> {
+    interface: ArcInterface<EngineSpecificsType>,
     order: Order<EngineSpecificsType>,
 }
 
-impl<'a, EngineSpecificsType: SerdeGenericTrait> MakerSM<'a, EngineSpecificsType> {
+impl<EngineSpecificsType: SerdeGenericTrait> MakerSM<EngineSpecificsType> {
     pub async fn new(
-        interface: &'a ArcInterface<EngineSpecificsType>,
+        interface: ArcInterface<EngineSpecificsType>,
         order: Order<EngineSpecificsType>,
-    ) -> Result<MakerSM<'a, EngineSpecificsType>, N3xbError> {
+    ) -> Result<MakerSM<EngineSpecificsType>, N3xbError> {
         let maker_sm = MakerSM {
-            interface,
+            interface: Arc::clone(&interface),
             order: order.clone(),
         };
         interface

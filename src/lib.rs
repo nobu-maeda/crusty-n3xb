@@ -1,5 +1,4 @@
 pub mod common;
-pub mod error;
 pub mod manager;
 pub mod offer;
 pub mod order;

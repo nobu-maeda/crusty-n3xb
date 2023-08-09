@@ -1,5 +1,5 @@
+use crate::common::error::N3xbError;
 use crate::common::types::*;
-use crate::error::N3xbError;
 use iso_currency::Currency;
 use serde::{Deserialize, Serialize};
 use std::result::Result;

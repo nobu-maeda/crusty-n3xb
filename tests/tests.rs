@@ -17,8 +17,12 @@ mod make_order_tests {
         let relay = relay::start_relay().unwrap();
         relay::wait_for_healthy_relay(&relay).await.unwrap();
 
-        let manager: Manager<SomeTradeEngineMakerOrderSpecifics> =
-            Manager::new(&SomeTestParams::engine_name_str()).await;
+        let test_engine_name = SomeTestParams::engine_name_str();
+
+        let mut manager: Manager<
+            SomeTradeEngineMakerOrderSpecifics,
+            SomeTradeEngineTakerOfferSpecifics,
+        > = Manager::new(&test_engine_name).await;
 
         let relays = vec![("ws://localhost".to_string(), relay.port, None)];
         manager.add_relays(relays).await;
@@ -48,15 +52,7 @@ mod make_order_tests {
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
 
         let order = builder.build().unwrap();
-        loop {
-            match manager.make_new_order(order.clone()).await {
-                Ok(_) => break,
-                Err(error) => {
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                    info!("Make New Order failed. Retrying {}", error.to_string())
-                }
-            }
-        }
+        manager.make_new_order(order.clone()).await.unwrap();
 
         let orders = manager.query_order_notes().await.unwrap();
         assert_eq!(orders.len(), 1);
