@@ -2,9 +2,6 @@ mod relay;
 
 #[cfg(test)]
 mod make_order_tests {
-    use tokio::time::Duration;
-    use tracing::info;
-
     use super::relay;
     use crusty_n3xb::testing::*;
     use crusty_n3xb::{
@@ -31,12 +28,12 @@ mod make_order_tests {
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kind(),
+            kinds: SomeTestParams::maker_obligation_kinds(),
             content: SomeTestParams::maker_obligation_content(),
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kind(),
+            kinds: SomeTestParams::taker_obligation_kinds(),
             content: SomeTestParams::taker_obligation_content(),
         });
 
@@ -60,7 +57,7 @@ mod make_order_tests {
         assert_eq!(orders[0].trade_uuid, SomeTestParams::some_uuid_string());
         assert_eq!(
             orders[0].maker_obligation.kinds,
-            SomeTestParams::maker_obligation_kind()
+            SomeTestParams::maker_obligation_kinds()
         );
         assert_eq!(
             orders[0].maker_obligation.content,
@@ -68,7 +65,7 @@ mod make_order_tests {
         );
         assert_eq!(
             orders[0].taker_obligation.kinds,
-            SomeTestParams::taker_obligation_kind()
+            SomeTestParams::taker_obligation_kinds()
         );
         assert_eq!(
             orders[0].taker_obligation.content,

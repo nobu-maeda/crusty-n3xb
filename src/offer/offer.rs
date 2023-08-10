@@ -1,16 +1,10 @@
-use crate::common::types::*;
-use iso_currency::Currency;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+
 use std::fmt::Debug;
 
-// Take Order Message Data Structure
+use crate::common::types::*;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum ObligationKind {
-    Bitcoin(BitcoinSettlementMethod),
-    Fiat(Currency, FiatPaymentMethod),
-    Custom(String),
-}
+// Take Order Message Data Structure
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Obligation {

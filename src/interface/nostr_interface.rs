@@ -118,10 +118,20 @@ impl<EngineSpecificsType: SerdeGenericTrait> NostrInterface<EngineSpecificsType>
 
         tag_set.push(OrderTag::TradeUUID(order.trade_uuid.clone()));
         tag_set.push(OrderTag::MakerObligations(
-            order.maker_obligation.kinds.to_tags(),
+            order
+                .maker_obligation
+                .kinds
+                .iter()
+                .flat_map(|k| k.to_tags())
+                .collect(),
         ));
         tag_set.push(OrderTag::TakerObligations(
-            order.taker_obligation.kinds.to_tags(),
+            order
+                .taker_obligation
+                .kinds
+                .iter()
+                .flat_map(|k| k.to_tags())
+                .collect(),
         ));
         tag_set.push(OrderTag::TradeDetailParameters(
             order.trade_details.parameters_to_tags(),
@@ -235,18 +245,18 @@ impl<EngineSpecificsType: SerdeGenericTrait> NostrInterface<EngineSpecificsType>
         let order_tags = self.extract_order_tags_from_tags(event.tags);
 
         let mut some_trade_uuid: Option<String> = None;
-        let mut some_maker_obligation_kind: Option<ObligationKinds> = None;
-        let mut some_taker_obligation_kind: Option<ObligationKinds> = None;
+        let mut some_maker_obligation_kinds: Option<HashSet<ObligationKind>> = None;
+        let mut some_taker_obligation_kinds: Option<HashSet<ObligationKind>> = None;
         let mut trade_parameters: HashSet<TradeParameter> = HashSet::new();
 
         for order_tag in order_tags {
             match order_tag {
                 OrderTag::TradeUUID(trade_uuid) => some_trade_uuid = Some(trade_uuid),
                 OrderTag::MakerObligations(obligations) => {
-                    some_maker_obligation_kind = Some(ObligationKinds::from_tags(obligations)?);
+                    some_maker_obligation_kinds = Some(ObligationKind::from_tags(obligations)?);
                 }
                 OrderTag::TakerObligations(obligations) => {
-                    some_taker_obligation_kind = Some(ObligationKinds::from_tags(obligations)?);
+                    some_taker_obligation_kinds = Some(ObligationKind::from_tags(obligations)?);
                 }
                 OrderTag::TradeDetailParameters(parameters) => {
                     trade_parameters = TradeDetails::tags_to_parameters(parameters);
@@ -277,7 +287,7 @@ impl<EngineSpecificsType: SerdeGenericTrait> NostrInterface<EngineSpecificsType>
             }
         }
 
-        let maker_obligation = if let Some(obligation_kinds) = some_maker_obligation_kind {
+        let maker_obligation = if let Some(obligation_kinds) = some_maker_obligation_kinds {
             MakerObligation {
                 kinds: obligation_kinds,
                 content: maker_order_note.maker_obligation,
@@ -288,7 +298,7 @@ impl<EngineSpecificsType: SerdeGenericTrait> NostrInterface<EngineSpecificsType>
             return Err(N3xbError::Simple(message));
         };
 
-        let taker_obligation = if let Some(obligation_kinds) = some_taker_obligation_kind {
+        let taker_obligation = if let Some(obligation_kinds) = some_taker_obligation_kinds {
             TakerObligation {
                 kinds: obligation_kinds,
                 content: maker_order_note.taker_obligation,
@@ -407,12 +417,12 @@ mod tests {
             );
 
         let maker_obligation = MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kind(),
+            kinds: SomeTestParams::maker_obligation_kinds(),
             content: SomeTestParams::maker_obligation_content(),
         };
 
         let taker_obligation = TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kind(),
+            kinds: SomeTestParams::taker_obligation_kinds(),
             content: SomeTestParams::taker_obligation_content(),
         };
 

@@ -1,8 +1,10 @@
-use crate::common::types::*;
-use crate::order::*;
 use iso_currency::Currency;
 use serde::{Deserialize, Serialize};
+
 use std::collections::HashSet;
+
+use crate::common::types::*;
+use crate::order::*;
 
 pub struct SomeTestParams {}
 
@@ -11,11 +13,11 @@ impl SomeTestParams {
         "Some-UUID-String".to_string()
     }
 
-    pub fn maker_obligation_kind() -> ObligationKinds {
-        ObligationKinds::Fiat(
-            Currency::CNY,
-            HashSet::from([FiatPaymentMethod::WeChatPay, FiatPaymentMethod::AliPay]),
-        )
+    pub fn maker_obligation_kinds() -> HashSet<ObligationKind> {
+        HashSet::from([
+            ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
+            ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::AliPay),
+        ])
     }
 
     pub fn maker_obligation_content() -> MakerObligationContent {
@@ -25,11 +27,11 @@ impl SomeTestParams {
         }
     }
 
-    pub fn taker_obligation_kind() -> ObligationKinds {
-        ObligationKinds::Bitcoin(HashSet::from([
-            BitcoinSettlementMethod::Onchain,
-            BitcoinSettlementMethod::Lightning,
-        ]))
+    pub fn taker_obligation_kinds() -> HashSet<ObligationKind> {
+        HashSet::from([
+            ObligationKind::Bitcoin(BitcoinSettlementMethod::Onchain),
+            ObligationKind::Bitcoin(BitcoinSettlementMethod::Lightning),
+        ])
     }
 
     pub fn taker_obligation_content() -> TakerObligationContent {

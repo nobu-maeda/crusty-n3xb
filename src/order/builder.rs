@@ -101,12 +101,12 @@ mod tests {
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kind(),
+            kinds: SomeTestParams::maker_obligation_kinds(),
             content: SomeTestParams::maker_obligation_content(),
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kind(),
+            kinds: SomeTestParams::taker_obligation_kinds(),
             content: SomeTestParams::taker_obligation_content(),
         });
 
@@ -128,7 +128,7 @@ mod tests {
                 assert_eq!(order.trade_uuid, SomeTestParams::some_uuid_string());
                 assert_eq!(
                     order.maker_obligation.kinds,
-                    SomeTestParams::maker_obligation_kind()
+                    SomeTestParams::maker_obligation_kinds()
                 );
                 assert_eq!(
                     order.maker_obligation.content,
@@ -136,7 +136,7 @@ mod tests {
                 );
                 assert_eq!(
                     order.taker_obligation.kinds,
-                    SomeTestParams::taker_obligation_kind()
+                    SomeTestParams::taker_obligation_kinds()
                 );
                 assert_eq!(
                     order.taker_obligation.content,
@@ -170,12 +170,12 @@ mod tests {
         let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kind(),
+            kinds: SomeTestParams::maker_obligation_kinds(),
             content: SomeTestParams::maker_obligation_content(),
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kind(),
+            kinds: SomeTestParams::taker_obligation_kinds(),
             content: SomeTestParams::taker_obligation_content(),
         });
 
@@ -209,7 +209,7 @@ mod tests {
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kind(),
+            kinds: SomeTestParams::taker_obligation_kinds(),
             content: SomeTestParams::taker_obligation_content(),
         });
 
@@ -241,7 +241,7 @@ mod tests {
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kind(),
+            kinds: SomeTestParams::maker_obligation_kinds(),
             content: SomeTestParams::maker_obligation_content(),
         });
 
@@ -273,12 +273,12 @@ mod tests {
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kind(),
+            kinds: SomeTestParams::maker_obligation_kinds(),
             content: SomeTestParams::maker_obligation_content(),
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kind(),
+            kinds: SomeTestParams::taker_obligation_kinds(),
             content: SomeTestParams::taker_obligation_content(),
         });
 
@@ -305,12 +305,12 @@ mod tests {
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kind(),
+            kinds: SomeTestParams::maker_obligation_kinds(),
             content: SomeTestParams::maker_obligation_content(),
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kind(),
+            kinds: SomeTestParams::taker_obligation_kinds(),
             content: SomeTestParams::taker_obligation_content(),
         });
 
@@ -338,12 +338,12 @@ mod tests {
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kind(),
+            kinds: SomeTestParams::maker_obligation_kinds(),
             content: SomeTestParams::maker_obligation_content(),
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kind(),
+            kinds: SomeTestParams::taker_obligation_kinds(),
             content: SomeTestParams::taker_obligation_content(),
         });
 
@@ -363,7 +363,7 @@ mod tests {
                 assert_eq!(order.trade_uuid, SomeTestParams::some_uuid_string());
                 assert_eq!(
                     order.maker_obligation.kinds,
-                    SomeTestParams::maker_obligation_kind()
+                    SomeTestParams::maker_obligation_kinds()
                 );
                 assert_eq!(
                     order.maker_obligation.content,
@@ -371,7 +371,7 @@ mod tests {
                 );
                 assert_eq!(
                     order.taker_obligation.kinds,
-                    SomeTestParams::taker_obligation_kind()
+                    SomeTestParams::taker_obligation_kinds()
                 );
                 assert_eq!(
                     order.taker_obligation.content,
