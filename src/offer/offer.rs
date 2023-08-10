@@ -22,3 +22,5 @@ pub struct Offer<T: SerdeGenericTrait> {
     trade_engine_specifics: T,
     pow_difficulty: u64,
 }
+
+impl<T: SerdeGenericTrait> SerdeGenericTrait for Offer<T> {}

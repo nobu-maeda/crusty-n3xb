@@ -5,19 +5,24 @@ use crate::{
     order::Order,
 };
 
-pub type ArcMakerSM<T> = Arc<Mutex<MakerSM<T>>>;
+pub type ArcMakerSM<T, U> = Arc<Mutex<MakerSM<T, U>>>;
 
 #[derive(Clone)]
-pub struct MakerSM<EngineSpecificsType: SerdeGenericTrait> {
-    interface: ArcInterface<EngineSpecificsType>,
-    order: Order<EngineSpecificsType>,
+pub struct MakerSM<
+    OrderEngineSpecificType: SerdeGenericTrait,
+    OfferEngineSpecificType: SerdeGenericTrait,
+> {
+    interface: ArcInterface<OrderEngineSpecificType, OfferEngineSpecificType>,
+    order: Order<OrderEngineSpecificType>,
 }
 
-impl<EngineSpecificsType: SerdeGenericTrait> MakerSM<EngineSpecificsType> {
+impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeGenericTrait>
+    MakerSM<OrderEngineSpecificType, OfferEngineSpecificType>
+{
     pub async fn new(
-        interface: ArcInterface<EngineSpecificsType>,
-        order: Order<EngineSpecificsType>,
-    ) -> Result<MakerSM<EngineSpecificsType>, N3xbError> {
+        interface: ArcInterface<OrderEngineSpecificType, OfferEngineSpecificType>,
+        order: Order<OrderEngineSpecificType>,
+    ) -> Result<MakerSM<OrderEngineSpecificType, OfferEngineSpecificType>, N3xbError> {
         let maker_sm = MakerSM {
             interface: Arc::clone(&interface),
             order: order.clone(),

@@ -9,6 +9,7 @@ use mockall::*;
 #[cfg(test)]
 pub use nostr_sdk::{
     event::Error,
+    secp256k1::XOnlyPublicKey,
     {Event, EventBuilder, EventId, Filter, Keys, Kind, Options, Tag, TagKind},
 };
 
@@ -27,6 +28,7 @@ mock! {
         pub async fn connect(&self);
         pub async fn send_event(&self, event: Event) -> Result<EventId, Error>;
         pub async fn get_events_of(&self, filters: Vec<Filter>, timeout: Option<Duration>) -> Result<Vec<Event>, Error>;
+        pub async fn send_direct_msg<S>(&self, receiver: XOnlyPublicKey, msg: S) -> Result<EventId, Error> where S: Into<String> + 'static;
     }
 }
 

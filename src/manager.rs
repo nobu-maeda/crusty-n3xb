@@ -19,9 +19,10 @@ pub struct Manager<
     OfferEngineSpecificType: SerdeGenericTrait,
 > {
     trade_engine_name: String,
-    interface: ArcInterface<OrderEngineSpecificType>,
+    interface: ArcInterface<OrderEngineSpecificType, OfferEngineSpecificType>,
     order_cache: Vec<Order<OrderEngineSpecificType>>,
-    maker_sms: RwLock<HashMap<String, ArcMakerSM<OrderEngineSpecificType>>>,
+    maker_sms:
+        RwLock<HashMap<String, ArcMakerSM<OrderEngineSpecificType, OfferEngineSpecificType>>>,
     taker_sms:
         RwLock<HashMap<String, ArcTakerSM<OrderEngineSpecificType, OfferEngineSpecificType>>>,
 }
@@ -95,8 +96,8 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
     pub async fn make_new_order(
         &self,
         order: Order<OrderEngineSpecificType>,
-    ) -> Result<ArcMakerSM<OrderEngineSpecificType>, N3xbError> {
-        let maker_sm: MakerSM<OrderEngineSpecificType> =
+    ) -> Result<ArcMakerSM<OrderEngineSpecificType, OfferEngineSpecificType>, N3xbError> {
+        let maker_sm: MakerSM<OrderEngineSpecificType, OfferEngineSpecificType> =
             MakerSM::new(Arc::clone(&self.interface), order.clone()).await?;
         let arc_maker_sm = Arc::new(Mutex::new(maker_sm));
 
