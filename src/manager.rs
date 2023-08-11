@@ -64,31 +64,16 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
         }
     }
 
-    pub fn new_with_nostr(
-        event_msg_client: Client,
-        subscription_client: Client,
-        trade_engine_name: &str,
-    ) -> Self {
-        let nostr_interface = NostrInterface::new_with_nostr(
-            event_msg_client,
-            subscription_client,
-            trade_engine_name,
-        );
-        Manager {
-            trade_engine_name: trade_engine_name.to_string(),
-            interface: Arc::new(Mutex::new(nostr_interface)),
-            order_cache: Vec::new(),
-            maker_sms: RwLock::new(HashMap::new()),
-            taker_sms: RwLock::new(HashMap::new()),
-        }
-    }
-
     // Nostr Management
-    pub async fn add_relays<S>(&self, relays: Vec<(S, u16, Option<SocketAddr>)>)
+    pub async fn add_relays<S>(&self, relays: Vec<(S, Option<SocketAddr>)>, connect: bool)
     where
-        S: Into<String>,
+        S: Into<String> + 'static,
     {
-        self.interface.lock().unwrap().add_relays(relays).await;
+        self.interface
+            .lock()
+            .unwrap()
+            .add_relays(relays, connect)
+            .await;
     }
 
     // Order Management

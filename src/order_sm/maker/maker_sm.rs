@@ -14,6 +14,10 @@ pub struct MakerSM<
 > {
     interface: ArcInterface<OrderEngineSpecificType, OfferEngineSpecificType>,
     order: Order<OrderEngineSpecificType>,
+    // There's no explicit state variable being tracked for now
+    // States are instead determined by the following
+    //
+    //
 }
 
 impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeGenericTrait>
@@ -27,6 +31,9 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
             interface: Arc::clone(&interface),
             order: order.clone(),
         };
+
+        // TODO: Subscribe to any inbound peer messages regarding Order this MakerSM tracks
+
         interface
             .lock()
             .unwrap()
@@ -34,4 +41,10 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
             .await?;
         Ok(maker_sm)
     }
+
+    // TODO: Add ability for Trade Engine to subscribe to state update of the MakerSM
+
+    // TODO: Function for Trade Engine to query all offers
+
+    // TODO: Function for Trade Engine to accept or reject an offer
 }

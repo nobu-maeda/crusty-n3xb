@@ -19,8 +19,7 @@ pub struct NostrInterface<
     OrderEngineSpecificType: SerdeGenericTrait,
     OfferEngineSpecificType: SerdeGenericTrait,
 > {
-    event_msg_client: ArcClient,
-    subscription_client: ArcClient,
+    client: ArcClient,
     trade_engine_name: String,
     _phantom_order_specifics: PhantomData<OrderEngineSpecificType>,
     _phantom_offer_specifics: PhantomData<OfferEngineSpecificType>,
@@ -35,8 +34,7 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
     pub async fn new(trade_engine_name: &str) -> Self {
         let keys = Keys::generate();
         NostrInterface {
-            event_msg_client: Self::new_nostr_client(&keys).await,
-            subscription_client: Self::new_nostr_client(&keys).await,
+            client: Self::new_nostr_client(&keys).await,
             trade_engine_name: trade_engine_name.to_owned(),
             _phantom_order_specifics: PhantomData,
             _phantom_offer_specifics: PhantomData,
@@ -45,22 +43,16 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
 
     pub async fn new_with_keys(keys: Keys, trade_engine_name: &str) -> Self {
         NostrInterface {
-            event_msg_client: Self::new_nostr_client(&keys).await,
-            subscription_client: Self::new_nostr_client(&keys).await,
+            client: Self::new_nostr_client(&keys).await,
             trade_engine_name: trade_engine_name.to_owned(),
             _phantom_order_specifics: PhantomData,
             _phantom_offer_specifics: PhantomData,
         }
     }
 
-    pub fn new_with_nostr(
-        event_msg_client: Client,
-        subscription_client: Client,
-        trade_engine_name: &str,
-    ) -> Self {
+    pub fn new_with_nostr(client: Client, trade_engine_name: &str) -> Self {
         NostrInterface {
-            event_msg_client: Arc::new(Mutex::new(event_msg_client)),
-            subscription_client: Arc::new(Mutex::new(subscription_client)),
+            client: Arc::new(Mutex::new(client)),
             trade_engine_name: trade_engine_name.to_owned(),
             _phantom_order_specifics: PhantomData,
             _phantom_offer_specifics: PhantomData,
@@ -73,39 +65,26 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
             .wait_for_send(true)
             .difficulty(8);
         let client = Client::with_opts(&keys, opts);
+        // TODO: Add saved or default clients
         client.connect().await;
         Arc::new(Mutex::new(client))
     }
 
     // Nostr Client Management
 
-    async fn add_relay(&self, url: String, proxy: Option<SocketAddr>) {
-        self.event_msg_client
-            .lock()
-            .unwrap()
-            .add_relay(url.clone(), proxy)
-            .await
-            .unwrap();
-        self.subscription_client
-            .lock()
-            .unwrap()
-            .add_relay(url, proxy)
-            .await
-            .unwrap();
+    pub async fn add_relays<S>(&self, relays: Vec<(S, Option<SocketAddr>)>, connect: bool)
+    where
+        S: Into<String> + 'static,
+    {
+        let unlocked_client = self.client.lock().unwrap();
+        unlocked_client.add_relays(relays).await.unwrap();
+        if connect {
+            unlocked_client.connect().await;
+        }
     }
 
-    pub async fn add_relays<S>(&self, relays: Vec<(S, u16, Option<SocketAddr>)>)
-    where
-        S: Into<String>,
-    {
-        for relay in relays {
-            let (url, port, proxy) = relay;
-            let full_url = format!("{}:{}", url.into(), port);
-            self.add_relay(full_url, proxy).await;
-        }
-        self.event_msg_client.lock().unwrap().connect().await;
-        self.subscription_client.lock().unwrap().connect().await;
-    }
+    // Inbound Subscription Management
+    // TODO: Ability to subscribe to DMs only for a specific order / event ID
 
     // Send Maker Order Note
 
@@ -158,8 +137,8 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
             &Self::create_event_tags(tag_set),
         );
 
-        let keys = self.event_msg_client.lock().unwrap().keys();
-        self.event_msg_client
+        let keys = self.client.lock().unwrap().keys();
+        self.client
             .lock()
             .unwrap()
             .send_event(builder.to_event(&keys).unwrap())
@@ -212,7 +191,7 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
         let filter = Self::create_event_tag_filter(tag_set);
         let timeout = Duration::from_secs(1);
         let events = self
-            .event_msg_client
+            .client
             .lock()
             .unwrap()
             .get_events_of(vec![filter], Some(timeout))
@@ -421,7 +400,7 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
         let public_key = XOnlyPublicKey::from_str(&pubkey.as_str()).unwrap();
         let content_string = serde_json::to_string(&content)?;
 
-        self.event_msg_client
+        self.client
             .lock()
             .unwrap()
             .send_direct_msg(public_key, content_string)
@@ -443,24 +422,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_send_maker_order_note() {
-        let mut event_msg_client = Client::new();
-        event_msg_client
-            .expect_keys()
-            .returning(|| Keys::generate());
-        event_msg_client
+        let mut client = Client::new();
+        client.expect_keys().returning(|| Keys::generate());
+        client
             .expect_send_event()
             .returning(send_maker_order_note_expectation);
-
-        let subscription_client = Client::new();
 
         let interface: NostrInterface<
             SomeTradeEngineMakerOrderSpecifics,
             SomeTradeEngineTakerOfferSpecifics,
-        > = NostrInterface::new_with_nostr(
-            event_msg_client,
-            subscription_client,
-            &SomeTestParams::engine_name_str(),
-        );
+        > = NostrInterface::new_with_nostr(client, &SomeTestParams::engine_name_str());
 
         let maker_obligation = MakerObligation {
             kinds: SomeTestParams::maker_obligation_kinds(),
@@ -518,24 +489,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_order_notes() {
-        let mut event_msg_client = Client::new();
-        event_msg_client
-            .expect_keys()
-            .returning(|| Keys::generate());
-        event_msg_client
+        let mut client = Client::new();
+        client.expect_keys().returning(|| Keys::generate());
+        client
             .expect_get_events_of()
             .returning(query_order_notes_expectation);
-
-        let subscription_client = Client::new();
 
         let interface: NostrInterface<
             SomeTradeEngineMakerOrderSpecifics,
             SomeTradeEngineTakerOfferSpecifics,
-        > = NostrInterface::new_with_nostr(
-            event_msg_client,
-            subscription_client,
-            &SomeTestParams::engine_name_str(),
-        );
+        > = NostrInterface::new_with_nostr(client, &SomeTestParams::engine_name_str());
 
         let _ = interface.query_order_notes().await.unwrap();
     }

@@ -25,6 +25,7 @@ mock! {
         pub fn with_opts(keys: &Keys, opts: Options) -> Self;
         pub fn keys(&self) -> Keys;
         pub async fn add_relay<S>(&self, url: S, proxy: Option<SocketAddr>) -> Result<(), Error> where S: Into<String> + 'static;
+        pub async fn add_relays<S>(&self, relays: Vec<(S, Option<SocketAddr>)>) -> Result<(), Error> where S: Into<String> + 'static;
         pub async fn connect(&self);
         pub async fn send_event(&self, event: Event) -> Result<EventId, Error>;
         pub async fn get_events_of(&self, filters: Vec<Filter>, timeout: Option<Duration>) -> Result<Vec<Event>, Error>;

@@ -21,8 +21,8 @@ mod make_order_tests {
             SomeTradeEngineTakerOfferSpecifics,
         > = Manager::new(&test_engine_name).await;
 
-        let relays = vec![("ws://localhost".to_string(), relay.port, None)];
-        manager.add_relays(relays).await;
+        let relays = vec![(format!("{}:{}", "ws://localhost", relay.port), None)];
+        manager.add_relays(relays, true).await;
 
         let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
         builder.trade_uuid(SomeTestParams::some_uuid_string());
