@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 use crate::common::types::*;
+use crate::offer::Obligation;
 use crate::order::*;
 
 pub struct SomeTestParams {}
@@ -73,6 +74,30 @@ impl SomeTestParams {
 
     pub fn expected_json_string() -> String {
         "{\"maker_obligation\":{\"amount\":1000000,\"amount_min\":null},\"taker_obligation\":{\"limit_rate\":1e-6,\"market_offset_pct\":null,\"market_oracles\":null},\"trade_details\":{\"maker_bond_pct\":null,\"taker_bond_pct\":null,\"trade_timeout\":null},\"trade_engine_specifics\":{\"test_specific_field\":\"some-test-specific-info\"},\"pow_difficulty\":8}".to_string()
+    }
+
+    pub fn offer_maker_obligation() -> Obligation {
+        Obligation {
+            kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
+            amount: 1000000,
+            bond_amount: Some(100000),
+        }
+    }
+
+    pub fn offer_taker_obligation() -> Obligation {
+        Obligation {
+            kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Onchain),
+            amount: 1,
+            bond_amount: Some(100000),
+        }
+    }
+
+    pub fn offer_marker_oracle_used() -> Option<String> {
+        None
+    }
+
+    pub fn offer_pow_difficulty() -> Option<u64> {
+        None
     }
 }
 

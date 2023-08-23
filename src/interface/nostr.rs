@@ -1,4 +1,5 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::{broadcast::Receiver, Mutex};
 
 #[cfg(not(test))]
 pub use nostr_sdk::prelude::*;
@@ -9,8 +10,12 @@ use mockall::*;
 #[cfg(test)]
 pub use nostr_sdk::{
     event::Error,
+    relay::RelayPoolNotification,
     secp256k1::XOnlyPublicKey,
-    {Event, EventBuilder, EventId, Filter, Keys, Kind, Options, Tag, TagKind},
+    {
+        Event, EventBuilder, EventId, Filter, Keys, Kind, Options, RelayMessage, Tag, TagKind,
+        Timestamp,
+    },
 };
 
 #[cfg(test)]
@@ -30,6 +35,8 @@ mock! {
         pub async fn send_event(&self, event: Event) -> Result<EventId, Error>;
         pub async fn get_events_of(&self, filters: Vec<Filter>, timeout: Option<Duration>) -> Result<Vec<Event>, Error>;
         pub async fn send_direct_msg<S>(&self, receiver: XOnlyPublicKey, msg: S) -> Result<EventId, Error> where S: Into<String> + 'static;
+        pub fn notifications(&self) -> Receiver<RelayPoolNotification>;
+        pub async fn subscribe(&self, filters: Vec<Filter>);
     }
 }
 
@@ -37,3 +44,4 @@ mock! {
 pub use MockClient as Client;
 
 pub type ArcClient = Arc<Mutex<Client>>;
+pub type ArcReceiver = Arc<Mutex<Receiver<RelayPoolNotification>>>;

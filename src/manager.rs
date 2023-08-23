@@ -40,10 +40,11 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
     pub async fn new(
         trade_engine_name: &str,
     ) -> Manager<OrderEngineSpecificType, OfferEngineSpecificType> {
-        let nostr_interface = NostrInterface::new(trade_engine_name).await;
+        let interface = NostrInterface::new(trade_engine_name).await;
+
         Manager {
             trade_engine_name: trade_engine_name.to_string(),
-            interface: Arc::new(Mutex::new(nostr_interface)),
+            interface: Arc::new(Mutex::new(interface)),
             order_cache: Vec::new(),
             maker_sms: RwLock::new(HashMap::new()),
             taker_sms: RwLock::new(HashMap::new()),
@@ -54,10 +55,11 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
         keys: Keys,
         trade_engine_name: &str,
     ) -> Manager<OrderEngineSpecificType, OfferEngineSpecificType> {
-        let nostr_interface = NostrInterface::new_with_keys(keys, trade_engine_name).await;
+        let interface = NostrInterface::new_with_keys(keys, trade_engine_name).await;
+
         Manager {
             trade_engine_name: trade_engine_name.to_string(),
-            interface: Arc::new(Mutex::new(nostr_interface)),
+            interface: Arc::new(Mutex::new(interface)),
             order_cache: Vec::new(),
             maker_sms: RwLock::new(HashMap::new()),
             taker_sms: RwLock::new(HashMap::new()),
@@ -65,6 +67,11 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
     }
 
     // Nostr Management
+    pub async fn pubkey(&self) -> String {
+        let interface = self.interface.lock().unwrap();
+        interface.pubkey().await
+    }
+
     pub async fn add_relays<S>(&self, relays: Vec<(S, Option<SocketAddr>)>, connect: bool)
     where
         S: Into<String> + 'static,

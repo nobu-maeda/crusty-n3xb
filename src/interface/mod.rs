@@ -1,6 +1,7 @@
 mod maker_order_note;
 mod nostr_interface;
 mod peer_messaging;
+mod poller;
 
 pub mod nostr;
 

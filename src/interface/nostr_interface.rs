@@ -4,12 +4,11 @@ use log::warn;
 use std::str::FromStr;
 use std::time::Duration;
 use std::{collections::HashSet, marker::PhantomData};
-use std::{
-    net::SocketAddr,
-    sync::{Arc, Mutex},
-};
+use std::{net::SocketAddr, sync::Arc};
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 
-use super::{maker_order_note::*, nostr::*, peer_messaging::*};
+use super::{maker_order_note::*, nostr::*, peer_messaging::*, poller::*};
 use crate::common::error::N3xbError;
 use crate::common::types::*;
 use crate::offer::Offer;
@@ -19,7 +18,8 @@ pub struct NostrInterface<
     OrderEngineSpecificType: SerdeGenericTrait,
     OfferEngineSpecificType: SerdeGenericTrait,
 > {
-    client: ArcClient,
+    arc_client: ArcClient,
+    poller_handle: JoinHandle<()>,
     trade_engine_name: String,
     _phantom_order_specifics: PhantomData<OrderEngineSpecificType>,
     _phantom_offer_specifics: PhantomData<OfferEngineSpecificType>,
@@ -32,31 +32,28 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
 
     // Constructors
     pub async fn new(trade_engine_name: &str) -> Self {
-        let keys = Keys::generate();
-        NostrInterface {
-            client: Self::new_nostr_client(&keys).await,
-            trade_engine_name: trade_engine_name.to_owned(),
-            _phantom_order_specifics: PhantomData,
-            _phantom_offer_specifics: PhantomData,
-        }
+        Self::new_with_keys(Keys::generate(), trade_engine_name).await
     }
 
     pub async fn new_with_keys(keys: Keys, trade_engine_name: &str) -> Self {
-        NostrInterface {
-            client: Self::new_nostr_client(&keys).await,
-            trade_engine_name: trade_engine_name.to_owned(),
-            _phantom_order_specifics: PhantomData,
-            _phantom_offer_specifics: PhantomData,
-        }
+        let arc_client = Self::new_nostr_client(&keys).await;
+        Self::new_with_nostr(arc_client, trade_engine_name).await
     }
 
-    pub fn new_with_nostr(client: Client, trade_engine_name: &str) -> Self {
-        NostrInterface {
-            client: Arc::new(Mutex::new(client)),
+    pub async fn new_with_nostr(arc_client: ArcClient, trade_engine_name: &str) -> Self {
+        let interface = NostrInterface {
+            arc_client: Arc::clone(&arc_client),
+            poller_handle: Poller::<OfferEngineSpecificType>::start(Arc::clone(&arc_client)),
             trade_engine_name: trade_engine_name.to_owned(),
             _phantom_order_specifics: PhantomData,
             _phantom_offer_specifics: PhantomData,
-        }
+        };
+        let client = arc_client.lock().await;
+        let pubkey = client.keys().public_key();
+        client
+            .subscribe(interface.subscription_filters(pubkey))
+            .await;
+        interface
     }
 
     async fn new_nostr_client(keys: &Keys) -> ArcClient {
@@ -72,19 +69,39 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
 
     // Nostr Client Management
 
+    pub async fn pubkey(&self) -> String {
+        let client = self.arc_client.lock().await;
+        client.keys().public_key().to_string()
+    }
+
     pub async fn add_relays<S>(&self, relays: Vec<(S, Option<SocketAddr>)>, connect: bool)
     where
         S: Into<String> + 'static,
     {
-        let unlocked_client = self.client.lock().unwrap();
-        unlocked_client.add_relays(relays).await.unwrap();
+        let client = self.arc_client.lock().await;
+        client.add_relays(relays).await.unwrap();
         if connect {
-            unlocked_client.connect().await;
+            let pubkey = client.keys().public_key();
+            client.subscribe(self.subscription_filters(pubkey)).await;
+            client.connect().await;
         }
     }
 
-    // Inbound Subscription Management
-    // TODO: Ability to subscribe to DMs only for a specific order / event ID
+    fn subscription_filters(&self, pubkey: XOnlyPublicKey) -> Vec<Filter> {
+        // Need a way to track existing Filters
+        // Need a way to correlate State Machines to Subscriptions as to remove filters as necessary
+
+        // Subscribe to all DM to own pubkey. Filter unrecognized DM out some other way. Can be spam prone
+        let dm_filter = Filter::new().since(Timestamp::now()).pubkey(pubkey);
+
+        vec![dm_filter]
+    }
+
+    // Add/Start Orders Subscription Filter
+
+    // Start Peer Message Subscription
+
+    // Add/Start
 
     // Send Maker Order Note
 
@@ -137,12 +154,9 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
             &Self::create_event_tags(tag_set),
         );
 
-        let keys = self.client.lock().unwrap().keys();
-        self.client
-            .lock()
-            .unwrap()
-            .send_event(builder.to_event(&keys).unwrap())
-            .await?;
+        let client = self.arc_client.lock().await;
+        let keys = client.keys();
+        client.send_event(builder.to_event(&keys).unwrap()).await?;
         Ok(())
     }
 
@@ -190,12 +204,8 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
 
         let filter = Self::create_event_tag_filter(tag_set);
         let timeout = Duration::from_secs(1);
-        let events = self
-            .client
-            .lock()
-            .unwrap()
-            .get_events_of(vec![filter], Some(timeout))
-            .await?;
+        let client = self.arc_client.lock().await;
+        let events = client.get_events_of(vec![filter], Some(timeout)).await?;
 
         let maybe_orders = self.extract_orders_from_events(events);
         let mut orders: Vec<Order<OrderEngineSpecificType>> = Vec::new();
@@ -400,11 +410,8 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
         let public_key = XOnlyPublicKey::from_str(&pubkey.as_str()).unwrap();
         let content_string = serde_json::to_string(&content)?;
 
-        self.client
-            .lock()
-            .unwrap()
-            .send_direct_msg(public_key, content_string)
-            .await?;
+        let client = self.arc_client.lock().await;
+        client.send_direct_msg(public_key, content_string).await?;
         Ok(())
     }
 }
@@ -428,10 +435,12 @@ mod tests {
             .expect_send_event()
             .returning(send_maker_order_note_expectation);
 
+        let mut arc_client = Arc::new(Mutex::new(client));
+
         let interface: NostrInterface<
             SomeTradeEngineMakerOrderSpecifics,
             SomeTradeEngineTakerOfferSpecifics,
-        > = NostrInterface::new_with_nostr(client, &SomeTestParams::engine_name_str());
+        > = NostrInterface::new_with_nostr(arc_client, &SomeTestParams::engine_name_str()).await;
 
         let maker_obligation = MakerObligation {
             kinds: SomeTestParams::maker_obligation_kinds(),
@@ -494,11 +503,12 @@ mod tests {
         client
             .expect_get_events_of()
             .returning(query_order_notes_expectation);
+        let mut arc_client = Arc::new(Mutex::new(client));
 
         let interface: NostrInterface<
             SomeTradeEngineMakerOrderSpecifics,
             SomeTradeEngineTakerOfferSpecifics,
-        > = NostrInterface::new_with_nostr(client, &SomeTestParams::engine_name_str());
+        > = NostrInterface::new_with_nostr(arc_client, &SomeTestParams::engine_name_str()).await;
 
         let _ = interface.query_order_notes().await.unwrap();
     }
