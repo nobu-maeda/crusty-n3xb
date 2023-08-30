@@ -12,7 +12,7 @@ pub enum BuySell {
     Sell,
 }
 
-pub trait SerdeGenericTrait: Serialize + DeserializeOwned + Clone + Debug {}
+pub trait SerdeGenericTrait: Serialize + DeserializeOwned + Clone + Debug + Send + 'static {}
 
 #[derive(Clone, Debug)]
 pub enum OrderTag {

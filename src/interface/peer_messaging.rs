@@ -5,7 +5,7 @@ use std::fmt::Debug;
 // Peer Messaging Data Structure
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum PeerMessageType {
+pub(crate) enum PeerMessageType {
     TakerOffer,
     TradeResponse,
 }
@@ -20,8 +20,10 @@ pub(crate) struct PeerMessage<T: SerdeGenericTrait> {
     pub(crate) message: T,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+impl<T: SerdeGenericTrait> SerdeGenericTrait for PeerMessage<T> {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound = "T: Serialize + DeserializeOwned")]
-pub struct PeerMessageContent<T: SerdeGenericTrait> {
+pub(crate) struct PeerMessageContent<T: SerdeGenericTrait> {
     pub(crate) n3xb_peer_message: PeerMessage<T>,
 }

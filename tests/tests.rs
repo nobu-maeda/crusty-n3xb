@@ -123,10 +123,8 @@ mod maker_taker_flow_tests {
 
         let test_engine_name = SomeTestParams::engine_name_str();
 
-        let mut maker: Manager<
-            SomeTradeEngineMakerOrderSpecifics,
-            SomeTradeEngineTakerOfferSpecifics,
-        > = Manager::new(&test_engine_name).await;
+        let maker: Manager<SomeTradeEngineMakerOrderSpecifics, SomeTradeEngineTakerOfferSpecifics> =
+            Manager::new(&test_engine_name).await;
 
         let maker_pubkey = maker.pubkey().await;
         info!("Created Maker Manager with Pubkey {}", maker_pubkey);
@@ -171,7 +169,7 @@ mod maker_taker_flow_tests {
         let order = builder.build().unwrap();
         maker.make_new_order(order.clone()).await.unwrap();
 
-        sleep(Duration::from_millis(200)).await;
+        sleep(Duration::from_millis(300)).await;
 
         // Query and check
         let orders = taker.query_order_notes().await.unwrap();

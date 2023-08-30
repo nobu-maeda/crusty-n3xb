@@ -1,5 +1,8 @@
 use std::sync::Arc;
-use tokio::sync::{broadcast::Receiver, Mutex};
+use tokio::sync::Mutex;
+
+#[cfg(test)]
+use tokio::sync::broadcast::Receiver;
 
 #[cfg(not(test))]
 pub use nostr_sdk::prelude::*;
@@ -8,6 +11,8 @@ pub use nostr_sdk::prelude::*;
 use mockall::*;
 
 #[cfg(test)]
+pub use nostr_sdk::nostr::prelude::*;
+
 pub use nostr_sdk::{
     event::Error,
     relay::RelayPoolNotification,
@@ -44,4 +49,3 @@ mock! {
 pub use MockClient as Client;
 
 pub type ArcClient = Arc<Mutex<Client>>;
-pub type ArcReceiver = Arc<Mutex<Receiver<RelayPoolNotification>>>;

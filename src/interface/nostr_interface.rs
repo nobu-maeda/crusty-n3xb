@@ -14,6 +14,23 @@ use crate::common::types::*;
 use crate::offer::Offer;
 use crate::order::*;
 
+struct Router<OfferEngineSpecificType> {
+    _phantom_order_specifics: PhantomData<OfferEngineSpecificType>,
+}
+
+impl<OfferEngineSpecificType: SerdeGenericTrait> Router<OfferEngineSpecificType> {
+    fn new() -> Self {
+        Router {
+            _phantom_order_specifics: PhantomData,
+        }
+    }
+
+    fn offer_callback(&mut self, _peer_message: PeerMessage<Offer<OfferEngineSpecificType>>) -> () {
+    }
+}
+
+type ArcRouter<T> = Arc<std::sync::Mutex<Router<T>>>;
+
 pub struct NostrInterface<
     OrderEngineSpecificType: SerdeGenericTrait,
     OfferEngineSpecificType: SerdeGenericTrait,
@@ -21,6 +38,7 @@ pub struct NostrInterface<
     arc_client: ArcClient,
     poller_handle: JoinHandle<()>,
     trade_engine_name: String,
+    arc_router: ArcRouter<OfferEngineSpecificType>,
     _phantom_order_specifics: PhantomData<OrderEngineSpecificType>,
     _phantom_offer_specifics: PhantomData<OfferEngineSpecificType>,
 }
@@ -41,10 +59,28 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
     }
 
     pub async fn new_with_nostr(arc_client: ArcClient, trade_engine_name: &str) -> Self {
+        let router = Router::new();
+        let arc_router = Arc::new(std::sync::Mutex::new(router));
+        let arc_router_clone = arc_router.clone();
+
+        let event_config = EventConfig {
+            offer_callback: Box::new(move |peer_message| {
+                arc_router_clone
+                    .lock()
+                    .unwrap()
+                    .offer_callback(peer_message)
+            }),
+        };
+        let arc_event_config = Arc::new(tokio::sync::Mutex::new(event_config));
+
         let interface = NostrInterface {
             arc_client: Arc::clone(&arc_client),
-            poller_handle: Poller::<OfferEngineSpecificType>::start(Arc::clone(&arc_client)),
+            poller_handle: Poller::<OfferEngineSpecificType>::start(
+                Arc::clone(&arc_client),
+                arc_event_config,
+            ),
             trade_engine_name: trade_engine_name.to_owned(),
+            arc_router: arc_router.clone(),
             _phantom_order_specifics: PhantomData,
             _phantom_offer_specifics: PhantomData,
         };
@@ -431,11 +467,12 @@ mod tests {
     async fn test_send_maker_order_note() {
         let mut client = Client::new();
         client.expect_keys().returning(|| Keys::generate());
+        client.expect_subscribe().returning(|_| {});
         client
             .expect_send_event()
             .returning(send_maker_order_note_expectation);
 
-        let mut arc_client = Arc::new(Mutex::new(client));
+        let arc_client = Arc::new(Mutex::new(client));
 
         let interface: NostrInterface<
             SomeTradeEngineMakerOrderSpecifics,
@@ -500,10 +537,11 @@ mod tests {
     async fn test_query_order_notes() {
         let mut client = Client::new();
         client.expect_keys().returning(|| Keys::generate());
+        client.expect_subscribe().returning(|_| {});
         client
             .expect_get_events_of()
             .returning(query_order_notes_expectation);
-        let mut arc_client = Arc::new(Mutex::new(client));
+        let arc_client = Arc::new(Mutex::new(client));
 
         let interface: NostrInterface<
             SomeTradeEngineMakerOrderSpecifics,
