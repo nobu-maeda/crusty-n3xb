@@ -53,12 +53,12 @@ impl NostrInterface {
         let arc_router_clone = arc_router.clone();
 
         let event_config = EventConfig {
-            // offer_callback: Box::new(move |peer_message| {
-            //     arc_router_clone
-            //         .lock()
-            //         .unwrap()
-            //         .offer_callback(peer_message)
-            // }),
+            offer_callback: Box::new(move |peer_message| {
+                arc_router_clone
+                    .lock()
+                    .unwrap()
+                    .offer_callback(peer_message)
+            }),
         };
         let arc_event_config = Arc::new(tokio::sync::Mutex::new(event_config));
 
@@ -403,7 +403,7 @@ impl NostrInterface {
         trade_uuid: String,
         offer: Offer,
     ) -> Result<(), N3xbError> {
-        let rc_offer = Rc::new(offer);
+        let rc_offer = Arc::new(offer);
         let peer_message = PeerMessage {
             peer_message_id: Option::None,
             maker_order_note_id,
@@ -470,7 +470,7 @@ mod tests {
             test_specific_field: SomeTestParams::engine_specific_str(),
         };
 
-        let rc_trade_engine_specifics = Rc::new(trade_engine_specifics);
+        let rc_trade_engine_specifics = Arc::new(trade_engine_specifics);
 
         let order = Order {
             pubkey: "".to_string(),

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use std::{any::Any, fmt::Debug, rc::Rc};
+use std::{any::Any, fmt::Debug, sync::Arc};
 
 use crate::common::types::*;
 
@@ -18,7 +18,7 @@ pub struct Offer {
     pub maker_obligation: Obligation,
     pub taker_obligation: Obligation,
     pub market_oracle_used: Option<String>, // TODO: Change to URL type
-    pub trade_engine_specifics: Rc<dyn SerdeGenericTrait>,
+    pub trade_engine_specifics: Arc<dyn SerdeGenericTrait>,
     pub pow_difficulty: Option<u64>,
 }
 

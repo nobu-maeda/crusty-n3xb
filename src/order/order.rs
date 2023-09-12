@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
@@ -13,6 +13,6 @@ pub struct Order {
     pub maker_obligation: MakerObligation,
     pub taker_obligation: TakerObligation,
     pub trade_details: TradeDetails,
-    pub trade_engine_specifics: Rc<dyn SerdeGenericTrait>,
+    pub trade_engine_specifics: Arc<dyn SerdeGenericTrait>,
     pub pow_difficulty: u64,
 }

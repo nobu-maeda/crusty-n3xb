@@ -18,16 +18,15 @@ impl TakerSM {
     ) -> Result<TakerSM, N3xbError> {
         let taker_sm = TakerSM {
             interface: Arc::clone(&interface),
-            order,
-            offer,
+            order: order.clone(),
+            offer: offer.clone(),
         };
 
-        // TODO: Move interfacer call into MakerSM
-        // interface
-        //     .lock()
-        //     .unwrap()
-        //     .send_taker_offer_message(order.pubkey, order.event_id, order.trade_uuid, offer)
-        //     .await?;
+        interface
+            .lock()
+            .unwrap()
+            .send_taker_offer_message(order.pubkey, order.event_id, order.trade_uuid, offer)
+            .await?;
         Ok(taker_sm)
     }
 }

@@ -17,17 +17,16 @@ impl MakerSM {
     pub async fn new(interface: ArcInterface, order: Order) -> Result<MakerSM, N3xbError> {
         let maker_sm = MakerSM {
             interface: Arc::clone(&interface),
-            order,
+            order: order.clone(),
         };
 
         // TODO: Subscribe to any inbound peer messages regarding Order this MakerSM tracks
 
-        // TODO: Move interfacer call into MakerSM
-        // interface
-        //     .lock()
-        //     .unwrap()
-        //     .send_maker_order_note(order)
-        //     .await?;
+        interface
+            .lock()
+            .unwrap()
+            .send_maker_order_note(order)
+            .await?;
         Ok(maker_sm)
     }
 

@@ -14,7 +14,7 @@ pub enum BuySell {
 }
 
 #[typetag::serde(tag = "type")]
-pub trait SerdeGenericTrait: Debug + 'static {
+pub trait SerdeGenericTrait: Debug + Send + Sync + 'static {
     fn any_ref(&self) -> &dyn Any;
 }
 

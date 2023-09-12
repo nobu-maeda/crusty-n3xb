@@ -1,14 +1,14 @@
 use super::{obligation::*, order::*, trade_details::*};
 use crate::common::error::*;
 use crate::common::types::SerdeGenericTrait;
-use std::{any::Any, rc::Rc};
+use std::sync::Arc;
 
 pub struct OrderBuilder {
     trade_uuid: Option<String>, // TODO: Change to UUID type
     maker_obligation: Option<MakerObligation>,
     taker_obligation: Option<TakerObligation>,
     trade_details: Option<TradeDetails>,
-    trade_engine_specifics: Option<Rc<dyn SerdeGenericTrait>>,
+    trade_engine_specifics: Option<Arc<dyn SerdeGenericTrait>>,
     pow_difficulty: Option<u64>,
 }
 
@@ -46,7 +46,7 @@ impl OrderBuilder {
 
     pub fn trade_engine_specifics(
         &mut self,
-        trade_engine_specifics: Rc<dyn SerdeGenericTrait>,
+        trade_engine_specifics: Arc<dyn SerdeGenericTrait>,
     ) -> &mut Self {
         self.trade_engine_specifics = Some(trade_engine_specifics);
         self
@@ -120,7 +120,7 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        let trade_engine_specifics = Rc::new(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Arc::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
         builder.trade_engine_specifics(trade_engine_specifics);
@@ -196,7 +196,7 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        let trade_engine_specifics = Rc::new(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Arc::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
 
@@ -232,7 +232,7 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        let trade_engine_specifics = Rc::new(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Arc::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
 
@@ -266,7 +266,7 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        let trade_engine_specifics = Rc::new(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Arc::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
 
@@ -300,7 +300,7 @@ mod tests {
             content: SomeTestParams::taker_obligation_content(),
         });
 
-        let trade_engine_specifics = Rc::new(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Arc::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
 
@@ -372,7 +372,7 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        let trade_engine_specifics = Rc::new(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Arc::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
 
