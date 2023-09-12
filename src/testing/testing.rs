@@ -1,6 +1,7 @@
 use iso_currency::Currency;
 use serde::{Deserialize, Serialize};
 
+use std::any::Any;
 use std::collections::HashSet;
 
 use crate::common::types::*;
@@ -73,7 +74,7 @@ impl SomeTestParams {
     }
 
     pub fn expected_json_string() -> String {
-        "{\"maker_obligation\":{\"amount\":1000000,\"amount_min\":null},\"taker_obligation\":{\"limit_rate\":1e-6,\"market_offset_pct\":null,\"market_oracles\":null},\"trade_details\":{\"maker_bond_pct\":null,\"taker_bond_pct\":null,\"trade_timeout\":null},\"trade_engine_specifics\":{\"test_specific_field\":\"some-test-specific-info\"},\"pow_difficulty\":8}".to_string()
+        "{\"maker_obligation\":{\"amount\":1000000,\"amount_min\":null},\"taker_obligation\":{\"limit_rate\":1e-6,\"market_offset_pct\":null,\"market_oracles\":null},\"trade_details\":{\"maker_bond_pct\":null,\"taker_bond_pct\":null,\"trade_timeout\":null},\"trade_engine_specifics\":{\"type\":\"some_trade_engine_maker_order_specifics\",\"test_specific_field\":\"some-test-specific-info\"},\"pow_difficulty\":8}".to_string()
     }
 
     pub fn offer_maker_obligation() -> Obligation {
@@ -101,7 +102,7 @@ impl SomeTestParams {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SomeTradeEngineMakerOrderSpecifics {
     pub test_specific_field: String,
 }
@@ -111,5 +112,16 @@ pub struct SomeTradeEngineTakerOfferSpecifics {
     pub test_specific_field: String,
 }
 
-impl SerdeGenericTrait for SomeTradeEngineMakerOrderSpecifics {}
-impl SerdeGenericTrait for SomeTradeEngineTakerOfferSpecifics {}
+#[typetag::serde(name = "some_trade_engine_maker_order_specifics")]
+impl SerdeGenericTrait for SomeTradeEngineMakerOrderSpecifics {
+    fn any_ref(&self) -> &dyn Any {
+        self
+    }
+}
+
+#[typetag::serde(name = "some_trade_engine_taker_offer_specifics")]
+impl SerdeGenericTrait for SomeTradeEngineTakerOfferSpecifics {
+    fn any_ref(&self) -> &dyn Any {
+        self
+    }
+}

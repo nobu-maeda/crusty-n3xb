@@ -1,7 +1,8 @@
 use iso_currency::Currency;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumString, IntoStaticStr};
 
+use std::any::Any;
 use std::hash::Hash;
 use std::{collections::HashSet, fmt::Debug, str::FromStr};
 
@@ -12,7 +13,16 @@ pub enum BuySell {
     Sell,
 }
 
-pub trait SerdeGenericTrait: Serialize + DeserializeOwned + Clone + Debug + Send + 'static {}
+#[typetag::serde(tag = "type")]
+pub trait SerdeGenericTrait: Debug + 'static {
+    fn any_ref(&self) -> &dyn Any;
+}
+
+impl dyn SerdeGenericTrait {
+    pub fn downcast_ref<T: Any>(&self) -> Option<&T> {
+        self.any_ref().downcast_ref()
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum OrderTag {

@@ -1,29 +1,32 @@
 use crate::common::types::SerdeGenericTrait;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::fmt::Debug;
+use serde::{Deserialize, Serialize};
+use std::{any::Any, fmt::Debug, rc::Rc};
 
 // Peer Messaging Data Structure
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) enum PeerMessageType {
     TakerOffer,
     TradeResponse,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(bound = "T: Serialize + DeserializeOwned")]
-pub(crate) struct PeerMessage<T: SerdeGenericTrait> {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct PeerMessage {
     pub(crate) peer_message_id: Option<String>, // TODO: Is there a more specific type we can use here?
     pub(crate) maker_order_note_id: String, // TODO: Is there a more specific type we can use here?
     pub(crate) trade_uuid: String,          // TODO: Change to UUID type?
     pub(crate) message_type: PeerMessageType,
-    pub(crate) message: T,
+    pub(crate) message: Rc<dyn SerdeGenericTrait>,
 }
 
-impl<T: SerdeGenericTrait> SerdeGenericTrait for PeerMessage<T> {}
+#[typetag::serde(name = "n3xb_peer_message")]
+impl SerdeGenericTrait for PeerMessage {
+    fn any_ref(&self) -> &dyn Any {
+        self
+    }
+}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(bound = "T: Serialize + DeserializeOwned")]
-pub(crate) struct PeerMessageContent<T: SerdeGenericTrait> {
-    pub(crate) n3xb_peer_message: PeerMessage<T>,
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct PeerMessageContent {
+    pub(crate) n3xb_peer_message: PeerMessage,
 }

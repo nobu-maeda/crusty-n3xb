@@ -1,9 +1,10 @@
 pub use serde_json::{Map, Value};
 
 use log::warn;
+use std::collections::HashSet;
+use std::rc::Rc;
 use std::str::FromStr;
 use std::time::Duration;
-use std::{collections::HashSet, marker::PhantomData};
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -14,38 +15,26 @@ use crate::common::types::*;
 use crate::offer::Offer;
 use crate::order::*;
 
-struct Router<OfferEngineSpecificType> {
-    _phantom_order_specifics: PhantomData<OfferEngineSpecificType>,
-}
+struct Router {}
 
-impl<OfferEngineSpecificType: SerdeGenericTrait> Router<OfferEngineSpecificType> {
+impl Router {
     fn new() -> Self {
-        Router {
-            _phantom_order_specifics: PhantomData,
-        }
+        Router {}
     }
 
-    fn offer_callback(&mut self, _peer_message: PeerMessage<Offer<OfferEngineSpecificType>>) -> () {
-    }
+    fn offer_callback(&mut self, _peer_message: PeerMessage) -> () {}
 }
 
-type ArcRouter<T> = Arc<std::sync::Mutex<Router<T>>>;
+type ArcRouter = Arc<std::sync::Mutex<Router>>;
 
-pub struct NostrInterface<
-    OrderEngineSpecificType: SerdeGenericTrait,
-    OfferEngineSpecificType: SerdeGenericTrait,
-> {
+pub struct NostrInterface {
     arc_client: ArcClient,
     poller_handle: JoinHandle<()>,
     trade_engine_name: String,
-    arc_router: ArcRouter<OfferEngineSpecificType>,
-    _phantom_order_specifics: PhantomData<OrderEngineSpecificType>,
-    _phantom_offer_specifics: PhantomData<OfferEngineSpecificType>,
+    arc_router: ArcRouter,
 }
 
-impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeGenericTrait>
-    NostrInterface<OrderEngineSpecificType, OfferEngineSpecificType>
-{
+impl NostrInterface {
     const MAKER_ORDER_NOTE_KIND: Kind = Kind::ParameterizedReplaceable(30078);
 
     // Constructors
@@ -64,25 +53,20 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
         let arc_router_clone = arc_router.clone();
 
         let event_config = EventConfig {
-            offer_callback: Box::new(move |peer_message| {
-                arc_router_clone
-                    .lock()
-                    .unwrap()
-                    .offer_callback(peer_message)
-            }),
+            // offer_callback: Box::new(move |peer_message| {
+            //     arc_router_clone
+            //         .lock()
+            //         .unwrap()
+            //         .offer_callback(peer_message)
+            // }),
         };
         let arc_event_config = Arc::new(tokio::sync::Mutex::new(event_config));
 
         let interface = NostrInterface {
             arc_client: Arc::clone(&arc_client),
-            poller_handle: Poller::<OfferEngineSpecificType>::start(
-                Arc::clone(&arc_client),
-                arc_event_config,
-            ),
+            poller_handle: Poller::start(Arc::clone(&arc_client), arc_event_config),
             trade_engine_name: trade_engine_name.to_owned(),
             arc_router: arc_router.clone(),
-            _phantom_order_specifics: PhantomData,
-            _phantom_offer_specifics: PhantomData,
         };
         let client = arc_client.lock().await;
         let pubkey = client.keys().public_key();
@@ -141,16 +125,13 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
 
     // Send Maker Order Note
 
-    pub async fn send_maker_order_note(
-        &self,
-        order: Order<OrderEngineSpecificType>,
-    ) -> Result<(), N3xbError> {
+    pub async fn send_maker_order_note(&self, order: Order) -> Result<(), N3xbError> {
         // Create Note Content
         let maker_order_note = MakerOrderNote {
             maker_obligation: order.maker_obligation.content.to_owned(),
             taker_obligation: order.taker_obligation.content.to_owned(),
             trade_details: order.trade_details.content.to_owned(),
-            trade_engine_specifics: order.trade_engine_specifics.to_owned(),
+            trade_engine_specifics: order.trade_engine_specifics,
             pow_difficulty: order.pow_difficulty,
         };
 
@@ -230,9 +211,7 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
 
     // Query Order Notes
 
-    pub async fn query_order_notes(
-        &self,
-    ) -> Result<Vec<Order<OrderEngineSpecificType>>, N3xbError> {
+    pub async fn query_order_notes(&self) -> Result<Vec<Order>, N3xbError> {
         let mut tag_set: Vec<OrderTag> = Vec::new();
         tag_set.push(OrderTag::TradeEngineName(self.trade_engine_name.to_owned()));
         tag_set.push(OrderTag::EventKind(EventKind::MakerOrder));
@@ -244,7 +223,7 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
         let events = client.get_events_of(vec![filter], Some(timeout)).await?;
 
         let maybe_orders = self.extract_orders_from_events(events);
-        let mut orders: Vec<Order<OrderEngineSpecificType>> = Vec::new();
+        let mut orders: Vec<Order> = Vec::new();
         for maybe_order in maybe_orders {
             match maybe_order {
                 Ok(order) => orders.push(order),
@@ -274,12 +253,8 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
         order_tags
     }
 
-    fn extract_order_from_event(
-        &self,
-        event: Event,
-    ) -> Result<Order<OrderEngineSpecificType>, N3xbError> {
-        let maker_order_note: MakerOrderNote<OrderEngineSpecificType> =
-            serde_json::from_str(event.content.as_str())?;
+    fn extract_order_from_event(&self, event: Event) -> Result<Order, N3xbError> {
+        let maker_order_note: MakerOrderNote = serde_json::from_str(event.content.as_str())?;
         let order_tags = self.extract_order_tags_from_tags(event.tags);
 
         let mut some_trade_uuid: Option<String> = None;
@@ -372,11 +347,8 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
         })
     }
 
-    fn extract_orders_from_events(
-        &self,
-        events: Vec<Event>,
-    ) -> Vec<Result<Order<OrderEngineSpecificType>, N3xbError>> {
-        let mut orders: Vec<Result<Order<OrderEngineSpecificType>, N3xbError>> = Vec::new();
+    fn extract_orders_from_events(&self, events: Vec<Event>) -> Vec<Result<Order, N3xbError>> {
+        let mut orders: Vec<Result<Order, N3xbError>> = Vec::new();
         for event in events {
             let order = self.extract_order_from_event(event);
             orders.push(order);
@@ -429,14 +401,15 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
         pubkey: String,
         maker_order_note_id: String,
         trade_uuid: String,
-        offer: Offer<OfferEngineSpecificType>,
+        offer: Offer,
     ) -> Result<(), N3xbError> {
+        let rc_offer = Rc::new(offer);
         let peer_message = PeerMessage {
             peer_message_id: Option::None,
             maker_order_note_id,
             trade_uuid,
             message_type: PeerMessageType::TakerOffer,
-            message: offer,
+            message: rc_offer,
         };
 
         let content = PeerMessageContent {
@@ -458,7 +431,8 @@ mod tests {
     use crate::testing::*;
 
     fn send_maker_order_note_expectation(event: Event) -> Result<EventId, Error> {
-        print!("Nostr Event: {:?}", event);
+        print!("Nostr Event: {:?}\n", event);
+        print!("Nostr Event Content: {:?}\n", event.content);
         assert!(event.content == SomeTestParams::expected_json_string());
         Ok(event.id)
     }
@@ -474,10 +448,8 @@ mod tests {
 
         let arc_client = Arc::new(Mutex::new(client));
 
-        let interface: NostrInterface<
-            SomeTradeEngineMakerOrderSpecifics,
-            SomeTradeEngineTakerOfferSpecifics,
-        > = NostrInterface::new_with_nostr(arc_client, &SomeTestParams::engine_name_str()).await;
+        let interface: NostrInterface =
+            NostrInterface::new_with_nostr(arc_client, &SomeTestParams::engine_name_str()).await;
 
         let maker_obligation = MakerObligation {
             kinds: SomeTestParams::maker_obligation_kinds(),
@@ -498,6 +470,8 @@ mod tests {
             test_specific_field: SomeTestParams::engine_specific_str(),
         };
 
+        let rc_trade_engine_specifics = Rc::new(trade_engine_specifics);
+
         let order = Order {
             pubkey: "".to_string(),
             event_id: "".to_string(),
@@ -505,7 +479,7 @@ mod tests {
             maker_obligation,
             taker_obligation,
             trade_details,
-            trade_engine_specifics,
+            trade_engine_specifics: rc_trade_engine_specifics,
             pow_difficulty: SomeTestParams::pow_difficulty(),
         };
 
@@ -520,10 +494,7 @@ mod tests {
         tag_set.push(OrderTag::TradeEngineName(SomeTestParams::engine_name_str()));
         tag_set.push(OrderTag::EventKind(EventKind::MakerOrder));
         tag_set.push(OrderTag::ApplicationTag(N3XB_APPLICATION_TAG.to_string()));
-        let expected_filter = NostrInterface::<
-            SomeTradeEngineMakerOrderSpecifics,
-            SomeTradeEngineTakerOfferSpecifics,
-        >::create_event_tag_filter(tag_set);
+        let expected_filter = NostrInterface::create_event_tag_filter(tag_set);
         assert!(vec![expected_filter] == filters);
 
         let expected_timeout = Duration::from_secs(1);
@@ -543,10 +514,8 @@ mod tests {
             .returning(query_order_notes_expectation);
         let arc_client = Arc::new(Mutex::new(client));
 
-        let interface: NostrInterface<
-            SomeTradeEngineMakerOrderSpecifics,
-            SomeTradeEngineTakerOfferSpecifics,
-        > = NostrInterface::new_with_nostr(arc_client, &SomeTestParams::engine_name_str()).await;
+        let interface: NostrInterface =
+            NostrInterface::new_with_nostr(arc_client, &SomeTestParams::engine_name_str()).await;
 
         let _ = interface.query_order_notes().await.unwrap();
     }

@@ -5,7 +5,6 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use crate::common::error::N3xbError;
-use crate::common::types::SerdeGenericTrait;
 use crate::interface::{nostr::*, *};
 use crate::offer::Offer;
 use crate::order::Order;
@@ -14,22 +13,15 @@ use crate::order_sm::taker::{ArcTakerSM, TakerSM};
 
 // At the moment we only support a single Trade Engine at a time.
 // Might need to change to a dyn Trait if mulitple is to be supported at a time
-pub struct Manager<
-    OrderEngineSpecificType: SerdeGenericTrait,
-    OfferEngineSpecificType: SerdeGenericTrait,
-> {
+pub struct Manager {
     trade_engine_name: String,
-    interface: ArcInterface<OrderEngineSpecificType, OfferEngineSpecificType>,
-    order_cache: Vec<Order<OrderEngineSpecificType>>,
-    maker_sms:
-        RwLock<HashMap<String, ArcMakerSM<OrderEngineSpecificType, OfferEngineSpecificType>>>,
-    taker_sms:
-        RwLock<HashMap<String, ArcTakerSM<OrderEngineSpecificType, OfferEngineSpecificType>>>,
+    interface: ArcInterface,
+    order_cache: Vec<Order>,
+    maker_sms: RwLock<HashMap<String, ArcMakerSM>>,
+    taker_sms: RwLock<HashMap<String, ArcTakerSM>>,
 }
 
-impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeGenericTrait>
-    Manager<OrderEngineSpecificType, OfferEngineSpecificType>
-{
+impl Manager {
     // Public Functions
 
     // Constructors
@@ -37,9 +29,7 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
     // TODO: Should take in genericized Keys or Client, but also Trade Engine Specifics
     // TODO: Should also take in custom path for n3xB file locations
 
-    pub async fn new(
-        trade_engine_name: &str,
-    ) -> Manager<OrderEngineSpecificType, OfferEngineSpecificType> {
+    pub async fn new(trade_engine_name: &str) -> Manager {
         let interface = NostrInterface::new(trade_engine_name).await;
 
         Manager {
@@ -51,10 +41,7 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
         }
     }
 
-    pub async fn new_with_keys(
-        keys: Keys,
-        trade_engine_name: &str,
-    ) -> Manager<OrderEngineSpecificType, OfferEngineSpecificType> {
+    pub async fn new_with_keys(keys: Keys, trade_engine_name: &str) -> Manager {
         let interface = NostrInterface::new_with_keys(keys, trade_engine_name).await;
 
         Manager {
@@ -85,12 +72,8 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
 
     // Order Management
 
-    pub async fn make_new_order(
-        &self,
-        order: Order<OrderEngineSpecificType>,
-    ) -> Result<ArcMakerSM<OrderEngineSpecificType, OfferEngineSpecificType>, N3xbError> {
-        let maker_sm: MakerSM<OrderEngineSpecificType, OfferEngineSpecificType> =
-            MakerSM::new(Arc::clone(&self.interface), order.clone()).await?;
+    pub async fn make_new_order(&self, order: Order) -> Result<ArcMakerSM, N3xbError> {
+        let maker_sm: MakerSM = MakerSM::new(Arc::clone(&self.interface), order.clone()).await?;
         let arc_maker_sm = Arc::new(Mutex::new(maker_sm));
 
         let mut maker_sms = self.maker_sms.write().await;
@@ -98,20 +81,14 @@ impl<OrderEngineSpecificType: SerdeGenericTrait, OfferEngineSpecificType: SerdeG
         Ok(arc_maker_sm)
     }
 
-    pub async fn query_order_notes(
-        &mut self,
-    ) -> Result<Vec<Order<OrderEngineSpecificType>>, N3xbError> {
+    pub async fn query_order_notes(&mut self) -> Result<Vec<Order>, N3xbError> {
         let orders = self.interface.lock().unwrap().query_order_notes().await?;
         self.order_cache = orders.clone();
         Ok(orders)
     }
 
-    pub async fn take_order(
-        &self,
-        order: Order<OrderEngineSpecificType>,
-        offer: Offer<OfferEngineSpecificType>,
-    ) -> Result<ArcTakerSM<OrderEngineSpecificType, OfferEngineSpecificType>, N3xbError> {
-        let taker_sm: TakerSM<OrderEngineSpecificType, OfferEngineSpecificType> =
+    pub async fn take_order(&self, order: Order, offer: Offer) -> Result<ArcTakerSM, N3xbError> {
+        let taker_sm: TakerSM =
             TakerSM::new(Arc::clone(&self.interface), order.clone(), offer).await?;
         let arc_taker_sm = Arc::new(Mutex::new(taker_sm));
 

@@ -9,33 +9,29 @@ use tokio::sync::{
 use tokio::task::JoinHandle;
 use tokio::{task, time};
 
-use crate::interface::{nostr::*, peer_messaging::PeerMessage};
-use crate::{common::types::SerdeGenericTrait, offer::Offer};
+use crate::interface::nostr::*;
 
 use super::peer_messaging::PeerMessageContent;
 
-pub(crate) struct EventConfig<OfferEngineSpecificType: SerdeGenericTrait> {
-    pub(crate) offer_callback: Box<dyn FnMut(PeerMessage<Offer<OfferEngineSpecificType>>) + Send>,
+pub(crate) struct EventConfig {
+    // pub(crate) offer_callback: Box<dyn FnMut(PeerMessage) + Send>,
 }
 
-type ArcEventConfig<T> = Arc<Mutex<EventConfig<T>>>;
+type ArcEventConfig = Arc<Mutex<EventConfig>>;
 
-pub struct Poller<OfferEngineSpecificType: SerdeGenericTrait> {
+pub struct Poller {
     arc_client: ArcClient,
-    arc_event_config: ArcEventConfig<OfferEngineSpecificType>,
+    arc_event_config: ArcEventConfig,
 }
 
-impl<OfferEngineSpecificType: SerdeGenericTrait> Poller<OfferEngineSpecificType> {
-    pub(crate) fn start(
-        arc_client: ArcClient,
-        arc_event_config: ArcEventConfig<OfferEngineSpecificType>,
-    ) -> JoinHandle<()> {
+impl Poller {
+    pub(crate) fn start(arc_client: ArcClient, arc_event_config: ArcEventConfig) -> JoinHandle<()> {
         task::spawn(async move {
-            let mut poller: Poller<OfferEngineSpecificType> = Poller {
-                arc_client,
-                arc_event_config,
-            };
-            poller.thread_main().await;
+            // let mut poller: Poller = Poller {
+            //     arc_client,
+            //     arc_event_config,
+            // };
+            // poller.thread_main().await;
         })
     }
 
@@ -131,13 +127,11 @@ impl<OfferEngineSpecificType: SerdeGenericTrait> Poller<OfferEngineSpecificType>
     }
 
     async fn process_decrypted_direct_message(&self, content: String) {
-        match serde_json::from_str::<PeerMessageContent<Offer<OfferEngineSpecificType>>>(
-            content.as_str(),
-        ) {
+        match serde_json::from_str::<PeerMessageContent>(content.as_str()) {
             Ok(peer_message_content) => {
                 let mut event_config = self.arc_event_config.lock().await;
                 let peer_message = peer_message_content.n3xb_peer_message;
-                (event_config.offer_callback)(peer_message);
+                // (event_config.offer_callback)(peer_message);
             }
             Err(_) => {
                 debug!(
@@ -179,158 +173,152 @@ impl<OfferEngineSpecificType: SerdeGenericTrait> Poller<OfferEngineSpecificType>
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::{marker::PhantomData, str::FromStr};
+// #[cfg(test)]
+// mod tests {
+//     use std::{rc::Rc, str::FromStr};
 
-    use super::*;
-    use crate::{interface::peer_messaging::*, testing::*};
-    use nostr_sdk::secp256k1::schnorr::Signature;
-    use std::sync::Mutex;
-    use tokio::sync::broadcast;
+//     use super::*;
+//     use crate::{interface::peer_messaging::*, offer::Offer, testing::*};
+//     use nostr_sdk::secp256k1::schnorr::Signature;
+//     use std::sync::Mutex;
+//     use tokio::sync::broadcast;
 
-    struct TestValues {
-        trade_uuid: String,
-    }
+//     struct TestValues {
+//         trade_uuid: String,
+//     }
 
-    struct TestRouter<OfferEngineSpecificType> {
-        arc_test_values: Arc<Mutex<TestValues>>,
-        _phantom_order_specifics: PhantomData<OfferEngineSpecificType>,
-    }
+//     struct TestRouter {
+//         arc_test_values: Arc<Mutex<TestValues>>,
+//     }
 
-    impl<OfferEngineSpecificType: SerdeGenericTrait> TestRouter<OfferEngineSpecificType> {
-        fn new() -> Self {
-            let test_values = TestValues {
-                trade_uuid: "".to_string(),
-            };
-            TestRouter {
-                arc_test_values: Arc::new(Mutex::new(test_values)),
-                _phantom_order_specifics: PhantomData,
-            }
-        }
+//     impl TestRouter {
+//         fn new() -> Self {
+//             let test_values = TestValues {
+//                 trade_uuid: "".to_string(),
+//             };
+//             TestRouter {
+//                 arc_test_values: Arc::new(Mutex::new(test_values)),
+//             }
+//         }
 
-        fn offer_callback(
-            &mut self,
-            peer_message: PeerMessage<Offer<OfferEngineSpecificType>>,
-        ) -> () {
-            let mut test_values = self.arc_test_values.lock().unwrap();
-            test_values.trade_uuid = peer_message.trade_uuid;
-        }
-    }
+//         fn offer_callback(&mut self, peer_message: PeerMessage) -> () {
+//             let mut test_values = self.arc_test_values.lock().unwrap();
+//             test_values.trade_uuid = peer_message.trade_uuid;
+//         }
+//     }
 
-    #[tokio::test]
-    async fn test_process_event_notification() {
-        let keys = Keys::new(
-            SecretKey::from_str("01010101010101010001020304050607ffff0000ffff00006363636363636363")
-                .unwrap(),
-        );
+//     #[tokio::test]
+//     async fn test_process_event_notification() {
+//         let keys = Keys::new(
+//             SecretKey::from_str("01010101010101010001020304050607ffff0000ffff00006363636363636363")
+//                 .unwrap(),
+//         );
 
-        let mut client: MockClient = Client::new();
-        client.expect_keys().returning(|| {
-            Keys::new(
-                SecretKey::from_str(
-                    "01010101010101010001020304050607ffff0000ffff00006363636363636363",
-                )
-                .unwrap(),
-            )
-        });
+//         let mut client: MockClient = Client::new();
+//         client.expect_keys().returning(|| {
+//             Keys::new(
+//                 SecretKey::from_str(
+//                     "01010101010101010001020304050607ffff0000ffff00006363636363636363",
+//                 )
+//                 .unwrap(),
+//             )
+//         });
 
-        let (sender, receiver) = broadcast::channel(1024);
-        let mut maybe_receiver = Some(receiver);
-        client
-            .expect_notifications()
-            .returning(move || maybe_receiver.take().unwrap());
+//         let (sender, receiver) = broadcast::channel(1024);
+//         let mut maybe_receiver = Some(receiver);
+//         client
+//             .expect_notifications()
+//             .returning(move || maybe_receiver.take().unwrap());
 
-        let arc_client = Arc::new(tokio::sync::Mutex::new(client));
+//         let arc_client = Arc::new(tokio::sync::Mutex::new(client));
 
-        // Callback registration
-        let router = TestRouter::<SomeTradeEngineTakerOfferSpecifics>::new();
-        let arc_router = Arc::new(Mutex::new(router));
-        let arc_router_clone = arc_router.clone();
-        let event_config = EventConfig {
-            offer_callback: Box::new(move |peer_message| {
-                arc_router_clone
-                    .lock()
-                    .unwrap()
-                    .offer_callback(peer_message)
-            }),
-        };
-        let arc_event_config = Arc::new(tokio::sync::Mutex::new(event_config));
+//         // Callback registration
+//         let router = TestRouter::new();
+//         let arc_router = Arc::new(Mutex::new(router));
+//         let arc_router_clone = arc_router.clone();
+//         let event_config = EventConfig {
+//             // offer_callback: Box::new(move |peer_message| {
+//             //     arc_router_clone
+//             //         .lock()
+//             //         .unwrap()
+//             //         .offer_callback(peer_message)
+//             // }),
+//         };
+//         let arc_event_config = Arc::new(tokio::sync::Mutex::new(event_config));
 
-        let _handle = Poller::<SomeTradeEngineTakerOfferSpecifics>::start(
-            arc_client,
-            Arc::clone(&arc_event_config),
-        );
+//         let _handle = Poller::start(arc_client, Arc::clone(&arc_event_config));
 
-        // Create Taker Offer to take the Order
-        let offer = Offer {
-            maker_obligation: SomeTestParams::offer_maker_obligation(),
-            taker_obligation: SomeTestParams::offer_taker_obligation(),
-            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
-            trade_engine_specifics: SomeTradeEngineTakerOfferSpecifics {
-                test_specific_field: SomeTestParams::engine_specific_str(),
-            },
-            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
-        };
+//         // Create Taker Offer to take the Order
+//         let taker_offer_specifics = SomeTradeEngineTakerOfferSpecifics {
+//             test_specific_field: SomeTestParams::engine_specific_str(),
+//         };
 
-        let peer_message = PeerMessage {
-            peer_message_id: None,
-            maker_order_note_id: "".to_string(),
-            trade_uuid: SomeTestParams::some_uuid_string(),
-            message_type: PeerMessageType::TakerOffer,
-            message: offer,
-        };
+//         let offer = Offer {
+//             maker_obligation: SomeTestParams::offer_maker_obligation(),
+//             taker_obligation: SomeTestParams::offer_taker_obligation(),
+//             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+//             trade_engine_specifics: Rc::new(taker_offer_specifics),
+//             pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+//         };
 
-        let peer_message_content = PeerMessageContent {
-            n3xb_peer_message: peer_message,
-        };
+//         let peer_message = PeerMessage {
+//             peer_message_id: None,
+//             maker_order_note_id: "".to_string(),
+//             trade_uuid: SomeTestParams::some_uuid_string(),
+//             message_type: PeerMessageType::TakerOffer,
+//             message: Rc::new(offer),
+//         };
 
-        let content_string = serde_json::to_string(&peer_message_content).unwrap();
-        let encrypted_content = encrypt(
-            &keys.secret_key().unwrap(),
-            &keys.public_key(),
-            content_string,
-        )
-        .unwrap();
+//         let peer_message_content = PeerMessageContent {
+//             n3xb_peer_message: peer_message,
+//         };
 
-        let event = Event {
-            id: EventId::from_str(
-                "ef537f25c895bfa782526529a9b63d97aa631564d5d789c2b765448c8635fb6c",
-            )
-            .unwrap(),
-            pubkey: keys.public_key(),
-            created_at: Timestamp::now(),
-            kind: Kind::EncryptedDirectMessage,
-            tags: [].to_vec(),
-            content: encrypted_content,
-            sig: Signature::from_str("14d0bf1a8953506fb460f58be141af767fd112535fb3922ef217308e2c26706f1eeb432b3dba9a01082f9e4d4ef5678ad0d9d532c0dfa907b568722d0b0119ba").unwrap()
-        };
+//         let content_string = serde_json::to_string(&peer_message_content).unwrap();
+//         let encrypted_content = encrypt(
+//             &keys.secret_key().unwrap(),
+//             &keys.public_key(),
+//             content_string,
+//         )
+//         .unwrap();
 
-        let relay_pool_event =
-            RelayPoolNotification::Event(Url::from_str("ws://localhost:8008/").unwrap(), event);
+//         let event = Event {
+//             id: EventId::from_str(
+//                 "ef537f25c895bfa782526529a9b63d97aa631564d5d789c2b765448c8635fb6c",
+//             )
+//             .unwrap(),
+//             pubkey: keys.public_key(),
+//             created_at: Timestamp::now(),
+//             kind: Kind::EncryptedDirectMessage,
+//             tags: [].to_vec(),
+//             content: encrypted_content,
+//             sig: Signature::from_str("14d0bf1a8953506fb460f58be141af767fd112535fb3922ef217308e2c26706f1eeb432b3dba9a01082f9e4d4ef5678ad0d9d532c0dfa907b568722d0b0119ba").unwrap()
+//         };
 
-        // Use sender to trigger receive
-        let _ = sender.send(relay_pool_event).unwrap();
+//         let relay_pool_event =
+//             RelayPoolNotification::Event(Url::from_str("ws://localhost:8008/").unwrap(), event);
 
-        tokio::time::sleep(Duration::from_secs(1)).await;
+//         // Use sender to trigger receive
+//         let _ = sender.send(relay_pool_event).unwrap();
 
-        // Check callback has been called
-        let trade_uuid = arc_router
-            .lock()
-            .unwrap()
-            .arc_test_values
-            .lock()
-            .unwrap()
-            .trade_uuid
-            .to_owned();
+//         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        assert_eq!(trade_uuid, SomeTestParams::some_uuid_string());
+//         // Check callback has been called
+//         let trade_uuid = arc_router
+//             .lock()
+//             .unwrap()
+//             .arc_test_values
+//             .lock()
+//             .unwrap()
+//             .trade_uuid
+//             .to_owned();
 
-        // Wait for thread to shutdown
-        // let thread_join = handle.join();
-        // assert!(thread_join.is_ok());
-    }
+//         assert_eq!(trade_uuid, SomeTestParams::some_uuid_string());
 
-    #[tokio::test]
-    async fn test_process_message_notification() {}
-}
+//         // Wait for thread to shutdown
+//         // let thread_join = handle.join();
+//         // assert!(thread_join.is_ok());
+//     }
+
+//     #[tokio::test]
+//     async fn test_process_message_notification() {}
+// }

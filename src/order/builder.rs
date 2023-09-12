@@ -1,24 +1,25 @@
 use super::{obligation::*, order::*, trade_details::*};
 use crate::common::error::*;
 use crate::common::types::SerdeGenericTrait;
+use std::{any::Any, rc::Rc};
 
-pub struct OrderBuilder<T: SerdeGenericTrait> {
+pub struct OrderBuilder {
     trade_uuid: Option<String>, // TODO: Change to UUID type
     maker_obligation: Option<MakerObligation>,
     taker_obligation: Option<TakerObligation>,
     trade_details: Option<TradeDetails>,
-    trade_engine_specifics: Option<T>,
+    trade_engine_specifics: Option<Rc<dyn SerdeGenericTrait>>,
     pow_difficulty: Option<u64>,
 }
 
-impl<T: SerdeGenericTrait> OrderBuilder<T> {
+impl OrderBuilder {
     pub fn new() -> Self {
         OrderBuilder {
             trade_uuid: Option::<String>::None,
             maker_obligation: Option::<MakerObligation>::None,
             taker_obligation: Option::<TakerObligation>::None,
             trade_details: Option::<TradeDetails>::None,
-            trade_engine_specifics: Option::<T>::None,
+            trade_engine_specifics: Option::None,
             pow_difficulty: Option::<u64>::None,
         }
     }
@@ -43,8 +44,11 @@ impl<T: SerdeGenericTrait> OrderBuilder<T> {
         self
     }
 
-    pub fn trade_engine_specifics(&mut self, trade_engine_specifics: impl Into<T>) -> &mut Self {
-        self.trade_engine_specifics = Some(trade_engine_specifics.into());
+    pub fn trade_engine_specifics(
+        &mut self,
+        trade_engine_specifics: Rc<dyn SerdeGenericTrait>,
+    ) -> &mut Self {
+        self.trade_engine_specifics = Some(trade_engine_specifics);
         self
     }
 
@@ -53,26 +57,26 @@ impl<T: SerdeGenericTrait> OrderBuilder<T> {
         self
     }
 
-    pub fn build(&self) -> std::result::Result<Order<T>, N3xbError> {
+    pub fn build(&self) -> std::result::Result<Order, N3xbError> {
         let Some(trade_uuid) = self.trade_uuid.as_ref() else {
-      return Err(N3xbError::Simple("No Trade UUID".to_string()));  // TODO: Error handling?
-    };
+            return Err(N3xbError::Simple("No Trade UUID".to_string()));  // TODO: Error handling?
+        };
 
         let Some(maker_obligation) = self.maker_obligation.as_ref() else {
-      return Err(N3xbError::Simple("No Maker Obligations defined".to_string()));  // TODO: Error handling?
-    };
+            return Err(N3xbError::Simple("No Maker Obligations defined".to_string()));  // TODO: Error handling?
+        };
 
         let Some(taker_obligation) = self.taker_obligation.as_ref() else {
-      return Err(N3xbError::Simple("No Taker Obligations defined".to_string()));  // TODO: Error handling?
-    };
+            return Err(N3xbError::Simple("No Taker Obligations defined".to_string()));  // TODO: Error handling?
+        };
 
         let Some(trade_details) = self.trade_details.as_ref() else {
-      return Err(N3xbError::Simple("No Trade Details defined".to_string()));  // TODO: Error handling?
-    };
+            return Err(N3xbError::Simple("No Trade Details defined".to_string()));  // TODO: Error handling?
+        };
 
         let Some(trade_engine_specifics) = self.trade_engine_specifics.as_ref() else {
-      return Err(N3xbError::Simple("No Engine Details defined".to_string()));  // TODO: Error handling?
-    };
+            return Err(N3xbError::Simple("No Engine Details defined".to_string()));  // TODO: Error handling?
+        };
 
         let pow_difficulty = self.pow_difficulty.unwrap_or_else(|| 0);
 
@@ -97,7 +101,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_order_builder_build() {
-        let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
+        let mut builder: OrderBuilder = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
@@ -116,9 +120,10 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        builder.trade_engine_specifics(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Rc::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
+        builder.trade_engine_specifics(trade_engine_specifics);
 
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
 
@@ -151,8 +156,14 @@ mod tests {
                     order.trade_details.content,
                     SomeTestParams::trade_details_content()
                 );
+
+                let maker_order_specifics = order
+                    .trade_engine_specifics
+                    .downcast_ref::<SomeTradeEngineMakerOrderSpecifics>()
+                    .unwrap();
+
                 assert_eq!(
-                    order.trade_engine_specifics.test_specific_field,
+                    maker_order_specifics.test_specific_field,
                     SomeTestParams::engine_specific_str()
                 );
                 assert_eq!(order.pow_difficulty, SomeTestParams::pow_difficulty());
@@ -168,7 +179,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_order_builder_build_trade_uuid_missing() {
-        let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
+        let mut builder: OrderBuilder = OrderBuilder::new();
 
         builder.maker_obligation(MakerObligation {
             kinds: SomeTestParams::maker_obligation_kinds(),
@@ -185,9 +196,11 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        builder.trade_engine_specifics(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Rc::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
+
+        builder.trade_engine_specifics(trade_engine_specifics);
 
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
 
@@ -205,7 +218,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_order_builder_build_maker_obligation_missing() {
-        let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
+        let mut builder: OrderBuilder = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
@@ -219,9 +232,11 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        builder.trade_engine_specifics(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Rc::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
+
+        builder.trade_engine_specifics(trade_engine_specifics);
 
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
 
@@ -237,7 +252,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_order_builder_build_taker_obligation_missing() {
-        let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
+        let mut builder: OrderBuilder = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
@@ -251,9 +266,11 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        builder.trade_engine_specifics(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Rc::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
+
+        builder.trade_engine_specifics(trade_engine_specifics);
 
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
 
@@ -269,7 +286,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_order_builder_build_trade_details_missing() {
-        let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
+        let mut builder: OrderBuilder = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
@@ -283,9 +300,11 @@ mod tests {
             content: SomeTestParams::taker_obligation_content(),
         });
 
-        builder.trade_engine_specifics(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Rc::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
+
+        builder.trade_engine_specifics(trade_engine_specifics);
 
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
 
@@ -301,7 +320,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_order_builder_build_engine_details_missing() {
-        let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
+        let mut builder: OrderBuilder = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
@@ -334,7 +353,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_order_builder_build_pow_difficulty_default() {
-        let mut builder: OrderBuilder<SomeTradeEngineMakerOrderSpecifics> = OrderBuilder::new();
+        let mut builder: OrderBuilder = OrderBuilder::new();
 
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
@@ -353,9 +372,11 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        builder.trade_engine_specifics(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Rc::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
+
+        builder.trade_engine_specifics(trade_engine_specifics);
 
         let result = builder.build();
 
@@ -386,8 +407,14 @@ mod tests {
                     order.trade_details.content,
                     SomeTestParams::trade_details_content()
                 );
+
+                let maker_order_specifics = order
+                    .trade_engine_specifics
+                    .downcast_ref::<SomeTradeEngineMakerOrderSpecifics>()
+                    .unwrap();
+
                 assert_eq!(
-                    order.trade_engine_specifics.test_specific_field,
+                    maker_order_specifics.test_specific_field,
                     SomeTestParams::engine_specific_str()
                 );
                 assert_eq!(order.pow_difficulty, 0);
