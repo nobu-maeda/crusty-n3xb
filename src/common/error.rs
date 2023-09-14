@@ -1,5 +1,7 @@
 use std::{error::Error, fmt};
 
+pub type BoxedError = Box<dyn std::error::Error + Send + Sync + 'static>;
+
 #[derive(Debug)]
 pub enum N3xbError {
     Simple(String),
