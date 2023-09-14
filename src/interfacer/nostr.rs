@@ -1,6 +1,3 @@
-use std::sync::Arc;
-use tokio::sync::Mutex;
-
 #[cfg(test)]
 use tokio::sync::broadcast::Receiver;
 
@@ -14,9 +11,10 @@ use mockall::*;
 pub use nostr_sdk::nostr::prelude::*;
 
 pub use nostr_sdk::{
-    event::Error,
+    client::Error,
     relay::RelayPoolNotification,
     secp256k1::XOnlyPublicKey,
+    Relay,
     {
         Event, EventBuilder, EventId, Filter, Keys, Kind, Options, RelayMessage, Tag, TagKind,
         Timestamp,
@@ -30,12 +28,17 @@ use std::time::Duration;
 use std::net::SocketAddr;
 
 #[cfg(test)]
+use std::collections::HashMap;
+
+#[cfg(test)]
 mock! {
     pub Client {
         pub fn with_opts(keys: &Keys, opts: Options) -> Self;
         pub fn keys(&self) -> Keys;
         pub async fn add_relay<S>(&self, url: S, proxy: Option<SocketAddr>) -> Result<(), Error> where S: Into<String> + 'static;
         pub async fn add_relays<S>(&self, relays: Vec<(S, Option<SocketAddr>)>) -> Result<(), Error> where S: Into<String> + 'static;
+        pub async fn remove_relay<S>(&self, url: S) -> Result<(), Error> where S: Into<String> + 'static;
+        pub async fn relays(&self) -> HashMap<Url, Relay>;
         pub async fn connect(&self);
         pub async fn send_event(&self, event: Event) -> Result<EventId, Error>;
         pub async fn get_events_of(&self, filters: Vec<Filter>, timeout: Option<Duration>) -> Result<Vec<Event>, Error>;
@@ -47,5 +50,3 @@ mock! {
 
 #[cfg(test)]
 pub use MockClient as Client;
-
-pub type ArcClient = Arc<Mutex<Client>>;
