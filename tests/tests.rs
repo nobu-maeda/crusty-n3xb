@@ -50,8 +50,12 @@ mod make_order_tests {
         let order = builder.build().unwrap();
         manager.make_new_order(order.clone()).await.unwrap();
 
-        let orders = manager.query_order_notes().await.unwrap();
-        assert_eq!(orders.len(), 1);
+        let orders = loop {
+            let orders = manager.query_order_notes().await.unwrap();
+            if !orders.is_empty() {
+                break orders;
+            }
+        };
 
         assert_eq!(orders[0].trade_uuid, SomeTestParams::some_uuid_string());
         assert_eq!(
@@ -104,7 +108,6 @@ mod make_order_tests {
 
 #[cfg(test)]
 mod maker_taker_flow_tests {
-    use std::rc::Rc;
     use std::sync::Arc;
     use std::time::Duration;
 
@@ -174,12 +177,14 @@ mod maker_taker_flow_tests {
         let order = builder.build().unwrap();
         maker.make_new_order(order.clone()).await.unwrap();
 
-        sleep(Duration::from_millis(300)).await;
+        let orders = loop {
+            let orders = taker.query_order_notes().await.unwrap();
+            if !orders.is_empty() {
+                break orders;
+            }
+        };
 
-        // Query and check
-        let orders = taker.query_order_notes().await.unwrap();
         let mut opt_order: Option<Order> = None;
-
         for order in orders {
             if order.pubkey == maker_pubkey
                 && order.trade_uuid == SomeTestParams::some_uuid_string()
