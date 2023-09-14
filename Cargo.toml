@@ -15,6 +15,7 @@ typetag = "0.2"
 strum = "0.25"
 strum_macros = "0.25"
 nostr-sdk = "0.22"
+secp256k1 = "0.27"
 
 iso_currency = { version = "0.4.3", features = ["with-serde"] }
 

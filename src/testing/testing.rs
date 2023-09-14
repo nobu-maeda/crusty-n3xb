@@ -1,8 +1,10 @@
 use iso_currency::Currency;
+use secp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
 
 use std::any::Any;
 use std::collections::HashSet;
+use std::str::FromStr;
 
 use crate::common::types::*;
 use crate::offer::Obligation;
@@ -11,6 +13,11 @@ use crate::order::*;
 pub struct SomeTestParams {}
 
 impl SomeTestParams {
+    pub fn some_secret_key() -> SecretKey {
+        SecretKey::from_str("01010101010101010001020304050607ffff0000ffff00006363636363636363")
+            .unwrap()
+    }
+
     pub fn some_uuid_string() -> String {
         "Some-UUID-String".to_string()
     }
