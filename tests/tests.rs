@@ -1,5 +1,9 @@
 mod relay;
 
+use std::sync::Once;
+
+static INIT: Once = Once::new();
+
 #[cfg(test)]
 mod make_order_tests {
     use super::relay;
@@ -112,6 +116,7 @@ mod maker_taker_flow_tests {
     use std::time::Duration;
 
     use super::relay;
+    use super::INIT;
     use crusty_n3xb::offer::Offer;
     use crusty_n3xb::order::Order;
     use crusty_n3xb::testing::*;
@@ -127,7 +132,10 @@ mod maker_taker_flow_tests {
         let mut logger = env_logger::builder();
         logger.is_test(true);
         logger.filter_level(log::LevelFilter::Debug);
-        logger.init();
+
+        INIT.call_once(|| {
+            logger.init();
+        });
 
         let relay = relay::start_relay().unwrap();
         relay::wait_for_healthy_relay(&relay).await.unwrap();
