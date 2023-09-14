@@ -1,13 +1,15 @@
-use log::debug;
+use log::{debug, warn};
+use std::collections::HashSet;
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use secp256k1::rand::rngs::OsRng;
 use secp256k1::{Secp256k1, SecretKey};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::common::error::N3xbError;
-use crate::common::types::{EventKind, OrderTag, N3XB_APPLICATION_TAG};
-use crate::order::Order;
+use crate::common::types::{EventKind, ObligationKind, OrderTag, N3XB_APPLICATION_TAG};
+use crate::order::{MakerObligation, Order, TakerObligation, TradeDetails, TradeParameter};
 
 use super::maker_order_note::MakerOrderNote;
 use super::nostr::*;
@@ -24,7 +26,7 @@ impl InterfacerHandle {
     pub(crate) async fn get_public_key(&self) -> XOnlyPublicKey {
         let (rsp_tx, rsp_rx) = oneshot::channel::<XOnlyPublicKey>();
         let request = InterfacerRequest::GetPublicKey { rsp_tx };
-        self.tx.send(request).await.unwrap(); // Oneshot should never fail
+        self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
 
@@ -39,7 +41,7 @@ impl InterfacerHandle {
             connect,
             rsp_tx,
         };
-        self.tx.send(request).await.unwrap(); // Oneshot should never fail
+        self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()?;
         Ok(())
     }
@@ -50,7 +52,7 @@ impl InterfacerHandle {
             relay: relay.into(),
             rsp_tx,
         };
-        self.tx.send(request).await.unwrap(); // Oneshot should never fail
+        self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()?;
         Ok(())
     }
@@ -65,7 +67,14 @@ impl InterfacerHandle {
     pub(crate) async fn send_maker_order_note(&self, order: Order) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = InterfacerRequest::SendMakerOrderNote { order, rsp_tx };
-        self.tx.send(request).await.unwrap(); // Oneshot should never fail
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+
+    pub(crate) async fn query_order_notes(&self) -> Result<Vec<Order>, N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<Vec<Order>, N3xbError>>();
+        let request = InterfacerRequest::QueryOrderNotes { rsp_tx };
+        self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
 }
@@ -144,6 +153,9 @@ pub(super) enum InterfacerRequest {
         order: Order,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
+    QueryOrderNotes {
+        rsp_tx: oneshot::Sender<Result<Vec<Order>, N3xbError>>,
+    },
 }
 pub(super) struct InterfacerActor {
     rx: mpsc::Receiver<InterfacerRequest>,
@@ -187,7 +199,7 @@ impl InterfacerActor {
         match request {
             InterfacerRequest::GetPublicKey { rsp_tx } => self.get_public_key(rsp_tx),
 
-            // Change Relays
+            // Relays Management
             InterfacerRequest::AddRelays {
                 relays,
                 connect,
@@ -205,9 +217,11 @@ impl InterfacerActor {
             // Send Maker Order Notes
             InterfacerRequest::SendMakerOrderNote { order, rsp_tx } => {
                 self.send_maker_order_note(order, rsp_tx).await
-            } // Query Order Notes
+            }
 
-              // Send Taker Offer Message
+            // Query Order Notes
+            InterfacerRequest::QueryOrderNotes { rsp_tx } => self.query_order_notes(rsp_tx).await,
+            // Send Taker Offer Message
         }
     }
 
@@ -367,6 +381,198 @@ impl InterfacerActor {
             })
             .collect()
     }
+
+    // Query Order Notes
+
+    async fn query_order_notes(&self, rsp_tx: oneshot::Sender<Result<Vec<Order>, N3xbError>>) {
+        let mut tag_set: Vec<OrderTag> = Vec::new();
+        tag_set.push(OrderTag::TradeEngineName(self.trade_engine_name.to_owned()));
+        tag_set.push(OrderTag::EventKind(EventKind::MakerOrder));
+        tag_set.push(OrderTag::ApplicationTag(N3XB_APPLICATION_TAG.to_string()));
+
+        let filter = Self::create_event_tag_filter(tag_set);
+        let timeout = Duration::from_secs(1);
+        let events = match self.client.get_events_of(vec![filter], Some(timeout)).await {
+            Ok(events) => events,
+            Err(error) => {
+                rsp_tx.send(Err(error.into())).unwrap();
+                return;
+            }
+        };
+
+        let maybe_orders = self.extract_orders_from_events(events);
+        let mut orders: Vec<Order> = Vec::new();
+        for maybe_order in maybe_orders {
+            match maybe_order {
+                Ok(order) => orders.push(order),
+                Err(error) => {
+                    warn!(
+                        "Order extraction from Nostr event failed - {}",
+                        error.to_string()
+                    );
+                }
+            }
+        }
+        rsp_tx.send(Ok(orders)).unwrap();
+    }
+
+    fn extract_order_tags_from_tags(&self, tags: Vec<Tag>) -> Vec<OrderTag> {
+        let mut order_tags: Vec<OrderTag> = Vec::new();
+        for tag in tags {
+            let mut tag_vec = tag.as_vec();
+            let tag_key = tag_vec.remove(0);
+
+            if let Ok(order_tag) = OrderTag::from_key(tag_key.clone(), tag_vec) {
+                order_tags.push(order_tag);
+            } else {
+                warn!("Unrecognized Tag with key: {}", tag_key);
+            }
+        }
+        order_tags
+    }
+
+    fn extract_order_from_event(&self, event: Event) -> Result<Order, N3xbError> {
+        let maker_order_note: MakerOrderNote = serde_json::from_str(event.content.as_str())?;
+        let order_tags = self.extract_order_tags_from_tags(event.tags);
+
+        let mut some_trade_uuid: Option<String> = None;
+        let mut some_maker_obligation_kinds: Option<HashSet<ObligationKind>> = None;
+        let mut some_taker_obligation_kinds: Option<HashSet<ObligationKind>> = None;
+        let mut trade_parameters: HashSet<TradeParameter> = HashSet::new();
+
+        for order_tag in order_tags {
+            match order_tag {
+                OrderTag::TradeUUID(trade_uuid) => some_trade_uuid = Some(trade_uuid),
+                OrderTag::MakerObligations(obligations) => {
+                    some_maker_obligation_kinds = Some(ObligationKind::from_tags(obligations)?);
+                }
+                OrderTag::TakerObligations(obligations) => {
+                    some_taker_obligation_kinds = Some(ObligationKind::from_tags(obligations)?);
+                }
+                OrderTag::TradeDetailParameters(parameters) => {
+                    trade_parameters = TradeDetails::tags_to_parameters(parameters);
+                }
+
+                // Sanity Checks. Abort order parsing if fails
+                OrderTag::TradeEngineName(name) => {
+                    if name != self.trade_engine_name {
+                        let message = format!("Trade Engine Name {} mismatch on Maker Order Note deserialization. {} expected.", name, self.trade_engine_name);
+                        warn!("{}", message);
+                        return Err(N3xbError::Simple(message));
+                    }
+                }
+                OrderTag::EventKind(event_kind) => {
+                    if event_kind != EventKind::MakerOrder {
+                        let message = format!("Trade Engine Name {} mismatch on Maker Order Note deserialization. {} expected.", event_kind.to_string(), EventKind::MakerOrder.to_string());
+                        warn!("{}", message);
+                        return Err(N3xbError::Simple(message));
+                    }
+                }
+                OrderTag::ApplicationTag(app_tag) => {
+                    if app_tag != N3XB_APPLICATION_TAG {
+                        let message = format!("Application Tag {} mismatch on Maker Order Note deserialization. {} expected.", app_tag, N3XB_APPLICATION_TAG);
+                        warn!("{}", message);
+                        return Err(N3xbError::Simple(message));
+                    }
+                }
+            }
+        }
+
+        let maker_obligation = if let Some(obligation_kinds) = some_maker_obligation_kinds {
+            MakerObligation {
+                kinds: obligation_kinds,
+                content: maker_order_note.maker_obligation,
+            }
+        } else {
+            let message = format!("Invalid or missing Maker Obligation Kind in Maker Order Note");
+            warn!("{}", message);
+            return Err(N3xbError::Simple(message));
+        };
+
+        let taker_obligation = if let Some(obligation_kinds) = some_taker_obligation_kinds {
+            TakerObligation {
+                kinds: obligation_kinds,
+                content: maker_order_note.taker_obligation,
+            }
+        } else {
+            let message = format!("Invalid or missing Taker Obligation Kind in Maker Order Note");
+            warn!("{}", message);
+            return Err(N3xbError::Simple(message));
+        };
+
+        let trade_details = TradeDetails {
+            parameters: trade_parameters,
+            content: maker_order_note.trade_details,
+        };
+
+        let trade_uuid = if let Some(uuid) = some_trade_uuid {
+            uuid
+        } else {
+            let message = format!("Invalid or missing Trade UUID in Maker Order Note");
+            warn!("{}", message);
+            return Err(N3xbError::Simple(message));
+        };
+
+        Ok(Order {
+            pubkey: event.pubkey.to_string(),
+            event_id: event.id.to_string(),
+            trade_uuid,
+            maker_obligation,
+            taker_obligation,
+            trade_details,
+            trade_engine_specifics: maker_order_note.trade_engine_specifics,
+            pow_difficulty: maker_order_note.pow_difficulty,
+        })
+    }
+
+    fn extract_orders_from_events(&self, events: Vec<Event>) -> Vec<Result<Order, N3xbError>> {
+        let mut orders: Vec<Result<Order, N3xbError>> = Vec::new();
+        for event in events {
+            let order = self.extract_order_from_event(event);
+            orders.push(order);
+        }
+        orders
+    }
+
+    fn create_event_tag_filter(tags: Vec<OrderTag>) -> Filter {
+        let mut tag_map = Map::new();
+        tags.iter().for_each(|tag| match tag {
+            OrderTag::TradeUUID(trade_uuid_string) => {
+                tag_map.insert(tag.hash_key(), Value::String(trade_uuid_string.to_owned()));
+            }
+            OrderTag::MakerObligations(obligations) => {
+                tag_map.insert(tag.hash_key(), obligations.to_owned().into_iter().collect());
+            }
+            OrderTag::TakerObligations(obligations) => {
+                tag_map.insert(tag.hash_key(), obligations.to_owned().into_iter().collect());
+            }
+            OrderTag::TradeDetailParameters(parameters) => {
+                tag_map.insert(tag.hash_key(), parameters.to_owned().into_iter().collect());
+            }
+            OrderTag::TradeEngineName(name) => {
+                tag_map.insert(
+                    tag.hash_key(),
+                    Value::Array(vec![Value::String(name.to_owned())]),
+                );
+            }
+            OrderTag::EventKind(kind) => {
+                tag_map.insert(
+                    tag.hash_key(),
+                    Value::Array(vec![Value::String(kind.to_string())]),
+                );
+            }
+            OrderTag::ApplicationTag(app_tag) => {
+                tag_map.insert(
+                    tag.hash_key(),
+                    Value::Array(vec![Value::String(app_tag.to_owned())]),
+                );
+            }
+        });
+
+        Filter::new()
+            .kind(Self::MAKER_ORDER_NOTE_KIND)
+            .custom(tag_map)
+    }
 }
 
 #[cfg(test)]
@@ -454,5 +660,39 @@ mod tests {
         print!("Nostr Event Content: {:?}\n", event.content);
         assert!(event.content == SomeTestParams::expected_json_string());
         Ok(event.id)
+    }
+
+    #[tokio::test]
+    async fn test_query_order_notes() {
+        let mut client = Client::new();
+        client.expect_keys().returning(|| Keys::generate());
+        client.expect_subscribe().returning(|_| {});
+        client
+            .expect_get_events_of()
+            .returning(query_order_notes_expectation);
+
+        let interfacer =
+            Interfacer::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
+        let interfacer_handle = interfacer.get_handle();
+
+        let _ = interfacer_handle.query_order_notes().await.unwrap();
+    }
+
+    fn query_order_notes_expectation(
+        filters: Vec<Filter>,
+        timeout: Option<Duration>,
+    ) -> Result<Vec<Event>, Error> {
+        let mut tag_set: Vec<OrderTag> = Vec::new();
+        tag_set.push(OrderTag::TradeEngineName(SomeTestParams::engine_name_str()));
+        tag_set.push(OrderTag::EventKind(EventKind::MakerOrder));
+        tag_set.push(OrderTag::ApplicationTag(N3XB_APPLICATION_TAG.to_string()));
+        let expected_filter = InterfacerActor::create_event_tag_filter(tag_set);
+        assert!(vec![expected_filter] == filters);
+
+        let expected_timeout = Duration::from_secs(1);
+        assert!(expected_timeout == timeout.unwrap());
+
+        let empty_event_vec: Vec<Event> = Vec::new();
+        Ok(empty_event_vec)
     }
 }
