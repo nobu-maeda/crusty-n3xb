@@ -1,5 +1,5 @@
 use iso_currency::Currency;
-use secp256k1::SecretKey;
+use secp256k1::{PublicKey, SecretKey, XOnlyPublicKey};
 use serde::{Deserialize, Serialize};
 
 use std::any::Any;
@@ -16,6 +16,14 @@ impl SomeTestParams {
     pub fn some_secret_key() -> SecretKey {
         SecretKey::from_str("01010101010101010001020304050607ffff0000ffff00006363636363636363")
             .unwrap()
+    }
+
+    pub fn some_x_only_public_key() -> XOnlyPublicKey {
+        let kpk = PublicKey::from_str(
+            "02e6642fd69bd211f93f7f1f36ca51a26a5290eb2dd1b0d8279a87bb0d480c8443",
+        )
+        .unwrap();
+        XOnlyPublicKey::from(kpk)
     }
 
     pub fn some_uuid_string() -> String {

@@ -1,32 +1,36 @@
 use std::sync::{Arc, Mutex};
 
-use crate::{common::error::N3xbError, interface::ArcInterface, offer::Offer, order::Order};
+use crate::{common::error::N3xbError, interfacer::InterfacerHandle, offer::Offer, order::Order};
 
 pub type ArcTakerSM = Arc<Mutex<TakerSM>>;
 
 pub struct TakerSM {
-    interface: ArcInterface,
+    interfacer_handle: InterfacerHandle,
     order: Order,
     offer: Offer,
 }
 
 impl TakerSM {
-    pub async fn new(
-        interface: ArcInterface,
+    pub(crate) async fn new(
+        interfacer_handle: InterfacerHandle,
         order: Order,
         offer: Offer,
     ) -> Result<TakerSM, N3xbError> {
+        interfacer_handle
+            .send_taker_offer_message(
+                order.pubkey.clone(),
+                order.event_id.clone(),
+                order.trade_uuid.clone(),
+                offer.clone(),
+            )
+            .await?;
+
         let taker_sm = TakerSM {
-            interface: Arc::clone(&interface),
-            order: order.clone(),
-            offer: offer.clone(),
+            interfacer_handle,
+            order,
+            offer,
         };
 
-        interface
-            .lock()
-            .unwrap()
-            .send_taker_offer_message(order.pubkey, order.event_id, order.trade_uuid, offer)
-            .await?;
         Ok(taker_sm)
     }
 }

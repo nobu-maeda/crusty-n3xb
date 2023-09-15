@@ -1,11 +1,11 @@
 use std::sync::{Arc, Mutex};
 
-use crate::{common::error::N3xbError, interface::ArcInterface, order::Order};
+use crate::{common::error::N3xbError, interfacer::InterfacerHandle, order::Order};
 
 pub type ArcMakerSM = Arc<Mutex<MakerSM>>;
 
 pub struct MakerSM {
-    interface: ArcInterface,
+    interfacer_handle: InterfacerHandle,
     order: Order,
     // There's no explicit state variable being tracked for now
     // States are instead determined by the following
@@ -14,19 +14,20 @@ pub struct MakerSM {
 }
 
 impl MakerSM {
-    pub async fn new(interface: ArcInterface, order: Order) -> Result<MakerSM, N3xbError> {
-        let maker_sm = MakerSM {
-            interface: Arc::clone(&interface),
-            order: order.clone(),
-        };
-
+    pub(crate) async fn new(
+        interfacer_handle: InterfacerHandle,
+        order: Order,
+    ) -> Result<MakerSM, N3xbError> {
         // TODO: Subscribe to any inbound peer messages regarding Order this MakerSM tracks
 
-        interface
-            .lock()
-            .unwrap()
-            .send_maker_order_note(order)
+        interfacer_handle
+            .send_maker_order_note(order.clone())
             .await?;
+
+        let maker_sm = MakerSM {
+            interfacer_handle,
+            order: order,
+        };
         Ok(maker_sm)
     }
 

@@ -13,13 +13,15 @@ pub use nostr_sdk::nostr::prelude::*;
 pub use nostr_sdk::{
     client::Error,
     relay::RelayPoolNotification,
-    secp256k1::XOnlyPublicKey,
     Relay,
     {
         Event, EventBuilder, EventId, Filter, Keys, Kind, Options, RelayMessage, Tag, TagKind,
         Timestamp,
     },
 };
+
+#[cfg(test)]
+use secp256k1::XOnlyPublicKey;
 
 #[cfg(test)]
 use std::time::Duration;

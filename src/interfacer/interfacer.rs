@@ -1,18 +1,20 @@
 use log::{debug, warn};
 use std::collections::HashSet;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
-
-use secp256k1::rand::rngs::OsRng;
-use secp256k1::{Secp256k1, SecretKey};
 use tokio::sync::{mpsc, oneshot};
+
+use secp256k1::{rand::rngs::OsRng, Secp256k1, SecretKey, XOnlyPublicKey};
 
 use crate::common::error::N3xbError;
 use crate::common::types::{EventKind, ObligationKind, OrderTag, N3XB_APPLICATION_TAG};
+use crate::offer::Offer;
 use crate::order::{MakerObligation, Order, TakerObligation, TradeDetails, TradeParameter};
 
 use super::maker_order_note::MakerOrderNote;
 use super::nostr::*;
+use super::peer_messaging::{PeerMessage, PeerMessageContent, PeerMessageType};
 
 pub(crate) struct InterfacerHandle {
     tx: mpsc::Sender<InterfacerRequest>,
@@ -77,6 +79,25 @@ impl InterfacerHandle {
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
+
+    pub(crate) async fn send_taker_offer_message(
+        &self,
+        public_key: XOnlyPublicKey,
+        maker_order_note_id: String,
+        trade_uuid: String,
+        offer: Offer,
+    ) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = InterfacerRequest::SendTakerOfferMessage {
+            public_key,
+            maker_order_note_id,
+            trade_uuid,
+            offer,
+            rsp_tx,
+        };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
 }
 
 pub(crate) struct Interfacer {
@@ -127,7 +148,7 @@ impl Interfacer {
 
     // Interfacer Handle
 
-    pub(crate) fn get_handle(&self) -> InterfacerHandle {
+    pub(crate) fn new_handle(&self) -> InterfacerHandle {
         InterfacerHandle::new(self.tx.clone())
     }
 }
@@ -155,6 +176,13 @@ pub(super) enum InterfacerRequest {
     },
     QueryOrderNotes {
         rsp_tx: oneshot::Sender<Result<Vec<Order>, N3xbError>>,
+    },
+    SendTakerOfferMessage {
+        public_key: XOnlyPublicKey,
+        maker_order_note_id: String,
+        trade_uuid: String,
+        offer: Offer,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
 }
 pub(super) struct InterfacerActor {
@@ -221,7 +249,24 @@ impl InterfacerActor {
 
             // Query Order Notes
             InterfacerRequest::QueryOrderNotes { rsp_tx } => self.query_order_notes(rsp_tx).await,
+
             // Send Taker Offer Message
+            InterfacerRequest::SendTakerOfferMessage {
+                public_key,
+                maker_order_note_id,
+                trade_uuid,
+                offer,
+                rsp_tx,
+            } => {
+                self.send_taker_offer_message(
+                    public_key,
+                    maker_order_note_id,
+                    trade_uuid,
+                    offer,
+                    rsp_tx,
+                )
+                .await;
+            }
         }
     }
 
@@ -514,7 +559,7 @@ impl InterfacerActor {
         };
 
         Ok(Order {
-            pubkey: event.pubkey.to_string(),
+            pubkey: event.pubkey,
             event_id: event.id.to_string(),
             trade_uuid,
             maker_obligation,
@@ -573,11 +618,52 @@ impl InterfacerActor {
             .kind(Self::MAKER_ORDER_NOTE_KIND)
             .custom(tag_map)
     }
+
+    async fn send_taker_offer_message(
+        &self,
+        public_key: XOnlyPublicKey,
+        maker_order_note_id: String,
+        trade_uuid: String,
+        offer: Offer,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    ) {
+        let peer_message = PeerMessage {
+            peer_message_id: Option::None,
+            maker_order_note_id,
+            trade_uuid,
+            message_type: PeerMessageType::TakerOffer,
+            message: Arc::new(offer),
+        };
+
+        let content = PeerMessageContent {
+            n3xb_peer_message: peer_message,
+        };
+
+        let content_string = match serde_json::to_string(&content) {
+            Ok(string) => string,
+            Err(error) => {
+                rsp_tx.send(Err(error.into())).unwrap();
+                return;
+            }
+        };
+
+        let result = self
+            .client
+            .send_direct_msg(public_key, content_string)
+            .await;
+
+        match result {
+            Ok(_) => rsp_tx.send(Ok(())).unwrap(),
+            Err(error) => rsp_tx.send(Err(error.into())).unwrap(),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{str::FromStr, sync::Arc};
+
+    use secp256k1::PublicKey;
 
     use super::*;
     use crate::{
@@ -596,7 +682,7 @@ mod tests {
 
         let interfacer =
             Interfacer::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
-        let interfacer_handle = interfacer.get_handle();
+        let interfacer_handle = interfacer.new_handle();
 
         let secret_key = SomeTestParams::some_secret_key();
         let keys = Keys::new(secret_key);
@@ -615,7 +701,7 @@ mod tests {
 
         let interfacer =
             Interfacer::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
-        let interfacer_handle = interfacer.get_handle();
+        let interfacer_handle = interfacer.new_handle();
 
         let maker_obligation = MakerObligation {
             kinds: SomeTestParams::maker_obligation_kinds(),
@@ -639,7 +725,7 @@ mod tests {
         let rc_trade_engine_specifics = Arc::new(trade_engine_specifics);
 
         let order = Order {
-            pubkey: "".to_string(),
+            pubkey: SomeTestParams::some_x_only_public_key(),
             event_id: "".to_string(),
             trade_uuid: SomeTestParams::some_uuid_string(),
             maker_obligation,
@@ -673,7 +759,7 @@ mod tests {
 
         let interfacer =
             Interfacer::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
-        let interfacer_handle = interfacer.get_handle();
+        let interfacer_handle = interfacer.new_handle();
 
         let _ = interfacer_handle.query_order_notes().await.unwrap();
     }

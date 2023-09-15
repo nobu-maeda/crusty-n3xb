@@ -24,9 +24,10 @@ mod make_order_tests {
         let mut manager: Manager = Manager::new(&test_engine_name).await;
 
         let relays = vec![(format!("{}:{}", "ws://localhost", relay.port), None)];
-        manager.add_relays(relays, true).await;
+        manager.add_relays(relays, true).await.unwrap();
 
         let mut builder: OrderBuilder = OrderBuilder::new();
+        builder.pubkey(SomeTestParams::some_x_only_public_key());
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
         builder.maker_obligation(MakerObligation {
@@ -153,11 +154,12 @@ mod maker_taker_flow_tests {
         info!("Created Taker Manager with Pubkey {}", taker_pubkey);
 
         let relays = vec![(format!("{}:{}", "ws://localhost", relay.port), None)];
-        maker.add_relays(relays.clone(), true).await;
-        taker.add_relays(relays, true).await;
+        maker.add_relays(relays.clone(), true).await.unwrap();
+        taker.add_relays(relays, true).await.unwrap();
 
         // Build and send the Maker Order
         let mut builder: OrderBuilder = OrderBuilder::new();
+        builder.pubkey(SomeTestParams::some_x_only_public_key());
         builder.trade_uuid(SomeTestParams::some_uuid_string());
 
         builder.maker_obligation(MakerObligation {
