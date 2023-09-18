@@ -19,6 +19,7 @@ use crate::order::{MakerObligation, Order, TakerObligation, TradeDetails, TradeP
 use super::maker_order_note::MakerOrderNote;
 use super::nostr::*;
 use super::peer_messaging::{PeerMessage, PeerMessageContent};
+use super::router::Router;
 
 pub(crate) struct InterfacerHandle {
     tx: mpsc::Sender<InterfacerRequest>,
@@ -193,6 +194,7 @@ pub(super) struct InterfacerActor {
     rx: mpsc::Receiver<InterfacerRequest>,
     trade_engine_name: String,
     client: Client,
+    router: Router,
 }
 
 impl InterfacerActor {
@@ -207,6 +209,7 @@ impl InterfacerActor {
             rx,
             trade_engine_name: trade_engine_name.into(),
             client,
+            router: Router::new(),
         }
     }
 
@@ -219,12 +222,23 @@ impl InterfacerActor {
             .subscribe(self.subscription_filters(pubkey))
             .await;
 
+        let mut event_rx = self.client.notifications();
+
         // Request handling main event loop
         // !!! This function will end if no Sender remains for the Receiver
-        while let Some(request) = self.rx.recv().await {
-            self.handle_request(request).await;
+        loop {
+            select! {
+                Some(request) = self.rx.recv() => {
+                    self.handle_request(request).await;
+                },
+                result = event_rx.recv() => {
+                    match result {
+                        Ok(notification) => self.handle_notification(notification).await,
+                        Err(error) => error!("Interfacer event RX receive error - {}", error),
+                    }
+                },
+            }
         }
-        debug!("Interfacer reqeust handling main loop ended");
     }
 
     async fn handle_request(&mut self, request: InterfacerRequest) {
@@ -270,6 +284,73 @@ impl InterfacerActor {
                     rsp_tx,
                 )
                 .await;
+            }
+        }
+    }
+
+    async fn handle_notification(&mut self, notification: RelayPoolNotification) {
+        match notification {
+            RelayPoolNotification::Event(url, event) => {
+                debug!(
+                    "handle_notification() received notification from url {} - Event",
+                    url.to_string()
+                );
+                self.handle_notification_event(event).await;
+            }
+            RelayPoolNotification::Message(url, _) => {
+                trace!(
+                    "handle_notification() received notification from url {} - Message",
+                    url.to_string()
+                );
+            }
+            RelayPoolNotification::Shutdown => {
+                info!("handle_notification() received notification - Shutdown");
+            }
+        };
+    }
+
+    async fn handle_notification_event(&mut self, event: Event) {
+        if let Kind::EncryptedDirectMessage = event.kind {
+            self.handle_direct_message(event).await;
+        } else {
+            debug!("handle_notification_event() Event kind fallthrough");
+        }
+    }
+
+    async fn handle_direct_message(&mut self, event: Event) {
+        let secret_key = self.client.keys().secret_key().unwrap();
+        let content = match decrypt(&secret_key, &event.pubkey, &event.content) {
+            Ok(content) => content,
+            Err(error) => {
+                error!(
+                    "handle_direct_message() failed to decrypt direct message - {}",
+                    error
+                );
+                return;
+            }
+        };
+
+        match serde_json::from_str::<PeerMessageContent>(content.as_str()) {
+            Ok(peer_message_content) => {
+                if let Some(error) = self
+                    .router
+                    .handle_peer_message(peer_message_content.n3xb_peer_message)
+                    .await
+                    .err()
+                {
+                    error!(
+                        "handle_direct_message() failed in router.handle_peer_message() - {}",
+                        error
+                    );
+                    return;
+                };
+            }
+            Err(error) => {
+                error!(
+                    "handle_direct_message() failed to deserialize content as PeerMessage - {}",
+                    error
+                );
+                return;
             }
         }
     }
@@ -666,6 +747,7 @@ impl InterfacerActor {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+    use tokio::sync::broadcast;
 
     use super::*;
     use crate::{
@@ -681,6 +763,10 @@ mod tests {
             Keys::new(secret_key)
         });
         client.expect_subscribe().returning(|_| {});
+        client.expect_notifications().returning(|| {
+            let (_, rx) = broadcast::channel::<RelayPoolNotification>(1);
+            rx
+        });
 
         let interfacer =
             Interfacer::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
@@ -700,6 +786,10 @@ mod tests {
         client
             .expect_send_event()
             .returning(send_maker_order_note_expectation);
+        client.expect_notifications().returning(|| {
+            let (_, rx) = broadcast::channel::<RelayPoolNotification>(1);
+            rx
+        });
 
         let interfacer =
             Interfacer::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
@@ -758,6 +848,10 @@ mod tests {
         client
             .expect_get_events_of()
             .returning(query_order_notes_expectation);
+        client.expect_notifications().returning(|| {
+            let (_, rx) = broadcast::channel::<RelayPoolNotification>(1);
+            rx
+        });
 
         let interfacer =
             Interfacer::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;

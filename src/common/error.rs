@@ -11,6 +11,7 @@ pub enum N3xbError {
     NostrClient(nostr_sdk::client::Error),
     NostrEvent(nostr_sdk::event::Error),
     SerdesJson(serde_json::Error),
+    MpscSend(String),
 }
 
 impl Error for N3xbError {}
@@ -36,6 +37,9 @@ impl fmt::Display for N3xbError {
             }
             N3xbError::SerdesJson(err) => {
                 format!("n3xB-Error | SerdesJsonError - {}", err.to_string())
+            }
+            N3xbError::MpscSend(msg) => {
+                format!("n3xB-Error | MpscSendError - {}", msg)
             }
         };
         write!(f, "{}", error_string)
@@ -69,5 +73,11 @@ impl From<nostr_sdk::event::Error> for N3xbError {
 impl From<serde_json::Error> for N3xbError {
     fn from(e: serde_json::Error) -> N3xbError {
         N3xbError::SerdesJson(e)
+    }
+}
+
+impl<T> From<tokio::sync::mpsc::error::SendError<T>> for N3xbError {
+    fn from(e: tokio::sync::mpsc::error::SendError<T>) -> N3xbError {
+        N3xbError::MpscSend(e.to_string())
     }
 }
