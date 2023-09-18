@@ -28,7 +28,7 @@ mod make_order_tests {
 
         let mut builder: OrderBuilder = OrderBuilder::new();
         builder.pubkey(SomeTestParams::some_x_only_public_key());
-        builder.trade_uuid(SomeTestParams::some_uuid_string());
+        builder.trade_uuid(SomeTestParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
             kinds: SomeTestParams::maker_obligation_kinds(),
@@ -62,7 +62,7 @@ mod make_order_tests {
             }
         };
 
-        assert_eq!(orders[0].trade_uuid, SomeTestParams::some_uuid_string());
+        assert_eq!(orders[0].trade_uuid, SomeTestParams::some_uuid());
         assert_eq!(
             orders[0].maker_obligation.kinds,
             SomeTestParams::maker_obligation_kinds()
@@ -160,7 +160,7 @@ mod maker_taker_flow_tests {
         // Build and send the Maker Order
         let mut builder: OrderBuilder = OrderBuilder::new();
         builder.pubkey(SomeTestParams::some_x_only_public_key());
-        builder.trade_uuid(SomeTestParams::some_uuid_string());
+        builder.trade_uuid(SomeTestParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
             kinds: SomeTestParams::maker_obligation_kinds(),
@@ -196,9 +196,7 @@ mod maker_taker_flow_tests {
 
         let mut opt_order: Option<Order> = None;
         for order in orders {
-            if order.pubkey == maker_pubkey
-                && order.trade_uuid == SomeTestParams::some_uuid_string()
-            {
+            if order.pubkey == maker_pubkey && order.trade_uuid == SomeTestParams::some_uuid() {
                 opt_order = Some(order);
             }
         }
@@ -206,7 +204,7 @@ mod maker_taker_flow_tests {
         assert!(opt_order.is_some());
         let order = opt_order.unwrap();
 
-        assert_eq!(order.trade_uuid, SomeTestParams::some_uuid_string());
+        assert_eq!(order.trade_uuid, SomeTestParams::some_uuid());
         assert_eq!(
             order.maker_obligation.kinds,
             SomeTestParams::maker_obligation_kinds()

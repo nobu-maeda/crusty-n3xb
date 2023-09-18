@@ -1,6 +1,7 @@
 use iso_currency::Currency;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumString, IntoStaticStr};
+use uuid::Uuid;
 
 use std::any::Any;
 use std::hash::Hash;
@@ -11,6 +12,12 @@ use crate::common::error::N3xbError;
 pub enum BuySell {
     Buy,
     Sell,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) enum SerdeGenericType {
+    TakerOffer,
+    TradeResponse,
 }
 
 #[typetag::serde(tag = "type")]
@@ -26,7 +33,7 @@ impl dyn SerdeGenericTrait {
 
 #[derive(Clone, Debug)]
 pub enum OrderTag {
-    TradeUUID(String),
+    TradeUUID(Uuid),
     MakerObligations(HashSet<String>),
     TakerObligations(HashSet<String>),
     TradeDetailParameters(HashSet<String>),
@@ -67,7 +74,16 @@ impl OrderTag {
 
     pub fn from_key(key: String, value: Vec<String>) -> Result<OrderTag, N3xbError> {
         match key.as_str() {
-            ORDER_TAG_TRADE_UUID_KEY => Ok(OrderTag::TradeUUID(value[0].clone())),
+            ORDER_TAG_TRADE_UUID_KEY => {
+                let uuid_string = value[0].clone();
+                match Uuid::from_str(uuid_string.as_str()) {
+                    Ok(uuid) => Ok(OrderTag::TradeUUID(uuid)),
+                    Err(error) => Err(N3xbError::Simple(format!(
+                        "Trade UUID Order Tag does not contain valid UUID string - {}",
+                        error
+                    ))),
+                }
+            }
             ORDER_TAG_MAKER_OBLIGATIONS_KEY => {
                 let tag_set: HashSet<String> = HashSet::from_iter(value);
                 Ok(OrderTag::MakerObligations(tag_set))

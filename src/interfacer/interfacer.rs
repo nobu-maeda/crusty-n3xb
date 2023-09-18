@@ -1,20 +1,24 @@
-use log::{debug, warn};
+use log::{debug, error, info, trace, warn};
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::select;
 use tokio::sync::{mpsc, oneshot};
 
 use secp256k1::{rand::rngs::OsRng, Secp256k1, SecretKey, XOnlyPublicKey};
+use uuid::Uuid;
 
 use crate::common::error::N3xbError;
-use crate::common::types::{EventKind, ObligationKind, OrderTag, N3XB_APPLICATION_TAG};
+use crate::common::types::{
+    EventKind, ObligationKind, OrderTag, SerdeGenericType, N3XB_APPLICATION_TAG,
+};
 use crate::offer::Offer;
 use crate::order::{MakerObligation, Order, TakerObligation, TradeDetails, TradeParameter};
 
 use super::maker_order_note::MakerOrderNote;
 use super::nostr::*;
-use super::peer_messaging::{PeerMessage, PeerMessageContent, PeerMessageType};
+use super::peer_messaging::{PeerMessage, PeerMessageContent};
 
 pub(crate) struct InterfacerHandle {
     tx: mpsc::Sender<InterfacerRequest>,
@@ -84,7 +88,7 @@ impl InterfacerHandle {
         &self,
         public_key: XOnlyPublicKey,
         maker_order_note_id: String,
-        trade_uuid: String,
+        trade_uuid: Uuid,
         offer: Offer,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
@@ -180,7 +184,7 @@ pub(super) enum InterfacerRequest {
     SendTakerOfferMessage {
         public_key: XOnlyPublicKey,
         maker_order_note_id: String,
-        trade_uuid: String,
+        trade_uuid: Uuid,
         offer: Offer,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
@@ -398,9 +402,9 @@ impl InterfacerActor {
     fn create_event_tags(tags: Vec<OrderTag>) -> Vec<Tag> {
         tags.iter()
             .map(|event_tag| match event_tag {
-                OrderTag::TradeUUID(trade_uuid_string) => Tag::Generic(
+                OrderTag::TradeUUID(trade_uuid) => Tag::Generic(
                     TagKind::Custom(event_tag.key().to_string()),
-                    vec![trade_uuid_string.to_owned()],
+                    vec![trade_uuid.to_string()],
                 ),
                 OrderTag::MakerObligations(obligations) => Tag::Generic(
                     TagKind::Custom(event_tag.key()),
@@ -480,7 +484,7 @@ impl InterfacerActor {
         let maker_order_note: MakerOrderNote = serde_json::from_str(event.content.as_str())?;
         let order_tags = self.extract_order_tags_from_tags(event.tags);
 
-        let mut some_trade_uuid: Option<String> = None;
+        let mut some_trade_uuid: Option<Uuid> = None;
         let mut some_maker_obligation_kinds: Option<HashSet<ObligationKind>> = None;
         let mut some_taker_obligation_kinds: Option<HashSet<ObligationKind>> = None;
         let mut trade_parameters: HashSet<TradeParameter> = HashSet::new();
@@ -582,8 +586,8 @@ impl InterfacerActor {
     fn create_event_tag_filter(tags: Vec<OrderTag>) -> Filter {
         let mut tag_map = Map::new();
         tags.iter().for_each(|tag| match tag {
-            OrderTag::TradeUUID(trade_uuid_string) => {
-                tag_map.insert(tag.hash_key(), Value::String(trade_uuid_string.to_owned()));
+            OrderTag::TradeUUID(trade_uuid) => {
+                tag_map.insert(tag.hash_key(), Value::String(trade_uuid.to_string()));
             }
             OrderTag::MakerObligations(obligations) => {
                 tag_map.insert(tag.hash_key(), obligations.to_owned().into_iter().collect());
@@ -623,7 +627,7 @@ impl InterfacerActor {
         &self,
         public_key: XOnlyPublicKey,
         maker_order_note_id: String,
-        trade_uuid: String,
+        trade_uuid: Uuid,
         offer: Offer,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
@@ -631,7 +635,7 @@ impl InterfacerActor {
             peer_message_id: Option::None,
             maker_order_note_id,
             trade_uuid,
-            message_type: PeerMessageType::TakerOffer,
+            message_type: SerdeGenericType::TakerOffer,
             message: Arc::new(offer),
         };
 
@@ -661,9 +665,7 @@ impl InterfacerActor {
 
 #[cfg(test)]
 mod tests {
-    use std::{str::FromStr, sync::Arc};
-
-    use secp256k1::PublicKey;
+    use std::sync::Arc;
 
     use super::*;
     use crate::{
@@ -727,7 +729,7 @@ mod tests {
         let order = Order {
             pubkey: SomeTestParams::some_x_only_public_key(),
             event_id: "".to_string(),
-            trade_uuid: SomeTestParams::some_uuid_string(),
+            trade_uuid: SomeTestParams::some_uuid(),
             maker_obligation,
             taker_obligation,
             trade_details,

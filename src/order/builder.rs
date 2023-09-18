@@ -1,13 +1,16 @@
+use std::sync::Arc;
+
 use secp256k1::XOnlyPublicKey;
+use uuid::Uuid;
 
 use super::{obligation::*, order::*, trade_details::*};
+
 use crate::common::error::*;
 use crate::common::types::SerdeGenericTrait;
-use std::sync::Arc;
 
 pub struct OrderBuilder {
     pubkey: Option<XOnlyPublicKey>,
-    trade_uuid: Option<String>, // TODO: Change to UUID type
+    trade_uuid: Option<Uuid>, // TODO: Change to UUID type
     maker_obligation: Option<MakerObligation>,
     taker_obligation: Option<TakerObligation>,
     trade_details: Option<TradeDetails>,
@@ -19,7 +22,7 @@ impl OrderBuilder {
     pub fn new() -> Self {
         OrderBuilder {
             pubkey: Option::<XOnlyPublicKey>::None,
-            trade_uuid: Option::<String>::None,
+            trade_uuid: Option::<Uuid>::None,
             maker_obligation: Option::<MakerObligation>::None,
             taker_obligation: Option::<TakerObligation>::None,
             trade_details: Option::<TradeDetails>::None,
@@ -33,7 +36,7 @@ impl OrderBuilder {
         self
     }
 
-    pub fn trade_uuid(&mut self, trade_uuid: impl Into<String>) -> &mut Self {
+    pub fn trade_uuid(&mut self, trade_uuid: impl Into<Uuid>) -> &mut Self {
         self.trade_uuid = Some(trade_uuid.into());
         self
     }
@@ -118,7 +121,7 @@ mod tests {
 
         builder.pubkey(SomeTestParams::some_x_only_public_key());
 
-        builder.trade_uuid(SomeTestParams::some_uuid_string());
+        builder.trade_uuid(SomeTestParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
             kinds: SomeTestParams::maker_obligation_kinds(),
@@ -146,7 +149,7 @@ mod tests {
 
         match result {
             Ok(order) => {
-                assert_eq!(order.trade_uuid, SomeTestParams::some_uuid_string());
+                assert_eq!(order.trade_uuid, SomeTestParams::some_uuid());
                 assert_eq!(
                     order.maker_obligation.kinds,
                     SomeTestParams::maker_obligation_kinds()
@@ -239,7 +242,7 @@ mod tests {
 
         builder.pubkey(SomeTestParams::some_x_only_public_key());
 
-        builder.trade_uuid(SomeTestParams::some_uuid_string());
+        builder.trade_uuid(SomeTestParams::some_uuid());
 
         builder.taker_obligation(TakerObligation {
             kinds: SomeTestParams::taker_obligation_kinds(),
@@ -275,7 +278,7 @@ mod tests {
 
         builder.pubkey(SomeTestParams::some_x_only_public_key());
 
-        builder.trade_uuid(SomeTestParams::some_uuid_string());
+        builder.trade_uuid(SomeTestParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
             kinds: SomeTestParams::maker_obligation_kinds(),
@@ -311,7 +314,7 @@ mod tests {
 
         builder.pubkey(SomeTestParams::some_x_only_public_key());
 
-        builder.trade_uuid(SomeTestParams::some_uuid_string());
+        builder.trade_uuid(SomeTestParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
             kinds: SomeTestParams::maker_obligation_kinds(),
@@ -347,7 +350,7 @@ mod tests {
 
         builder.pubkey(SomeTestParams::some_x_only_public_key());
 
-        builder.trade_uuid(SomeTestParams::some_uuid_string());
+        builder.trade_uuid(SomeTestParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
             kinds: SomeTestParams::maker_obligation_kinds(),
@@ -382,7 +385,7 @@ mod tests {
 
         builder.pubkey(SomeTestParams::some_x_only_public_key());
 
-        builder.trade_uuid(SomeTestParams::some_uuid_string());
+        builder.trade_uuid(SomeTestParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
             kinds: SomeTestParams::maker_obligation_kinds(),
@@ -409,7 +412,7 @@ mod tests {
 
         match result {
             Ok(order) => {
-                assert_eq!(order.trade_uuid, SomeTestParams::some_uuid_string());
+                assert_eq!(order.trade_uuid, SomeTestParams::some_uuid());
                 assert_eq!(
                     order.maker_obligation.kinds,
                     SomeTestParams::maker_obligation_kinds()

@@ -1,10 +1,11 @@
-use iso_currency::Currency;
-use secp256k1::{PublicKey, SecretKey, XOnlyPublicKey};
-use serde::{Deserialize, Serialize};
-
 use std::any::Any;
 use std::collections::HashSet;
 use std::str::FromStr;
+
+use iso_currency::Currency;
+use secp256k1::{PublicKey, SecretKey, XOnlyPublicKey};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::common::types::*;
 use crate::offer::Obligation;
@@ -26,8 +27,8 @@ impl SomeTestParams {
         XOnlyPublicKey::from(kpk)
     }
 
-    pub fn some_uuid_string() -> String {
-        "Some-UUID-String".to_string()
+    pub fn some_uuid() -> Uuid {
+        Uuid::from_str("20c38e4b-037b-4654-b99c-1d9f2beb755f").unwrap()
     }
 
     pub fn maker_obligation_kinds() -> HashSet<ObligationKind> {
