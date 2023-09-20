@@ -3,8 +3,8 @@ use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::select;
 use tokio::sync::{mpsc, oneshot};
+use tokio::{select, time};
 
 use secp256k1::{rand::rngs::OsRng, Secp256k1, SecretKey, XOnlyPublicKey};
 use uuid::Uuid;
@@ -223,6 +223,7 @@ impl InterfacerActor {
             .await;
 
         let mut event_rx = self.client.notifications();
+        let mut interval = time::interval(Duration::from_millis(100));
 
         // Request handling main event loop
         // !!! This function will end if no Sender remains for the Receiver
@@ -237,7 +238,9 @@ impl InterfacerActor {
                         Err(error) => error!("Interfacer event RX receive error - {}", error),
                     }
                 },
+                else => break,
             }
+            interval.tick().await;
         }
     }
 
