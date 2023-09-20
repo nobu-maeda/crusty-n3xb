@@ -1,7 +1,6 @@
 use log::{debug, error, info, trace, warn};
 use std::collections::HashSet;
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 use tokio::{select, time};
@@ -11,7 +10,7 @@ use uuid::Uuid;
 
 use crate::common::error::N3xbError;
 use crate::common::types::{
-    EventKind, ObligationKind, OrderTag, SerdeGenericType, N3XB_APPLICATION_TAG,
+    EventKind, ObligationKind, OrderTag, SerdeGenericTrait, SerdeGenericType, N3XB_APPLICATION_TAG,
 };
 use crate::offer::Offer;
 use crate::order::{MakerObligation, Order, TakerObligation, TradeDetails, TradeParameter};
@@ -720,7 +719,7 @@ impl InterfacerActor {
             maker_order_note_id,
             trade_uuid,
             message_type: SerdeGenericType::TakerOffer,
-            message: Arc::new(offer),
+            message: Box::new(offer),
         };
 
         let content = PeerMessageContent {
@@ -749,7 +748,6 @@ impl InterfacerActor {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use tokio::sync::broadcast;
 
     use super::*;
@@ -817,7 +815,7 @@ mod tests {
             test_specific_field: SomeTestParams::engine_specific_str(),
         };
 
-        let rc_trade_engine_specifics = Arc::new(trade_engine_specifics);
+        let boxed_trade_engine_specifics = Box::new(trade_engine_specifics);
 
         let order = Order {
             pubkey: SomeTestParams::some_x_only_public_key(),
@@ -826,7 +824,7 @@ mod tests {
             maker_obligation,
             taker_obligation,
             trade_details,
-            trade_engine_specifics: rc_trade_engine_specifics,
+            trade_engine_specifics: boxed_trade_engine_specifics,
             pow_difficulty: SomeTestParams::pow_difficulty(),
         };
 

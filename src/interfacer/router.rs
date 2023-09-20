@@ -1,5 +1,5 @@
 use log::{debug, error};
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use tokio::sync::mpsc;
 
@@ -14,8 +14,8 @@ use super::peer_messaging::PeerMessage;
 
 pub(super) struct Router {
     peer_message_tx_map:
-        HashMap<Uuid, mpsc::Sender<(SerdeGenericType, Arc<dyn SerdeGenericTrait>)>>,
-    fallback_tx: Option<mpsc::Sender<(SerdeGenericType, Arc<dyn SerdeGenericTrait>)>>,
+        HashMap<Uuid, mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>>,
+    fallback_tx: Option<mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>>,
 }
 
 impl Router {
@@ -29,7 +29,7 @@ impl Router {
     pub(super) fn register_tx_for_trade_uuid(
         &mut self,
         trade_uuid: Uuid,
-        tx: mpsc::Sender<(SerdeGenericType, Arc<dyn SerdeGenericTrait>)>,
+        tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
     ) {
         debug!("register_tx_for_trade_uuid() for {}", trade_uuid);
         if self.peer_message_tx_map.insert(trade_uuid, tx).is_some() {
@@ -52,7 +52,7 @@ impl Router {
 
     pub(super) fn register_fallback_tx(
         &mut self,
-        tx: mpsc::Sender<(SerdeGenericType, Arc<dyn SerdeGenericTrait>)>,
+        tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
     ) {
         debug!("register_fallback_tx()");
         if self.fallback_tx.is_some() {
@@ -104,9 +104,9 @@ mod tests {
         let trade_uuid = SomeTestParams::some_uuid();
         let mut router = Router::new();
         let (event_tx, mut event_rx) =
-            mpsc::channel::<(SerdeGenericType, Arc<dyn SerdeGenericTrait>)>(1);
+            mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
         let (fallback_tx, mut fallback_rx) =
-            mpsc::channel::<(SerdeGenericType, Arc<dyn SerdeGenericTrait>)>(1);
+            mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
         router.register_tx_for_trade_uuid(trade_uuid, event_tx);
         router.register_fallback_tx(fallback_tx);
 
@@ -114,7 +114,7 @@ mod tests {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
-            trade_engine_specifics: Arc::new(SomeTradeEngineTakerOfferSpecifics {
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
                 test_specific_field: SomeTestParams::engine_specific_str(),
             }),
             pow_difficulty: SomeTestParams::offer_pow_difficulty(),
@@ -125,7 +125,7 @@ mod tests {
             maker_order_note_id: "".to_string(),
             trade_uuid,
             message_type: SerdeGenericType::TakerOffer,
-            message: Arc::new(offer),
+            message: Box::new(offer),
         };
 
         router.handle_peer_message(peer_message).await.unwrap();
@@ -168,9 +168,9 @@ mod tests {
         let trade_uuid = SomeTestParams::some_uuid();
         let mut router = Router::new();
         let (event_tx, mut event_rx) =
-            mpsc::channel::<(SerdeGenericType, Arc<dyn SerdeGenericTrait>)>(1);
+            mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
         let (fallback_tx, mut fallback_rx) =
-            mpsc::channel::<(SerdeGenericType, Arc<dyn SerdeGenericTrait>)>(1);
+            mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
         router.register_tx_for_trade_uuid(Uuid::new_v4(), event_tx);
         router.register_fallback_tx(fallback_tx);
 
@@ -178,7 +178,7 @@ mod tests {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
-            trade_engine_specifics: Arc::new(SomeTradeEngineTakerOfferSpecifics {
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
                 test_specific_field: SomeTestParams::engine_specific_str(),
             }),
             pow_difficulty: SomeTestParams::offer_pow_difficulty(),
@@ -189,7 +189,7 @@ mod tests {
             maker_order_note_id: "".to_string(),
             trade_uuid,
             message_type: SerdeGenericType::TakerOffer,
-            message: Arc::new(offer),
+            message: Box::new(offer),
         };
 
         router.handle_peer_message(peer_message).await.unwrap();
@@ -232,14 +232,14 @@ mod tests {
         let trade_uuid = SomeTestParams::some_uuid();
         let mut router = Router::new();
         let (event_tx, mut event_rx) =
-            mpsc::channel::<(SerdeGenericType, Arc<dyn SerdeGenericTrait>)>(1);
+            mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
         router.register_tx_for_trade_uuid(Uuid::new_v4(), event_tx);
 
         let offer = Offer {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
-            trade_engine_specifics: Arc::new(SomeTradeEngineTakerOfferSpecifics {
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
                 test_specific_field: SomeTestParams::engine_specific_str(),
             }),
             pow_difficulty: SomeTestParams::offer_pow_difficulty(),
@@ -250,7 +250,7 @@ mod tests {
             maker_order_note_id: "".to_string(),
             trade_uuid,
             message_type: SerdeGenericType::TakerOffer,
-            message: Arc::new(offer),
+            message: Box::new(offer),
         };
 
         let result = router.handle_peer_message(peer_message).await;

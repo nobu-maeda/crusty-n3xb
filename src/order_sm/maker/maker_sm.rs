@@ -6,11 +6,6 @@ pub type ArcMakerSM = Arc<Mutex<MakerSM>>;
 
 pub struct MakerSM {
     interfacer_handle: InterfacerHandle,
-    order: Order,
-    // There's no explicit state variable being tracked for now
-    // States are instead determined by the following
-    //
-    //
 }
 
 impl MakerSM {
@@ -20,14 +15,9 @@ impl MakerSM {
     ) -> Result<MakerSM, N3xbError> {
         // TODO: Subscribe to any inbound peer messages regarding Order this MakerSM tracks
 
-        interfacer_handle
-            .send_maker_order_note(order.clone())
-            .await?;
+        interfacer_handle.send_maker_order_note(order).await?;
 
-        let maker_sm = MakerSM {
-            interfacer_handle,
-            order: order,
-        };
+        let maker_sm = MakerSM { interfacer_handle };
         Ok(maker_sm)
     }
 

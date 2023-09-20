@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use std::{any::Any, fmt::Debug, sync::Arc};
+use std::{any::Any, fmt::Debug};
 
 use crate::common::types::*;
 
@@ -13,12 +13,12 @@ pub struct Obligation {
     pub bond_amount: Option<u64>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Offer {
     pub maker_obligation: Obligation,
     pub taker_obligation: Obligation,
     pub market_oracle_used: Option<String>, // TODO: Change to URL type
-    pub trade_engine_specifics: Arc<dyn SerdeGenericTrait>,
+    pub trade_engine_specifics: Box<dyn SerdeGenericTrait>,
     pub pow_difficulty: Option<u64>,
 }
 

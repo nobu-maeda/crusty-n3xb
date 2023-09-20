@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use secp256k1::XOnlyPublicKey;
 use uuid::Uuid;
 
@@ -14,7 +12,7 @@ pub struct OrderBuilder {
     maker_obligation: Option<MakerObligation>,
     taker_obligation: Option<TakerObligation>,
     trade_details: Option<TradeDetails>,
-    trade_engine_specifics: Option<Arc<dyn SerdeGenericTrait>>,
+    trade_engine_specifics: Option<Box<dyn SerdeGenericTrait>>,
     pow_difficulty: Option<u64>,
 }
 
@@ -58,7 +56,7 @@ impl OrderBuilder {
 
     pub fn trade_engine_specifics(
         &mut self,
-        trade_engine_specifics: Arc<dyn SerdeGenericTrait>,
+        trade_engine_specifics: Box<dyn SerdeGenericTrait>,
     ) -> &mut Self {
         self.trade_engine_specifics = Some(trade_engine_specifics);
         self
@@ -69,7 +67,7 @@ impl OrderBuilder {
         self
     }
 
-    pub fn build(&self) -> std::result::Result<Order, N3xbError> {
+    pub fn build(&mut self) -> std::result::Result<Order, N3xbError> {
         let Some(pubkey) = self.pubkey.as_ref() else {
             return Err(N3xbError::Simple("No PubKey".to_string()));
         };
@@ -90,7 +88,7 @@ impl OrderBuilder {
             return Err(N3xbError::Simple("No Trade Details defined".to_string()));  // TODO: Error handling?
         };
 
-        let Some(trade_engine_specifics) = self.trade_engine_specifics.as_ref() else {
+        let Some(trade_engine_specifics) = self.trade_engine_specifics.take() else {
             return Err(N3xbError::Simple("No Engine Details defined".to_string()));  // TODO: Error handling?
         };
 
@@ -103,7 +101,7 @@ impl OrderBuilder {
             maker_obligation: maker_obligation.to_owned(),
             taker_obligation: taker_obligation.to_owned(),
             trade_details: trade_details.to_owned(),
-            trade_engine_specifics: trade_engine_specifics.to_owned(),
+            trade_engine_specifics: trade_engine_specifics,
             pow_difficulty,
         })
     }
@@ -138,7 +136,7 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        let trade_engine_specifics = Arc::new(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
         builder.trade_engine_specifics(trade_engine_specifics);
@@ -216,7 +214,7 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        let trade_engine_specifics = Arc::new(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
 
@@ -254,7 +252,7 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        let trade_engine_specifics = Arc::new(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
 
@@ -290,7 +288,7 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        let trade_engine_specifics = Arc::new(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
 
@@ -326,7 +324,7 @@ mod tests {
             content: SomeTestParams::taker_obligation_content(),
         });
 
-        let trade_engine_specifics = Arc::new(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
 
@@ -402,7 +400,7 @@ mod tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        let trade_engine_specifics = Arc::new(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
 

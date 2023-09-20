@@ -12,7 +12,6 @@ mod make_order_tests {
         manager::Manager,
         order::{MakerObligation, OrderBuilder, TakerObligation, TradeDetails},
     };
-    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_make_query_new_order() {
@@ -45,7 +44,7 @@ mod make_order_tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        let trade_engine_specifics = Arc::new(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
         builder.trade_engine_specifics(trade_engine_specifics);
@@ -53,7 +52,7 @@ mod make_order_tests {
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
 
         let order = builder.build().unwrap();
-        manager.make_new_order(order.clone()).await.unwrap();
+        manager.make_new_order(order).await.unwrap();
 
         let orders = loop {
             let orders = manager.query_order_notes().await.unwrap();
@@ -113,7 +112,6 @@ mod make_order_tests {
 
 #[cfg(test)]
 mod maker_taker_flow_tests {
-    use std::sync::Arc;
     use std::time::Duration;
 
     use super::relay;
@@ -177,7 +175,7 @@ mod maker_taker_flow_tests {
             content: SomeTestParams::trade_details_content(),
         });
 
-        let trade_engine_specifics = Arc::new(SomeTradeEngineMakerOrderSpecifics {
+        let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
         });
         builder.trade_engine_specifics(trade_engine_specifics);
@@ -185,7 +183,7 @@ mod maker_taker_flow_tests {
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
 
         let order = builder.build().unwrap();
-        maker.make_new_order(order.clone()).await.unwrap();
+        maker.make_new_order(order).await.unwrap();
 
         let orders = loop {
             let orders = taker.query_order_notes().await.unwrap();
@@ -248,7 +246,7 @@ mod maker_taker_flow_tests {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
-            trade_engine_specifics: Arc::new(SomeTradeEngineTakerOfferSpecifics {
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
                 test_specific_field: SomeTestParams::engine_specific_str(),
             }),
             pow_difficulty: SomeTestParams::offer_pow_difficulty(),
