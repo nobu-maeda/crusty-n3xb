@@ -26,7 +26,7 @@ pub(crate) struct InterfacerHandle {
 
 impl InterfacerHandle {
     pub(super) fn new(tx: mpsc::Sender<InterfacerRequest>) -> Self {
-        InterfacerHandle { tx }
+        Self { tx }
     }
 
     pub(crate) async fn get_public_key(&self) -> XOnlyPublicKey {

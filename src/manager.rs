@@ -1,12 +1,15 @@
+use std::collections::HashMap;
 use std::net::SocketAddr;
 
 use secp256k1::{SecretKey, XOnlyPublicKey};
+use tokio::sync::RwLock;
+use uuid::Uuid;
 
 use crate::common::error::N3xbError;
 use crate::interfacer::{Interfacer, InterfacerHandle};
 use crate::offer::Offer;
 use crate::order::Order;
-use crate::order_sm::maker::MakerSM;
+use crate::order_sm::maker::{Maker, MakerEngine};
 use crate::order_sm::taker::TakerSM;
 
 // At the moment we only support a single Trade Engine at a time.
@@ -15,6 +18,8 @@ pub struct Manager {
     trade_engine_name: String,
     interfacer: Interfacer,
     interfacer_handle: InterfacerHandle,
+    maker_engines: RwLock<HashMap<Uuid, MakerEngine>>,
+    makers: RwLock<HashMap<Uuid, Maker>>,
 }
 
 impl Manager {
@@ -33,6 +38,8 @@ impl Manager {
             trade_engine_name: trade_engine_name.to_string(),
             interfacer,
             interfacer_handle,
+            maker_engines: RwLock::new(HashMap::new()),
+            makers: RwLock::new(HashMap::new()),
         }
     }
 
@@ -44,6 +51,8 @@ impl Manager {
             trade_engine_name: trade_engine_name.to_string(),
             interfacer,
             interfacer_handle,
+            maker_engines: RwLock::new(HashMap::new()),
+            makers: RwLock::new(HashMap::new()),
         }
     }
 
@@ -63,9 +72,19 @@ impl Manager {
 
     // Order Management
 
-    pub async fn make_new_order(&self, order: Order) -> Result<MakerSM, N3xbError> {
-        let maker_sm = MakerSM::new(self.interfacer.new_handle(), order).await?;
-        Ok(maker_sm)
+    pub async fn make_new_order(&self, order: Order) -> Result<Maker, N3xbError> {
+        let trade_uuid = order.trade_uuid;
+        let maker_engine = MakerEngine::new(self.interfacer.new_handle(), order).await;
+        let maker_owned = maker_engine.new_handle().await;
+        let maker_returned = maker_engine.new_handle().await;
+
+        let mut maker_engines = self.maker_engines.write().await;
+        maker_engines.insert(trade_uuid, maker_engine);
+
+        let mut makers = self.makers.write().await;
+        makers.insert(trade_uuid, maker_owned);
+
+        Ok(maker_returned)
     }
 
     pub async fn query_order_notes(&mut self) -> Result<Vec<Order>, N3xbError> {
