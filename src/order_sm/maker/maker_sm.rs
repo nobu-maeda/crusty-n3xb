@@ -1,8 +1,4 @@
-use std::sync::{Arc, Mutex};
-
 use crate::{common::error::N3xbError, interfacer::InterfacerHandle, order::Order};
-
-pub type ArcMakerSM = Arc<Mutex<MakerSM>>;
 
 pub struct MakerSM {
     interfacer_handle: InterfacerHandle,

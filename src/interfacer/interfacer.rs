@@ -66,8 +66,51 @@ impl InterfacerHandle {
     pub(crate) async fn get_relays(&self) -> Vec<Url> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Vec<Url>>();
         let request = InterfacerRequest::GetRelays { rsp_tx };
-        self.tx.send(request).await.unwrap(); // Oneshot should never fail
+        self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
+    }
+
+    pub(crate) async fn register_trade_tx(
+        &mut self,
+        trade_uuid: Uuid,
+        tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
+    ) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = InterfacerRequest::RegisterTradeTx {
+            trade_uuid,
+            tx,
+            rsp_tx,
+        };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()?;
+        Ok(())
+    }
+
+    pub(crate) async fn unregister_trade_tx(&mut self, trade_uuid: Uuid) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = InterfacerRequest::UnregisterTradeTx { trade_uuid, rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()?;
+        Ok(())
+    }
+
+    pub(crate) async fn register_fallback_tx(
+        &mut self,
+        tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
+    ) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = InterfacerRequest::RegisterfallbackTx { tx, rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()?;
+        Ok(())
+    }
+
+    pub(crate) async fn unregister_fallback_tx(&mut self) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = InterfacerRequest::UnregisterfallbackTx { rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()?;
+        Ok(())
     }
 
     pub(crate) async fn send_maker_order_note(&self, order: Order) -> Result<(), N3xbError> {
@@ -174,6 +217,22 @@ pub(super) enum InterfacerRequest {
     GetRelays {
         rsp_tx: oneshot::Sender<Vec<Url>>,
     },
+    RegisterTradeTx {
+        trade_uuid: Uuid,
+        tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
+    UnregisterTradeTx {
+        trade_uuid: Uuid,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
+    RegisterfallbackTx {
+        tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
+    UnregisterfallbackTx {
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
     SendMakerOrderNote {
         order: Order,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
@@ -189,6 +248,7 @@ pub(super) enum InterfacerRequest {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
 }
+
 pub(super) struct InterfacerActor {
     rx: mpsc::Receiver<InterfacerRequest>,
     trade_engine_name: String,
@@ -261,6 +321,31 @@ impl InterfacerActor {
             InterfacerRequest::GetRelays { rsp_tx } => self.get_relays(rsp_tx).await,
 
             // Change subscription filters
+
+            // Router management
+            InterfacerRequest::RegisterTradeTx {
+                trade_uuid,
+                tx,
+                rsp_tx,
+            } => {
+                self.router.register_trade_tx(trade_uuid, tx);
+                rsp_tx.send(Ok(())).unwrap(); // oneshot should never fail
+            }
+
+            InterfacerRequest::UnregisterTradeTx { trade_uuid, rsp_tx } => {
+                self.router.unregister_trade_tx(trade_uuid);
+                rsp_tx.send(Ok(())).unwrap(); // oneshot should never fail
+            }
+
+            InterfacerRequest::RegisterfallbackTx { tx, rsp_tx } => {
+                self.router.register_fallback_tx(tx);
+                rsp_tx.send(Ok(())).unwrap(); // oneshot should never fail
+            }
+
+            InterfacerRequest::UnregisterfallbackTx { rsp_tx } => {
+                self.router.unregister_fallback_tx();
+                rsp_tx.send(Ok(())).unwrap(); // oneshot should never fail
+            }
 
             // Send Maker Order Notes
             InterfacerRequest::SendMakerOrderNote { order, rsp_tx } => {
@@ -421,9 +506,9 @@ impl InterfacerActor {
     ) {
         // Create Note Content
         let maker_order_note = MakerOrderNote {
-            maker_obligation: order.maker_obligation.content.to_owned(),
-            taker_obligation: order.taker_obligation.content.to_owned(),
-            trade_details: order.trade_details.content.to_owned(),
+            maker_obligation: order.maker_obligation.content,
+            taker_obligation: order.taker_obligation.content,
+            trade_details: order.trade_details.content,
             trade_engine_specifics: order.trade_engine_specifics,
             pow_difficulty: order.pow_difficulty,
         };
@@ -439,7 +524,7 @@ impl InterfacerActor {
         // Create Note Tags
         let mut tag_set: Vec<OrderTag> = Vec::new();
 
-        tag_set.push(OrderTag::TradeUUID(order.trade_uuid.clone()));
+        tag_set.push(OrderTag::TradeUUID(order.trade_uuid));
         tag_set.push(OrderTag::MakerObligations(
             order
                 .maker_obligation
@@ -457,7 +542,7 @@ impl InterfacerActor {
                 .collect(),
         ));
         tag_set.push(OrderTag::TradeDetailParameters(
-            order.trade_details.parameters_to_tags(),
+            TradeDetails::parameters_to_tags(order.trade_details.parameters),
         ));
         tag_set.push(OrderTag::TradeEngineName(self.trade_engine_name.to_owned()));
         tag_set.push(OrderTag::EventKind(EventKind::MakerOrder));
@@ -554,7 +639,7 @@ impl InterfacerActor {
             let mut tag_vec = tag.as_vec();
             let tag_key = tag_vec.remove(0);
 
-            if let Ok(order_tag) = OrderTag::from_key(tag_key.clone(), tag_vec) {
+            if let Ok(order_tag) = OrderTag::from_key(&tag_key, tag_vec) {
                 order_tags.push(order_tag);
             } else {
                 warn!("Unrecognized Tag with key: {}", tag_key);

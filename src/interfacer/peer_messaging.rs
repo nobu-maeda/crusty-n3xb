@@ -1,11 +1,11 @@
 use crate::common::types::{SerdeGenericTrait, SerdeGenericType};
 use serde::{Deserialize, Serialize};
-use std::{any::Any, fmt::Debug, rc::Rc};
+use std::{any::Any, fmt::Debug};
 use uuid::Uuid;
 
 // Peer Messaging Data Structure
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct PeerMessage {
     pub(crate) peer_message_id: Option<String>, // TODO: Is there a more specific type we can use here?
     pub(crate) maker_order_note_id: String, // TODO: Is there a more specific type we can use here?
@@ -21,7 +21,7 @@ impl SerdeGenericTrait for PeerMessage {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct PeerMessageContent {
     pub(crate) n3xb_peer_message: PeerMessage,
 }

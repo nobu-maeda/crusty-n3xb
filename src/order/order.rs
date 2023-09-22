@@ -5,7 +5,7 @@ use uuid::Uuid;
 use super::{obligation::*, trade_details::*};
 use crate::common::types::SerdeGenericTrait;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Order {
     pub pubkey: XOnlyPublicKey,
     pub event_id: String,

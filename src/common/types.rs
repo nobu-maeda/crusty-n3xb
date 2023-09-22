@@ -1,3 +1,4 @@
+use dyn_clone::DynClone;
 use iso_currency::Currency;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumString, IntoStaticStr};
@@ -21,9 +22,11 @@ pub(crate) enum SerdeGenericType {
 }
 
 #[typetag::serde(tag = "type")]
-pub trait SerdeGenericTrait: Debug + Send {
+pub trait SerdeGenericTrait: DynClone + Debug + Send {
     fn any_ref(&self) -> &dyn Any;
 }
+
+dyn_clone::clone_trait_object!(SerdeGenericTrait);
 
 impl dyn SerdeGenericTrait {
     pub fn downcast_ref<T: Any>(&self) -> Option<&T> {
@@ -68,12 +71,12 @@ impl OrderTag {
         format!("#{}", self.key())
     }
 
-    pub fn key_for(tag: OrderTag) -> String {
-        tag.key()
+    pub fn key_for(tag: impl AsRef<OrderTag>) -> String {
+        tag.as_ref().key()
     }
 
-    pub fn from_key(key: String, value: Vec<String>) -> Result<OrderTag, N3xbError> {
-        match key.as_str() {
+    pub fn from_key(key: impl AsRef<str>, value: Vec<String>) -> Result<OrderTag, N3xbError> {
+        match key.as_ref() {
             ORDER_TAG_TRADE_UUID_KEY => {
                 let uuid_string = value[0].clone();
                 match Uuid::from_str(uuid_string.as_str()) {
@@ -102,7 +105,7 @@ impl OrderTag {
             ORDER_TAG_APPLICATION_TAG_KEY => Ok(OrderTag::ApplicationTag(value[0].clone())),
             _ => Err(N3xbError::Simple(format!(
                 "Unrecognized key '{}' for Order Tag",
-                key
+                key.as_ref()
             ))),
         }
     }

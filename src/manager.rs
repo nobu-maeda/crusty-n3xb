@@ -1,10 +1,6 @@
-use secp256k1::{SecretKey, XOnlyPublicKey};
-use tokio::sync::RwLock;
-
-use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::rc::Rc;
-use std::sync::Mutex;
+
+use secp256k1::{SecretKey, XOnlyPublicKey};
 
 use crate::common::error::N3xbError;
 use crate::interfacer::{Interfacer, InterfacerHandle};

@@ -26,7 +26,7 @@ impl Router {
         }
     }
 
-    pub(super) fn register_tx_for_trade_uuid(
+    pub(super) fn register_trade_tx(
         &mut self,
         trade_uuid: Uuid,
         tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
@@ -40,7 +40,7 @@ impl Router {
         };
     }
 
-    pub(super) fn unregister_tx_for_trade_uuid(&mut self, trade_uuid: Uuid) {
+    pub(super) fn unregister_trade_tx(&mut self, trade_uuid: Uuid) {
         debug!("unregister_tx_for_trade_uuid() for {}", trade_uuid);
         if self.peer_message_tx_map.remove(&trade_uuid).is_none() {
             error!(
@@ -107,7 +107,7 @@ mod tests {
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
         let (fallback_tx, mut fallback_rx) =
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
-        router.register_tx_for_trade_uuid(trade_uuid, event_tx);
+        router.register_trade_tx(trade_uuid, event_tx);
         router.register_fallback_tx(fallback_tx);
 
         let offer = Offer {
@@ -171,7 +171,7 @@ mod tests {
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
         let (fallback_tx, mut fallback_rx) =
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
-        router.register_tx_for_trade_uuid(Uuid::new_v4(), event_tx);
+        router.register_trade_tx(Uuid::new_v4(), event_tx);
         router.register_fallback_tx(fallback_tx);
 
         let offer = Offer {
@@ -233,7 +233,7 @@ mod tests {
         let mut router = Router::new();
         let (event_tx, mut event_rx) =
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
-        router.register_tx_for_trade_uuid(Uuid::new_v4(), event_tx);
+        router.register_trade_tx(Uuid::new_v4(), event_tx);
 
         let offer = Offer {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
@@ -256,7 +256,7 @@ mod tests {
         let result = router.handle_peer_message(peer_message).await;
 
         let mut event_count = 0;
-        let mut fallback_count = 0;
+        let fallback_count = 0;
 
         while let Some(event) = event_rx.try_recv().ok() {
             let (serde_type, serde_message) = event;

@@ -13,9 +13,9 @@ pub struct TradeDetails {
 }
 
 impl TradeDetails {
-    pub fn parameters_to_tags(&self) -> HashSet<String> {
+    pub fn parameters_to_tags(parameters: HashSet<TradeParameter>) -> HashSet<String> {
         let mut tag_string_set: HashSet<String> = HashSet::new();
-        for parameter in self.parameters.iter() {
+        for parameter in parameters.iter() {
             tag_string_set.insert(parameter.to_string());
             if parameter.to_tag() != parameter.to_string() {
                 tag_string_set.insert(parameter.to_tag());
@@ -132,7 +132,7 @@ mod tests {
     fn trade_details_times_out_parameter_to_tag() {
         let parameters = HashSet::from([TradeParameter::TradeTimesOut(TradeTimeOutLimit::OneDay)]);
         let trade_details = test_details_for_(parameters);
-        let trade_parameter_tags = trade_details.parameters_to_tags();
+        let trade_parameter_tags = TradeDetails::parameters_to_tags(trade_details.parameters);
         let expected_parameter_tags = HashSet::from([
             "TradeTimesOut-OneDay".to_string(),
             "TradeTimesOut".to_string(),
@@ -155,7 +155,7 @@ mod tests {
         ]);
 
         let trade_details = test_details_for_(parameters);
-        let trade_parameter_tags = trade_details.parameters_to_tags();
+        let trade_parameter_tags = TradeDetails::parameters_to_tags(trade_details.parameters);
 
         let expected_parameter_tags = HashSet::from([
             "BondsRequired".to_string(),
@@ -214,7 +214,7 @@ mod tests {
         ]);
 
         let trade_details = test_details_for_(parameters);
-        let trade_parameter_tags = trade_details.parameters_to_tags();
+        let trade_parameter_tags = TradeDetails::parameters_to_tags(trade_details.parameters);
 
         let expected_parameter_tags = HashSet::from([
             "MakerHasReputation".to_string(),

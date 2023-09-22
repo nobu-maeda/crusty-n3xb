@@ -13,7 +13,7 @@ pub struct Obligation {
     pub bond_amount: Option<u64>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Offer {
     pub maker_obligation: Obligation,
     pub taker_obligation: Obligation,

@@ -11,12 +11,7 @@ impl TakerSM {
         offer: Offer,
     ) -> Result<TakerSM, N3xbError> {
         interfacer_handle
-            .send_taker_offer_message(
-                order.pubkey.clone(),
-                order.event_id.clone(),
-                order.trade_uuid.clone(),
-                offer,
-            )
+            .send_taker_offer_message(order.pubkey, order.event_id, order.trade_uuid, offer)
             .await?;
 
         let taker_sm = TakerSM { interfacer_handle };
