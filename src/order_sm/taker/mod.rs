@@ -1,3 +1,4 @@
-mod taker_sm;
+mod taker;
 
-pub use taker_sm::TakerSM;
+pub use taker::Taker;
+pub(crate) use taker::TakerEngine;

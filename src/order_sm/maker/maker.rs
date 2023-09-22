@@ -32,9 +32,8 @@ impl MakerEngine {
     const MAKER_REQUEST_CHANNEL_SIZE: usize = 2;
 
     pub(crate) async fn new(interfacer_handle: InterfacerHandle, order: Order) -> Self {
-        const MAKER_REQUEST_CHANNEL_SIZE: usize = 10;
         let (tx, rx) = mpsc::channel::<MakerRequest>(Self::MAKER_REQUEST_CHANNEL_SIZE);
-        let mut actor = MakerActor::new(rx, order, interfacer_handle).await;
+        let mut actor = MakerActor::new(rx, interfacer_handle, order).await;
         tokio::spawn(async move { actor.run().await });
         Self { tx }
     }
@@ -51,27 +50,27 @@ pub(super) enum MakerRequest {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     QueryOffers,
-    AcceptOffer,
+    SendTradeResponse,
     RegisterNotifTx,
     UnregisterNotifTx,
 }
 
 struct MakerActor {
     rx: mpsc::Receiver<MakerRequest>,
-    order: Order,
     interfacer_handle: InterfacerHandle,
+    order: Order,
 }
 
 impl MakerActor {
     pub(crate) async fn new(
         rx: mpsc::Receiver<MakerRequest>,
-        order: Order,
         interfacer_handle: InterfacerHandle,
+        order: Order,
     ) -> Self {
         MakerActor {
             rx,
-            order,
             interfacer_handle,
+            order,
         }
     }
 
@@ -90,7 +89,7 @@ impl MakerActor {
         match request {
             MakerRequest::SendMakerOrder { rsp_tx } => self.send_maker_order(rsp_tx).await,
             MakerRequest::QueryOffers => todo!(),
-            MakerRequest::AcceptOffer => todo!(),
+            MakerRequest::SendTradeResponse => todo!(),
             MakerRequest::RegisterNotifTx => todo!(),
             MakerRequest::UnregisterNotifTx => todo!(),
         }

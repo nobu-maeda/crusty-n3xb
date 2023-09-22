@@ -10,7 +10,7 @@ use crate::interfacer::{Interfacer, InterfacerHandle};
 use crate::offer::Offer;
 use crate::order::Order;
 use crate::order_sm::maker::{Maker, MakerEngine};
-use crate::order_sm::taker::TakerSM;
+use crate::order_sm::taker::{Taker, TakerEngine};
 
 // At the moment we only support a single Trade Engine at a time.
 // Might need to change to a dyn Trait if mulitple is to be supported at a time
@@ -19,7 +19,9 @@ pub struct Manager {
     interfacer: Interfacer,
     interfacer_handle: InterfacerHandle,
     maker_engines: RwLock<HashMap<Uuid, MakerEngine>>,
+    taker_engines: RwLock<HashMap<Uuid, TakerEngine>>,
     makers: RwLock<HashMap<Uuid, Maker>>,
+    takers: RwLock<HashMap<Uuid, Taker>>,
 }
 
 impl Manager {
@@ -30,29 +32,33 @@ impl Manager {
     // TODO: Should take in genericized Keys or Client, but also Trade Engine Specifics
     // TODO: Should also take in custom path for n3xB file locations
 
-    pub async fn new(trade_engine_name: &str) -> Manager {
-        let interfacer = Interfacer::new(trade_engine_name).await;
+    pub async fn new(trade_engine_name: impl AsRef<str>) -> Manager {
+        let interfacer = Interfacer::new(trade_engine_name.as_ref()).await;
         let interfacer_handle = interfacer.new_handle();
 
         Manager {
-            trade_engine_name: trade_engine_name.to_string(),
+            trade_engine_name: trade_engine_name.as_ref().to_string(),
             interfacer,
             interfacer_handle,
             maker_engines: RwLock::new(HashMap::new()),
+            taker_engines: RwLock::new(HashMap::new()),
             makers: RwLock::new(HashMap::new()),
+            takers: RwLock::new(HashMap::new()),
         }
     }
 
-    pub async fn new_with_keys(key: SecretKey, trade_engine_name: &str) -> Manager {
-        let interfacer = Interfacer::new_with_key(key, trade_engine_name).await;
+    pub async fn new_with_keys(key: SecretKey, trade_engine_name: impl AsRef<str>) -> Manager {
+        let interfacer = Interfacer::new_with_key(key, trade_engine_name.as_ref()).await;
         let interfacer_handle = interfacer.new_handle();
 
         Manager {
-            trade_engine_name: trade_engine_name.to_string(),
+            trade_engine_name: trade_engine_name.as_ref().to_string(),
             interfacer,
             interfacer_handle,
             maker_engines: RwLock::new(HashMap::new()),
+            taker_engines: RwLock::new(HashMap::new()),
             makers: RwLock::new(HashMap::new()),
+            takers: RwLock::new(HashMap::new()),
         }
     }
 
@@ -75,14 +81,14 @@ impl Manager {
     pub async fn make_new_order(&self, order: Order) -> Result<Maker, N3xbError> {
         let trade_uuid = order.trade_uuid;
         let maker_engine = MakerEngine::new(self.interfacer.new_handle(), order).await;
-        let maker_owned = maker_engine.new_handle().await;
+        let maker_own = maker_engine.new_handle().await;
         let maker_returned = maker_engine.new_handle().await;
 
         let mut maker_engines = self.maker_engines.write().await;
         maker_engines.insert(trade_uuid, maker_engine);
 
         let mut makers = self.makers.write().await;
-        makers.insert(trade_uuid, maker_owned);
+        makers.insert(trade_uuid, maker_own);
 
         Ok(maker_returned)
     }
@@ -92,9 +98,19 @@ impl Manager {
         Ok(orders)
     }
 
-    pub async fn take_order(&self, order: Order, offer: Offer) -> Result<TakerSM, N3xbError> {
-        let taker_sm: TakerSM = TakerSM::new(self.interfacer.new_handle(), order, offer).await?;
-        Ok(taker_sm)
+    pub async fn take_order(&self, order: Order, offer: Offer) -> Result<Taker, N3xbError> {
+        let trade_uuid = order.trade_uuid;
+        let taker_engine = TakerEngine::new(self.interfacer.new_handle(), order, offer).await;
+        let taker_own = taker_engine.new_handle().await;
+        let taker_returned = taker_engine.new_handle().await;
+
+        let mut taker_engines = self.taker_engines.write().await;
+        taker_engines.insert(trade_uuid, taker_engine);
+
+        let mut takers = self.takers.write().await;
+        takers.insert(trade_uuid, taker_own);
+
+        Ok(taker_returned)
     }
 
     fn load_settings() {
