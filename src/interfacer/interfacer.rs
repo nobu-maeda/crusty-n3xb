@@ -17,7 +17,7 @@ use crate::order::{MakerObligation, Order, TakerObligation, TradeDetails, TradeP
 
 use super::maker_order_note::MakerOrderNote;
 use super::nostr::*;
-use super::peer_messaging::{PeerMessage, PeerMessageContent};
+use super::peer_messaging::PeerMessage;
 use super::router::Router;
 
 pub(crate) struct InterfacerHandle {
@@ -70,7 +70,7 @@ impl InterfacerHandle {
         rsp_rx.await.unwrap()
     }
 
-    pub(crate) async fn register_trade_tx(
+    pub(crate) async fn register_peer_message_tx(
         &mut self,
         trade_uuid: Uuid,
         tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
@@ -86,7 +86,10 @@ impl InterfacerHandle {
         Ok(())
     }
 
-    pub(crate) async fn unregister_trade_tx(&mut self, trade_uuid: Uuid) -> Result<(), N3xbError> {
+    pub(crate) async fn unregister_peer_message_tx(
+        &mut self,
+        trade_uuid: Uuid,
+    ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = InterfacerRequest::UnregisterTradeTx { trade_uuid, rsp_tx };
         self.tx.send(request).await.unwrap();
@@ -94,7 +97,7 @@ impl InterfacerHandle {
         Ok(())
     }
 
-    pub(crate) async fn register_fallback_tx(
+    pub(crate) async fn register_peer_message_fallback_tx(
         &mut self,
         tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
     ) -> Result<(), N3xbError> {
@@ -105,7 +108,7 @@ impl InterfacerHandle {
         Ok(())
     }
 
-    pub(crate) async fn unregister_fallback_tx(&mut self) -> Result<(), N3xbError> {
+    pub(crate) async fn unregister_peer_message_fallback_tx(&mut self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = InterfacerRequest::UnregisterfallbackTx { rsp_tx };
         self.tx.send(request).await.unwrap();
@@ -326,22 +329,22 @@ impl InterfacerActor {
                 tx,
                 rsp_tx,
             } => {
-                self.router.register_trade_tx(trade_uuid, tx);
+                self.router.register_peer_message_tx(trade_uuid, tx);
                 rsp_tx.send(Ok(())).unwrap(); // oneshot should never fail
             }
 
             InterfacerRequest::UnregisterTradeTx { trade_uuid, rsp_tx } => {
-                self.router.unregister_trade_tx(trade_uuid);
+                self.router.unregister_peer_message_tx(trade_uuid);
                 rsp_tx.send(Ok(())).unwrap(); // oneshot should never fail
             }
 
             InterfacerRequest::RegisterfallbackTx { tx, rsp_tx } => {
-                self.router.register_fallback_tx(tx);
+                self.router.register_peer_message_fallback_tx(tx);
                 rsp_tx.send(Ok(())).unwrap(); // oneshot should never fail
             }
 
             InterfacerRequest::UnregisterfallbackTx { rsp_tx } => {
-                self.router.unregister_fallback_tx();
+                self.router.unregister_peer_message_fallback_tx();
                 rsp_tx.send(Ok(())).unwrap(); // oneshot should never fail
             }
 
@@ -415,14 +418,9 @@ impl InterfacerActor {
             }
         };
 
-        match serde_json::from_str::<PeerMessageContent>(content.as_str()) {
-            Ok(peer_message_content) => {
-                if let Some(error) = self
-                    .router
-                    .handle_peer_message(peer_message_content.n3xb_peer_message)
-                    .await
-                    .err()
-                {
+        match serde_json::from_str::<PeerMessage>(content.as_str()) {
+            Ok(peer_message) => {
+                if let Some(error) = self.router.handle_peer_message(peer_message).await.err() {
                     error!(
                         "handle_direct_message() failed in router.handle_peer_message() - {}",
                         error
@@ -798,6 +796,7 @@ impl InterfacerActor {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
         let peer_message = PeerMessage {
+            r#type: "n3xb-peer-message".to_string(),
             peer_message_id: Option::None,
             maker_order_note_id,
             trade_uuid,
@@ -805,11 +804,7 @@ impl InterfacerActor {
             message: Box::new(offer),
         };
 
-        let content = PeerMessageContent {
-            n3xb_peer_message: peer_message,
-        };
-
-        let content_string = match serde_json::to_string(&content) {
+        let content_string = match serde_json::to_string(&peer_message) {
             Ok(string) => string,
             Err(error) => {
                 rsp_tx.send(Err(error.into())).unwrap();
@@ -831,7 +826,6 @@ impl InterfacerActor {
 
 #[cfg(test)]
 mod tests {
-    use nostr_sdk::relay::pool::RelayPool;
     use tokio::sync::broadcast;
 
     use super::*;

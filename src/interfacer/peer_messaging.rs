@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct PeerMessage {
+    pub(crate) r#type: String,
     pub(crate) peer_message_id: Option<String>, // TODO: Is there a more specific type we can use here?
     pub(crate) maker_order_note_id: String, // TODO: Is there a more specific type we can use here?
     pub(crate) trade_uuid: Uuid,            // TODO: Change to UUID type?
@@ -14,14 +15,9 @@ pub(crate) struct PeerMessage {
     pub(crate) message: Box<dyn SerdeGenericTrait>,
 }
 
-#[typetag::serde(name = "n3xb_peer_message")]
+#[typetag::serde(name = "n3xB-peer-message")]
 impl SerdeGenericTrait for PeerMessage {
     fn any_ref(&self) -> &dyn Any {
         self
     }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub(crate) struct PeerMessageContent {
-    pub(crate) n3xb_peer_message: PeerMessage,
 }

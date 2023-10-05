@@ -22,7 +22,7 @@ pub struct Offer {
     pub pow_difficulty: Option<u64>,
 }
 
-#[typetag::serde(name = "n3xb_offer")]
+#[typetag::serde(name = "n3xB-taker-offer")]
 impl SerdeGenericTrait for Offer {
     fn any_ref(&self) -> &dyn Any {
         self

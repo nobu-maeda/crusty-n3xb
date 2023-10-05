@@ -15,18 +15,18 @@ use super::peer_messaging::PeerMessage;
 pub(super) struct Router {
     peer_message_tx_map:
         HashMap<Uuid, mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>>,
-    fallback_tx: Option<mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>>,
+    peer_message_fallback_tx: Option<mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>>,
 }
 
 impl Router {
     pub(super) fn new() -> Self {
         Router {
             peer_message_tx_map: HashMap::new(),
-            fallback_tx: None,
+            peer_message_fallback_tx: None,
         }
     }
 
-    pub(super) fn register_trade_tx(
+    pub(super) fn register_peer_message_tx(
         &mut self,
         trade_uuid: Uuid,
         tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
@@ -40,7 +40,7 @@ impl Router {
         };
     }
 
-    pub(super) fn unregister_trade_tx(&mut self, trade_uuid: Uuid) {
+    pub(super) fn unregister_peer_message_tx(&mut self, trade_uuid: Uuid) {
         debug!("unregister_tx_for_trade_uuid() for {}", trade_uuid);
         if self.peer_message_tx_map.remove(&trade_uuid).is_none() {
             error!(
@@ -50,22 +50,22 @@ impl Router {
         }
     }
 
-    pub(super) fn register_fallback_tx(
+    pub(super) fn register_peer_message_fallback_tx(
         &mut self,
         tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
     ) {
-        debug!("register_fallback_tx()");
-        if self.fallback_tx.is_some() {
-            error!("register_fallback_tx() already registered");
+        debug!("register_peer_message_fallback_tx()");
+        if self.peer_message_fallback_tx.is_some() {
+            error!("register_peer_message_fallback_tx() already registered");
         }
-        self.fallback_tx = Some(tx);
+        self.peer_message_fallback_tx = Some(tx);
     }
 
-    pub(super) fn unregister_fallback_tx(&mut self) {
-        if self.fallback_tx.is_none() {
-            error!("unregister_fallback_tx() expected to already be registered");
+    pub(super) fn unregister_peer_message_fallback_tx(&mut self) {
+        if self.peer_message_fallback_tx.is_none() {
+            error!("unregister_peer_message_fallback_tx() expected to already be registered");
         } else {
-            self.fallback_tx = None;
+            self.peer_message_fallback_tx = None;
         }
     }
 
@@ -79,7 +79,7 @@ impl Router {
             return Ok(());
         }
 
-        if let Some(tx) = &self.fallback_tx {
+        if let Some(tx) = &self.peer_message_fallback_tx {
             tx.send((peer_message.message_type, peer_message.message))
                 .await?;
             return Ok(());
@@ -105,10 +105,10 @@ mod tests {
         let mut router = Router::new();
         let (event_tx, mut event_rx) =
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
-        let (fallback_tx, mut fallback_rx) =
+        let (peer_message_fallback_tx, mut fallback_rx) =
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
-        router.register_trade_tx(trade_uuid, event_tx);
-        router.register_fallback_tx(fallback_tx);
+        router.register_peer_message_tx(trade_uuid, event_tx);
+        router.register_peer_message_fallback_tx(peer_message_fallback_tx);
 
         let offer = Offer {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
@@ -121,6 +121,7 @@ mod tests {
         };
 
         let peer_message = PeerMessage {
+            r#type: "n3xb-peer-message".to_string(),
             peer_message_id: Option::None,
             maker_order_note_id: "".to_string(),
             trade_uuid,
@@ -164,15 +165,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_fallback_tx() {
+    async fn test_peer_message_fallback_tx() {
         let trade_uuid = SomeTestParams::some_uuid();
         let mut router = Router::new();
         let (event_tx, mut event_rx) =
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
-        let (fallback_tx, mut fallback_rx) =
+        let (peer_message_fallback_tx, mut fallback_rx) =
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
-        router.register_trade_tx(Uuid::new_v4(), event_tx);
-        router.register_fallback_tx(fallback_tx);
+        router.register_peer_message_tx(Uuid::new_v4(), event_tx);
+        router.register_peer_message_fallback_tx(peer_message_fallback_tx);
 
         let offer = Offer {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
@@ -185,6 +186,7 @@ mod tests {
         };
 
         let peer_message = PeerMessage {
+            r#type: "n3xb-peer-message".to_string(),
             peer_message_id: Option::None,
             maker_order_note_id: "".to_string(),
             trade_uuid,
@@ -233,7 +235,7 @@ mod tests {
         let mut router = Router::new();
         let (event_tx, mut event_rx) =
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
-        router.register_trade_tx(Uuid::new_v4(), event_tx);
+        router.register_peer_message_tx(Uuid::new_v4(), event_tx);
 
         let offer = Offer {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
@@ -246,6 +248,7 @@ mod tests {
         };
 
         let peer_message = PeerMessage {
+            r#type: "n3xb-peer-message".to_string(),
             peer_message_id: Option::None,
             maker_order_note_id: "".to_string(),
             trade_uuid,

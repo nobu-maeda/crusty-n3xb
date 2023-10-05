@@ -19,6 +19,7 @@ pub enum BuySell {
 pub(crate) enum SerdeGenericType {
     TakerOffer,
     TradeResponse,
+    TradeEngineSpecific,
 }
 
 #[typetag::serde(tag = "type")]
