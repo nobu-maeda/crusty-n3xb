@@ -46,10 +46,7 @@ impl SomeTestParams {
     }
 
     pub fn taker_obligation_kinds() -> HashSet<ObligationKind> {
-        HashSet::from([
-            ObligationKind::Bitcoin(BitcoinSettlementMethod::Onchain),
-            ObligationKind::Bitcoin(BitcoinSettlementMethod::Lightning),
-        ])
+        HashSet::from([ObligationKind::Bitcoin(BitcoinSettlementMethod::Lightning)])
     }
 
     pub fn taker_obligation_content() -> TakerObligationContent {
@@ -103,7 +100,7 @@ impl SomeTestParams {
 
     pub fn offer_taker_obligation() -> Obligation {
         Obligation {
-            kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Onchain),
+            kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Lightning),
             amount: 40000000,
             bond_amount: Some(4000000),
         }

@@ -201,6 +201,8 @@ pub enum ObligationKind {
     Custom(String),
 }
 
+const OBLIGATION_KIND_SPLIT_CHAR: &str = "-";
+
 impl ObligationKind {
     pub fn is_bitcoin(&self) -> bool {
         return match self {
@@ -209,11 +211,7 @@ impl ObligationKind {
             ObligationKind::Custom(_) => false,
         };
     }
-}
 
-const OBLIGATION_KIND_SPLIT_CHAR: &str = "-";
-
-impl ObligationKind {
     pub fn to_tags(&self) -> HashSet<String> {
         let mut tag_string_set: HashSet<String>;
         let obligation_kind_prefix_bitcoin =

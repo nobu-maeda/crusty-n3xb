@@ -74,7 +74,7 @@ impl Offer {
             .contains(&self.maker_obligation.kind)
         {
             return Err(N3xbError::Simple(format!(
-                "Offer Maker Obligation Kind {} not found in initial Order",
+                "Offer Maker Obligation Kind {:?} not found in initial Order",
                 self.maker_obligation.kind
             )));
         }
@@ -123,7 +123,7 @@ impl Offer {
             .contains(&self.taker_obligation.kind)
         {
             return Err(N3xbError::Simple(format!(
-                "Offer Taker Obligation Kind {} not found in initial Order",
+                "Offer Taker Obligation Kind {:?} not found in initial Order",
                 self.taker_obligation.kind
             )));
         }
@@ -158,7 +158,7 @@ impl Offer {
 
         if order.taker_obligation.content.market_offset_pct.is_some() {
             return Err(N3xbError::Simple(format!(
-                "Market & Oracle based rate determination not yet supported "
+                "Market & Oracle based rate determination not yet supported"
             )));
         }
 
@@ -191,7 +191,7 @@ mod tests {
     use iso_currency::Currency;
 
     use crate::{
-        common::types::{FiatPaymentMethod, ObligationKind},
+        common::types::{BitcoinSettlementMethod, FiatPaymentMethod, ObligationKind},
         offer::Obligation,
         order::{
             MakerObligation, MakerObligationContent, Order, OrderBuilder, TakerObligation,
@@ -527,23 +527,141 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_validate_offer_taker_kind_not_found() {}
+    async fn test_validate_offer_taker_kind_not_found() {
+        let order = make_some_order(None, None, None);
+
+        let offer_taker_obligation = Obligation {
+            kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Onchain),
+            amount: 40000000,
+            bond_amount: Some(4000000),
+        };
+
+        let offer = Offer {
+            maker_obligation: SomeTestParams::offer_maker_obligation(),
+            taker_obligation: offer_taker_obligation,
+            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
+
+        let result = offer.validate_against(&order);
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
-    async fn test_validate_offer_taker_amount_not_as_expected() {}
+    async fn test_validate_offer_taker_amount_not_as_expected() {
+        let order = make_some_order(None, None, None);
+
+        let offer_maker_obligation = Obligation {
+            kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
+            amount: 1000000,
+            bond_amount: Some(4200000),
+        };
+
+        let offer_taker_obligation = Obligation {
+            kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Lightning),
+            amount: 42000000,
+            bond_amount: Some(4200000),
+        };
+
+        let offer = Offer {
+            maker_obligation: offer_maker_obligation,
+            taker_obligation: offer_taker_obligation,
+            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
+
+        let result = offer.validate_against(&order);
+        print!("{:?}", result);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_validate_offer_taker_bond_mismatch() {
+        let order = make_some_order(None, None, None);
+
+        let offer_taker_obligation = Obligation {
+            kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Lightning),
+            amount: 40000000,
+            bond_amount: Some(3000000),
+        };
+
+        let offer = Offer {
+            maker_obligation: SomeTestParams::offer_maker_obligation(),
+            taker_obligation: offer_taker_obligation,
+            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
+
+        let result = offer.validate_against(&order);
+        print!("{:?}", result);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_validate_offer_taker_bond_not_found() {
+        let order = make_some_order(None, None, None);
+
+        let offer_taker_obligation = Obligation {
+            kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Lightning),
+            amount: 40000000,
+            bond_amount: None,
+        };
+
+        let offer = Offer {
+            maker_obligation: SomeTestParams::offer_maker_obligation(),
+            taker_obligation: offer_taker_obligation,
+            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
+
+        let result = offer.validate_against(&order);
+        print!("{:?}", result);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_validate_offer_taker_bond_not_expected() {
+        let trade_details = TradeDetails {
+            parameters: SomeTestParams::trade_parameters(),
+            content: TradeDetailsContent {
+                maker_bond_pct: Some(10),
+                taker_bond_pct: None,
+                trade_timeout: None,
+            },
+        };
+
+        let order = make_some_order(None, None, Some(trade_details));
+
+        let offer = Offer {
+            maker_obligation: SomeTestParams::offer_maker_obligation(),
+            taker_obligation: SomeTestParams::offer_taker_obligation(),
+            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
+
+        let result = offer.validate_against(&order);
+        print!("{:?}", result);
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
     async fn test_validate_offer_market_oracle_not_found() {}
 
     #[tokio::test]
     async fn test_validate_offer_market_oracle_not_expected() {}
-
-    #[tokio::test]
-    async fn test_validate_offer_taker_bond_mismatch() {}
-
-    #[tokio::test]
-    async fn test_validate_offer_taker_bond_not_found() {}
-
-    #[tokio::test]
-    async fn test_validate_offer_taker_bond_not_expected() {}
 }
