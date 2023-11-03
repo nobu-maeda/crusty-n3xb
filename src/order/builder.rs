@@ -94,6 +94,8 @@ impl OrderBuilder {
 
         let pow_difficulty = self.pow_difficulty.unwrap_or_else(|| 0);
 
+        // TODO: Run Order validation on creation
+
         Ok(Order {
             pubkey: pubkey.to_owned(),
             event_id: "".to_string(),

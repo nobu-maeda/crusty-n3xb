@@ -47,7 +47,6 @@ impl Offer {
         }
 
         // TODO: How to validate trade engine specifics? Depend on the Trade Engine to do so after it gets notified?
-
         Ok(())
     }
 
