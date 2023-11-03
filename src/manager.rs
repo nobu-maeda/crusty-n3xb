@@ -95,6 +95,9 @@ impl Manager {
 
     pub async fn query_order_notes(&mut self) -> Result<Vec<Order>, N3xbError> {
         let orders = self.interfacer_handle.query_order_notes().await?;
+
+        // TODO: Validate received Orders
+
         Ok(orders)
     }
 

@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, collections::HashMap};
+use std::collections::HashMap;
 
 use tokio::{
     select,
@@ -151,7 +151,7 @@ impl MakerActor {
                 // Notify user of new offer recieved
             }
 
-            Err(error) => {
+            Err(_error) => {
                 // Reject offer by sending Taker a Trade Response message
 
                 // Notify user that invalid offer was received

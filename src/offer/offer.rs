@@ -54,7 +54,17 @@ impl Offer {
     fn f64_amount_within_pct_of(float1: f64, float2: f64, pct: f64) -> bool {
         let max = float1 * (1.0 + pct / 100.0);
         let min = float1 * (1.0 - pct / 100.0);
-        return min <= float2 && float2 >= max;
+        return min <= float2 && float2 <= max;
+    }
+
+    fn transacted_sat_amount(&self) -> u64 {
+        return if self.maker_obligation.kind.is_bitcoin() {
+            self.maker_obligation.amount
+        } else if self.taker_obligation.kind.is_bitcoin() {
+            self.taker_obligation.amount
+        } else {
+            panic!("Neither Maker nor Taker has Bitcoin obligation in Offer")
+        };
     }
 
     fn validate_maker_obligation_against(&self, order: &Order) -> Result<(), N3xbError> {
@@ -85,7 +95,7 @@ impl Offer {
 
         if let Some(maker_bond_pct) = order.trade_details.content.maker_bond_pct {
             let order_bond_amount =
-                maker_bond_pct as f64 / 100.0 * self.maker_obligation.amount as f64;
+                maker_bond_pct as f64 / 100.0 * self.transacted_sat_amount() as f64;
 
             // Should be okay to give +/- 0.1% leeway for bond amount
             if let Some(offer_bond_amount) = self.maker_obligation.bond_amount {
@@ -117,11 +127,8 @@ impl Offer {
 
         if let Some(limit_rate) = order.taker_obligation.content.limit_rate {
             let expected_taker_amount = maker_amount * limit_rate;
-            if !Self::f64_amount_within_pct_of(
-                expected_taker_amount,
-                self.taker_obligation.amount as f64,
-                0.1,
-            ) {
+            let taker_amount = self.taker_obligation.amount as f64;
+            if !Self::f64_amount_within_pct_of(expected_taker_amount, taker_amount, 0.1) {
                 return Err(N3xbError::Simple(format!(
                     "Offer Taker Obligation amount not as expected"
                 )));
@@ -152,7 +159,7 @@ impl Offer {
 
         if let Some(taker_bond_pct) = order.trade_details.content.taker_bond_pct {
             let order_bond_amount =
-                taker_bond_pct as f64 / 100.0 * self.taker_obligation.amount as f64;
+                taker_bond_pct as f64 / 100.0 * self.transacted_sat_amount() as f64;
 
             // Should be okay to give +/- 0.1% leeway for bond amount
             if let Some(offer_bond_amount) = self.taker_obligation.bond_amount {
@@ -171,9 +178,62 @@ impl Offer {
 
 #[cfg(test)]
 mod tests {
+    use crate::{
+        order::{MakerObligation, Order, OrderBuilder, TakerObligation, TradeDetails},
+        testing::{
+            SomeTestParams, SomeTradeEngineMakerOrderSpecifics, SomeTradeEngineTakerOfferSpecifics,
+        },
+    };
+
+    use super::Offer;
+
+    fn make_some_order() -> Order {
+        // Build and send the Maker Order
+        let mut builder: OrderBuilder = OrderBuilder::new();
+        builder.pubkey(SomeTestParams::some_x_only_public_key());
+        builder.trade_uuid(SomeTestParams::some_uuid());
+
+        builder.maker_obligation(MakerObligation {
+            kinds: SomeTestParams::maker_obligation_kinds(),
+            content: SomeTestParams::maker_obligation_content(),
+        });
+
+        builder.taker_obligation(TakerObligation {
+            kinds: SomeTestParams::taker_obligation_kinds(),
+            content: SomeTestParams::taker_obligation_content(),
+        });
+
+        builder.trade_details(TradeDetails {
+            parameters: SomeTestParams::trade_parameters(),
+            content: SomeTestParams::trade_details_content(),
+        });
+
+        let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
+            test_specific_field: SomeTestParams::engine_specific_str(),
+        });
+        builder.trade_engine_specifics(trade_engine_specifics);
+
+        builder.pow_difficulty(SomeTestParams::pow_difficulty());
+
+        builder.build().unwrap()
+    }
 
     #[tokio::test]
-    async fn test_validate_offer() {}
+    async fn test_validate_offer() {
+        let order = make_some_order();
+
+        let offer = Offer {
+            maker_obligation: SomeTestParams::offer_maker_obligation(),
+            taker_obligation: SomeTestParams::offer_taker_obligation(),
+            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
+
+        offer.validate_against(&order).unwrap()
+    }
 
     #[tokio::test]
     async fn test_validate_offer_maker_amount_in_bounds() {}

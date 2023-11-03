@@ -201,6 +201,16 @@ pub enum ObligationKind {
     Custom(String),
 }
 
+impl ObligationKind {
+    pub fn is_bitcoin(&self) -> bool {
+        return match self {
+            ObligationKind::Bitcoin(_) => true,
+            ObligationKind::Fiat(_, _) => false,
+            ObligationKind::Custom(_) => false,
+        };
+    }
+}
+
 const OBLIGATION_KIND_SPLIT_CHAR: &str = "-";
 
 impl ObligationKind {

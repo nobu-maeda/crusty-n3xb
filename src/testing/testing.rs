@@ -40,7 +40,7 @@ impl SomeTestParams {
 
     pub fn maker_obligation_content() -> MakerObligationContent {
         MakerObligationContent {
-            amount: 1000000,
+            amount: 1000000, // 1M RMB
             amount_min: None,
         }
     }
@@ -54,7 +54,7 @@ impl SomeTestParams {
 
     pub fn taker_obligation_content() -> TakerObligationContent {
         TakerObligationContent {
-            limit_rate: Some(0.000001),
+            limit_rate: Some(40.0), // 10,000,000 Sats/ 250,000 RMB (@ ~$35k USD / BTC) = 40.00
             market_offset_pct: None,
             market_oracles: None,
         }
@@ -71,8 +71,8 @@ impl SomeTestParams {
 
     pub fn trade_details_content() -> TradeDetailsContent {
         TradeDetailsContent {
-            maker_bond_pct: None,
-            taker_bond_pct: None,
+            maker_bond_pct: Some(10),
+            taker_bond_pct: Some(10),
             trade_timeout: None,
         }
     }
@@ -90,22 +90,22 @@ impl SomeTestParams {
     }
 
     pub fn expected_json_string() -> String {
-        "{\"maker_obligation\":{\"amount\":1000000,\"amount_min\":null},\"taker_obligation\":{\"limit_rate\":1e-6,\"market_offset_pct\":null,\"market_oracles\":null},\"trade_details\":{\"maker_bond_pct\":null,\"taker_bond_pct\":null,\"trade_timeout\":null},\"trade_engine_specifics\":{\"type\":\"some-trade-engine-maker-order-specifics\",\"test_specific_field\":\"some-test-specific-info\"},\"pow_difficulty\":8}".to_string()
+        "{\"maker_obligation\":{\"amount\":1000000,\"amount_min\":null},\"taker_obligation\":{\"limit_rate\":40.0,\"market_offset_pct\":null,\"market_oracles\":null},\"trade_details\":{\"maker_bond_pct\":10,\"taker_bond_pct\":10,\"trade_timeout\":null},\"trade_engine_specifics\":{\"type\":\"some-trade-engine-maker-order-specifics\",\"test_specific_field\":\"some-test-specific-info\"},\"pow_difficulty\":8}".to_string()
     }
 
     pub fn offer_maker_obligation() -> Obligation {
         Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
             amount: 1000000,
-            bond_amount: Some(100000),
+            bond_amount: Some(4000000),
         }
     }
 
     pub fn offer_taker_obligation() -> Obligation {
         Obligation {
             kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Onchain),
-            amount: 1,
-            bond_amount: Some(100000),
+            amount: 40000000,
+            bond_amount: Some(4000000),
         }
     }
 
