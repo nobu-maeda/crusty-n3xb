@@ -140,23 +140,7 @@ impl Offer {
             }
         }
 
-        if let Some(market_oracle_used) = &self.market_oracle_used {
-            if let Some(market_oracles) = &order.taker_obligation.content.market_oracles {
-                if !market_oracles.contains(market_oracle_used) {
-                    return Err(N3xbError::Simple(format!(
-                        "Market Oracle {} not found in list of the initial Order",
-                        market_oracle_used
-                    )));
-                }
-            } else {
-                return Err(N3xbError::Simple(format!(
-                        "Market Oracle {} not expected when intiial Order contains no allowable oracles",
-                        market_oracle_used
-                    )));
-            }
-        }
-
-        if order.taker_obligation.content.market_offset_pct.is_some() {
+        if self.market_oracle_used.is_some() {
             return Err(N3xbError::Simple(format!(
                 "Market & Oracle based rate determination not yet supported"
             )));
@@ -444,7 +428,6 @@ mod tests {
         };
 
         let result = offer.validate_against(&order);
-        print!("{:?}", result);
         assert!(result.is_err());
     }
 
@@ -469,7 +452,6 @@ mod tests {
         };
 
         let result = offer.validate_against(&order);
-        print!("{:?}", result);
         assert!(result.is_err());
     }
 
@@ -494,7 +476,6 @@ mod tests {
         };
 
         let result = offer.validate_against(&order);
-        print!("{:?}", result);
         assert!(result.is_err());
     }
 
@@ -522,7 +503,6 @@ mod tests {
         };
 
         let result = offer.validate_against(&order);
-        print!("{:?}", result);
         assert!(result.is_err());
     }
 
@@ -577,7 +557,6 @@ mod tests {
         };
 
         let result = offer.validate_against(&order);
-        print!("{:?}", result);
         assert!(result.is_err());
     }
 
@@ -602,7 +581,6 @@ mod tests {
         };
 
         let result = offer.validate_against(&order);
-        print!("{:?}", result);
         assert!(result.is_err());
     }
 
@@ -627,7 +605,6 @@ mod tests {
         };
 
         let result = offer.validate_against(&order);
-        print!("{:?}", result);
         assert!(result.is_err());
     }
 
@@ -655,13 +632,24 @@ mod tests {
         };
 
         let result = offer.validate_against(&order);
-        print!("{:?}", result);
         assert!(result.is_err());
     }
 
     #[tokio::test]
-    async fn test_validate_offer_market_oracle_not_found() {}
+    async fn test_validate_offer_market_oracle_not_yet_supported() {
+        let order = make_some_order(None, None, None);
 
-    #[tokio::test]
-    async fn test_validate_offer_market_oracle_not_expected() {}
+        let offer = Offer {
+            maker_obligation: SomeTestParams::offer_maker_obligation(),
+            taker_obligation: SomeTestParams::offer_taker_obligation(),
+            market_oracle_used: Some("https://www.bitstamp.com/api/".to_string()),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
+
+        let result = offer.validate_against(&order);
+        assert!(result.is_err());
+    }
 }
