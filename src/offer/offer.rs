@@ -99,13 +99,18 @@ impl Offer {
 
             // Should be okay to give +/- 0.1% leeway for bond amount
             if let Some(offer_bond_amount) = self.maker_obligation.bond_amount {
-                if !Self::f64_amount_within_pct_of(order_bond_amount, offer_bond_amount as f64, 0.1)
-                {
+                if !Self::f64_amount_within_pct_of(
+                    order_bond_amount,
+                    offer_bond_amount as f64,
+                    0.001,
+                ) {
                     return Err(N3xbError::Simple(format!("Offer Maker Obligation bond amount does not match percentage specified in initial Order")));
                 }
             } else {
                 return Err(N3xbError::Simple(format!("Offer Maker Obligation does not have bond amount specified as required in the initial Order")));
             }
+        } else if self.maker_obligation.bond_amount != None {
+            return Err(N3xbError::Simple(format!("Offer Maker Obligation should not have bond amount as its not specified in initial Order")));
         }
 
         Ok(())
@@ -128,7 +133,7 @@ impl Offer {
         if let Some(limit_rate) = order.taker_obligation.content.limit_rate {
             let expected_taker_amount = maker_amount * limit_rate;
             let taker_amount = self.taker_obligation.amount as f64;
-            if !Self::f64_amount_within_pct_of(expected_taker_amount, taker_amount, 0.1) {
+            if !Self::f64_amount_within_pct_of(expected_taker_amount, taker_amount, 0.001) {
                 return Err(N3xbError::Simple(format!(
                     "Offer Taker Obligation amount not as expected"
                 )));
@@ -163,13 +168,18 @@ impl Offer {
 
             // Should be okay to give +/- 0.1% leeway for bond amount
             if let Some(offer_bond_amount) = self.taker_obligation.bond_amount {
-                if !Self::f64_amount_within_pct_of(order_bond_amount, offer_bond_amount as f64, 0.1)
-                {
+                if !Self::f64_amount_within_pct_of(
+                    order_bond_amount,
+                    offer_bond_amount as f64,
+                    0.001,
+                ) {
                     return Err(N3xbError::Simple(format!("Offer Taker Obligation bond amount does not match percentage specified in initial Order")));
                 }
             } else {
                 return Err(N3xbError::Simple(format!("Offer Taker Obligation does not have bond amount specified as required in the initial Order")));
             }
+        } else if self.taker_obligation.bond_amount != None {
+            return Err(N3xbError::Simple(format!("Offer Taker Obligation should not have bond amount as its not specified in initial Order")));
         }
 
         Ok(())
@@ -178,8 +188,15 @@ impl Offer {
 
 #[cfg(test)]
 mod tests {
+    use iso_currency::Currency;
+
     use crate::{
-        order::{MakerObligation, Order, OrderBuilder, TakerObligation, TradeDetails},
+        common::types::{FiatPaymentMethod, ObligationKind},
+        offer::Obligation,
+        order::{
+            MakerObligation, MakerObligationContent, Order, OrderBuilder, TakerObligation,
+            TradeDetails, TradeDetailsContent,
+        },
         testing::{
             SomeTestParams, SomeTradeEngineMakerOrderSpecifics, SomeTradeEngineTakerOfferSpecifics,
         },
@@ -187,26 +204,36 @@ mod tests {
 
     use super::Offer;
 
-    fn make_some_order() -> Order {
+    fn make_some_order(
+        maker_obligation: Option<MakerObligation>,
+        taker_obligation: Option<TakerObligation>,
+        trade_details: Option<TradeDetails>,
+    ) -> Order {
         // Build and send the Maker Order
         let mut builder: OrderBuilder = OrderBuilder::new();
         builder.pubkey(SomeTestParams::some_x_only_public_key());
         builder.trade_uuid(SomeTestParams::some_uuid());
 
-        builder.maker_obligation(MakerObligation {
+        let maker_obligation = maker_obligation.unwrap_or(MakerObligation {
             kinds: SomeTestParams::maker_obligation_kinds(),
             content: SomeTestParams::maker_obligation_content(),
         });
 
-        builder.taker_obligation(TakerObligation {
+        builder.maker_obligation(maker_obligation);
+
+        let taker_obligation = taker_obligation.unwrap_or(TakerObligation {
             kinds: SomeTestParams::taker_obligation_kinds(),
             content: SomeTestParams::taker_obligation_content(),
         });
 
-        builder.trade_details(TradeDetails {
+        builder.taker_obligation(taker_obligation);
+
+        let trade_details = trade_details.unwrap_or(TradeDetails {
             parameters: SomeTestParams::trade_parameters(),
             content: SomeTestParams::trade_details_content(),
         });
+
+        builder.trade_details(trade_details);
 
         let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
@@ -220,7 +247,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer() {
-        let order = make_some_order();
+        let order = make_some_order(None, None, None);
 
         let offer = Offer {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
@@ -232,50 +259,272 @@ mod tests {
             pow_difficulty: SomeTestParams::offer_pow_difficulty(),
         };
 
-        offer.validate_against(&order).unwrap()
+        offer.validate_against(&order).unwrap();
     }
 
     #[tokio::test]
-    async fn test_validate_offer_maker_amount_in_bounds() {}
+    async fn test_validate_offer_maker_amount_in_bounds() {
+        let maker_obligation_content = MakerObligationContent {
+            amount: 1200000,
+            amount_min: Some(800000),
+        };
+
+        let maker_obligation = MakerObligation {
+            kinds: SomeTestParams::maker_obligation_kinds(),
+            content: maker_obligation_content,
+        };
+
+        let order = make_some_order(Some(maker_obligation), None, None);
+
+        let offer = Offer {
+            maker_obligation: SomeTestParams::offer_maker_obligation(),
+            taker_obligation: SomeTestParams::offer_taker_obligation(),
+            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
+
+        offer.validate_against(&order).unwrap();
+    }
 
     #[tokio::test]
-    async fn test_validate_offer_bonds_matched() {}
+    async fn test_validate_offer_maker_kind_not_found() {
+        let order = make_some_order(None, None, None);
+
+        let offer_maker_obligation = Obligation {
+            kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::FaceToFace),
+            amount: 1000000,
+            bond_amount: Some(4000000),
+        };
+
+        let offer = Offer {
+            maker_obligation: offer_maker_obligation,
+            taker_obligation: SomeTestParams::offer_taker_obligation(),
+            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
+
+        let result = offer.validate_against(&order);
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
-    async fn test_validate_f64_amount_under() {}
+    async fn test_validate_offer_maker_f64_amount_under() {
+        let maker_obligation_content = MakerObligationContent {
+            amount: 2000000,
+            amount_min: Some(1200000),
+        };
+
+        let maker_obligation = MakerObligation {
+            kinds: SomeTestParams::maker_obligation_kinds(),
+            content: maker_obligation_content,
+        };
+
+        let order = make_some_order(Some(maker_obligation), None, None);
+
+        let offer = Offer {
+            maker_obligation: SomeTestParams::offer_maker_obligation(),
+            taker_obligation: SomeTestParams::offer_taker_obligation(),
+            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
+
+        let result = offer.validate_against(&order);
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
-    async fn test_validate_f64_amount_min() {}
+    async fn test_validate_offer_maker_f64_amount_min() {
+        let maker_obligation_content = MakerObligationContent {
+            amount: 2000000,
+            amount_min: Some(1000000),
+        };
+
+        let maker_obligation = MakerObligation {
+            kinds: SomeTestParams::maker_obligation_kinds(),
+            content: maker_obligation_content,
+        };
+
+        let order = make_some_order(Some(maker_obligation), None, None);
+
+        let offer = Offer {
+            maker_obligation: SomeTestParams::offer_maker_obligation(),
+            taker_obligation: SomeTestParams::offer_taker_obligation(),
+            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
+
+        offer.validate_against(&order).unwrap();
+    }
 
     #[tokio::test]
-    async fn test_validate_f64_amount_max() {}
+    async fn test_validate_offer_maker_f64_amount_max() {
+        let maker_obligation_content = MakerObligationContent {
+            amount: 1000000,
+            amount_min: Some(700000),
+        };
+
+        let maker_obligation = MakerObligation {
+            kinds: SomeTestParams::maker_obligation_kinds(),
+            content: maker_obligation_content,
+        };
+
+        let order = make_some_order(Some(maker_obligation), None, None);
+
+        let offer = Offer {
+            maker_obligation: SomeTestParams::offer_maker_obligation(),
+            taker_obligation: SomeTestParams::offer_taker_obligation(),
+            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
+
+        offer.validate_against(&order).unwrap();
+    }
 
     #[tokio::test]
-    async fn test_validate_f64_amount_over() {}
+    async fn test_validateoffer_maker_f64_amount_over() {
+        let maker_obligation_content = MakerObligationContent {
+            amount: 800000,
+            amount_min: Some(500000),
+        };
+
+        let maker_obligation = MakerObligation {
+            kinds: SomeTestParams::maker_obligation_kinds(),
+            content: maker_obligation_content,
+        };
+
+        let order = make_some_order(Some(maker_obligation), None, None);
+
+        let offer = Offer {
+            maker_obligation: SomeTestParams::offer_maker_obligation(),
+            taker_obligation: SomeTestParams::offer_taker_obligation(),
+            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
+
+        let result = offer.validate_against(&order);
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
-    async fn test_validate_f64_amount_negative() {}
+    async fn test_validate_offer_maker_f64_amount_overflow() {
+        let order = make_some_order(None, None, None);
+
+        let offer_maker_obligation = Obligation {
+            kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
+            amount: u64::MAX,
+            bond_amount: Some(4000000),
+        };
+
+        let offer = Offer {
+            maker_obligation: offer_maker_obligation,
+            taker_obligation: SomeTestParams::offer_taker_obligation(),
+            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
+
+        let result = offer.validate_against(&order);
+        print!("{:?}", result);
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
-    async fn test_validate_f64_amount_overflow() {}
+    async fn test_validate_offer_maker_bond_mismatch() {
+        let order = make_some_order(None, None, None);
+
+        let offer_maker_obligation = Obligation {
+            kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
+            amount: 1000000,
+            bond_amount: Some(3000000),
+        };
+
+        let offer = Offer {
+            maker_obligation: offer_maker_obligation,
+            taker_obligation: SomeTestParams::offer_taker_obligation(),
+            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
+
+        let result = offer.validate_against(&order);
+        print!("{:?}", result);
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
-    async fn test_validate_offer_maker_kind_not_found() {}
+    async fn test_validate_offer_maker_bond_not_found() {
+        let order = make_some_order(None, None, None);
+
+        let offer_maker_obligation = Obligation {
+            kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
+            amount: 1000000,
+            bond_amount: None,
+        };
+
+        let offer = Offer {
+            maker_obligation: offer_maker_obligation,
+            taker_obligation: SomeTestParams::offer_taker_obligation(),
+            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
+
+        let result = offer.validate_against(&order);
+        print!("{:?}", result);
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
-    async fn test_validate_offer_maker_amount_out_of_bounds() {}
+    async fn test_validate_offer_maker_bond_not_expected() {
+        let trade_details = TradeDetails {
+            parameters: SomeTestParams::trade_parameters(),
+            content: TradeDetailsContent {
+                maker_bond_pct: None,
+                taker_bond_pct: Some(10),
+                trade_timeout: None,
+            },
+        };
 
-    #[tokio::test]
-    async fn test_validate_offer_maker_amount_mismatch() {}
+        let order = make_some_order(None, None, Some(trade_details));
 
-    #[tokio::test]
-    async fn test_validate_offer_maker_bond_mismatch() {}
+        let offer = Offer {
+            maker_obligation: SomeTestParams::offer_maker_obligation(),
+            taker_obligation: SomeTestParams::offer_taker_obligation(),
+            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
+            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
+                test_specific_field: SomeTestParams::engine_specific_str(),
+            }),
+            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
+        };
 
-    #[tokio::test]
-    async fn test_validate_offer_maker_bond_not_found() {}
-
-    #[tokio::test]
-    async fn test_validate_offer_maker_bond_not_expected() {}
+        let result = offer.validate_against(&order);
+        print!("{:?}", result);
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
     async fn test_validate_offer_taker_kind_not_found() {}
