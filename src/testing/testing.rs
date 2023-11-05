@@ -113,6 +113,47 @@ impl SomeTestParams {
     pub fn offer_pow_difficulty() -> Option<u64> {
         None
     }
+
+    pub fn make_some_order(
+        maker_obligation: Option<MakerObligation>,
+        taker_obligation: Option<TakerObligation>,
+        trade_details: Option<TradeDetails>,
+    ) -> Order {
+        // Build and send the Maker Order
+        let mut builder: OrderBuilder = OrderBuilder::new();
+        builder.pubkey(SomeTestParams::some_x_only_public_key());
+        builder.trade_uuid(SomeTestParams::some_uuid());
+
+        let maker_obligation = maker_obligation.unwrap_or(MakerObligation {
+            kinds: SomeTestParams::maker_obligation_kinds(),
+            content: SomeTestParams::maker_obligation_content(),
+        });
+
+        builder.maker_obligation(maker_obligation);
+
+        let taker_obligation = taker_obligation.unwrap_or(TakerObligation {
+            kinds: SomeTestParams::taker_obligation_kinds(),
+            content: SomeTestParams::taker_obligation_content(),
+        });
+
+        builder.taker_obligation(taker_obligation);
+
+        let trade_details = trade_details.unwrap_or(TradeDetails {
+            parameters: SomeTestParams::trade_parameters(),
+            content: SomeTestParams::trade_details_content(),
+        });
+
+        builder.trade_details(trade_details);
+
+        let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
+            test_specific_field: SomeTestParams::engine_specific_str(),
+        });
+        builder.trade_engine_specifics(trade_engine_specifics);
+
+        builder.pow_difficulty(SomeTestParams::pow_difficulty());
+
+        builder.build().unwrap()
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

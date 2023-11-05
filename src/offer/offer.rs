@@ -176,61 +176,15 @@ mod tests {
     use crate::{
         common::types::{BitcoinSettlementMethod, FiatPaymentMethod, ObligationKind},
         offer::Obligation,
-        order::{
-            MakerObligation, MakerObligationContent, Order, OrderBuilder, TakerObligation,
-            TradeDetails, TradeDetailsContent,
-        },
-        testing::{
-            SomeTestParams, SomeTradeEngineMakerOrderSpecifics, SomeTradeEngineTakerOfferSpecifics,
-        },
+        order::{MakerObligation, MakerObligationContent, TradeDetails, TradeDetailsContent},
+        testing::{SomeTestParams, SomeTradeEngineTakerOfferSpecifics},
     };
 
     use super::Offer;
 
-    fn make_some_order(
-        maker_obligation: Option<MakerObligation>,
-        taker_obligation: Option<TakerObligation>,
-        trade_details: Option<TradeDetails>,
-    ) -> Order {
-        // Build and send the Maker Order
-        let mut builder: OrderBuilder = OrderBuilder::new();
-        builder.pubkey(SomeTestParams::some_x_only_public_key());
-        builder.trade_uuid(SomeTestParams::some_uuid());
-
-        let maker_obligation = maker_obligation.unwrap_or(MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kinds(),
-            content: SomeTestParams::maker_obligation_content(),
-        });
-
-        builder.maker_obligation(maker_obligation);
-
-        let taker_obligation = taker_obligation.unwrap_or(TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kinds(),
-            content: SomeTestParams::taker_obligation_content(),
-        });
-
-        builder.taker_obligation(taker_obligation);
-
-        let trade_details = trade_details.unwrap_or(TradeDetails {
-            parameters: SomeTestParams::trade_parameters(),
-            content: SomeTestParams::trade_details_content(),
-        });
-
-        builder.trade_details(trade_details);
-
-        let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
-            test_specific_field: SomeTestParams::engine_specific_str(),
-        });
-        builder.trade_engine_specifics(trade_engine_specifics);
-
-        builder.pow_difficulty(SomeTestParams::pow_difficulty());
-
-        builder.build().unwrap()
-    }
-
     #[tokio::test]
     async fn test_validate_offer() {
-        let order = make_some_order(None, None, None);
+        let order = SomeTestParams::make_some_order(None, None, None);
 
         let offer = Offer {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
@@ -257,7 +211,7 @@ mod tests {
             content: maker_obligation_content,
         };
 
-        let order = make_some_order(Some(maker_obligation), None, None);
+        let order = SomeTestParams::make_some_order(Some(maker_obligation), None, None);
 
         let offer = Offer {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
@@ -274,7 +228,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer_maker_kind_not_found() {
-        let order = make_some_order(None, None, None);
+        let order = SomeTestParams::make_some_order(None, None, None);
 
         let offer_maker_obligation = Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::FaceToFace),
@@ -308,7 +262,7 @@ mod tests {
             content: maker_obligation_content,
         };
 
-        let order = make_some_order(Some(maker_obligation), None, None);
+        let order = SomeTestParams::make_some_order(Some(maker_obligation), None, None);
 
         let offer = Offer {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
@@ -336,7 +290,7 @@ mod tests {
             content: maker_obligation_content,
         };
 
-        let order = make_some_order(Some(maker_obligation), None, None);
+        let order = SomeTestParams::make_some_order(Some(maker_obligation), None, None);
 
         let offer = Offer {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
@@ -363,7 +317,7 @@ mod tests {
             content: maker_obligation_content,
         };
 
-        let order = make_some_order(Some(maker_obligation), None, None);
+        let order = SomeTestParams::make_some_order(Some(maker_obligation), None, None);
 
         let offer = Offer {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
@@ -390,7 +344,7 @@ mod tests {
             content: maker_obligation_content,
         };
 
-        let order = make_some_order(Some(maker_obligation), None, None);
+        let order = SomeTestParams::make_some_order(Some(maker_obligation), None, None);
 
         let offer = Offer {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
@@ -408,7 +362,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer_maker_f64_amount_overflow() {
-        let order = make_some_order(None, None, None);
+        let order = SomeTestParams::make_some_order(None, None, None);
 
         let offer_maker_obligation = Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
@@ -432,7 +386,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer_maker_bond_mismatch() {
-        let order = make_some_order(None, None, None);
+        let order = SomeTestParams::make_some_order(None, None, None);
 
         let offer_maker_obligation = Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
@@ -456,7 +410,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer_maker_bond_not_found() {
-        let order = make_some_order(None, None, None);
+        let order = SomeTestParams::make_some_order(None, None, None);
 
         let offer_maker_obligation = Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
@@ -489,7 +443,7 @@ mod tests {
             },
         };
 
-        let order = make_some_order(None, None, Some(trade_details));
+        let order = SomeTestParams::make_some_order(None, None, Some(trade_details));
 
         let offer = Offer {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
@@ -507,7 +461,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer_taker_kind_not_found() {
-        let order = make_some_order(None, None, None);
+        let order = SomeTestParams::make_some_order(None, None, None);
 
         let offer_taker_obligation = Obligation {
             kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Onchain),
@@ -531,7 +485,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer_taker_amount_not_as_expected() {
-        let order = make_some_order(None, None, None);
+        let order = SomeTestParams::make_some_order(None, None, None);
 
         let offer_maker_obligation = Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
@@ -561,7 +515,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer_taker_bond_mismatch() {
-        let order = make_some_order(None, None, None);
+        let order = SomeTestParams::make_some_order(None, None, None);
 
         let offer_taker_obligation = Obligation {
             kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Lightning),
@@ -585,7 +539,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer_taker_bond_not_found() {
-        let order = make_some_order(None, None, None);
+        let order = SomeTestParams::make_some_order(None, None, None);
 
         let offer_taker_obligation = Obligation {
             kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Lightning),
@@ -618,7 +572,7 @@ mod tests {
             },
         };
 
-        let order = make_some_order(None, None, Some(trade_details));
+        let order = SomeTestParams::make_some_order(None, None, Some(trade_details));
 
         let offer = Offer {
             maker_obligation: SomeTestParams::offer_maker_obligation(),
@@ -636,7 +590,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer_market_oracle_not_yet_supported() {
-        let order = make_some_order(None, None, None);
+        let order = SomeTestParams::make_some_order(None, None, None);
 
         let offer = Offer {
             maker_obligation: SomeTestParams::offer_maker_obligation(),

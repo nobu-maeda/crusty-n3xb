@@ -22,9 +22,10 @@ pub struct Order {
 
 impl Order {
     pub fn validate(&self) -> Result<(), N3xbError> {
-        self.validate_maker_obligation_kinds_same()?;
+        // Add additional validation rules here. Code is doc in this case
+        self.validate_maker_obligation_kind_currencies_same()?;
         self.validate_maker_obligation_amount_valid()?;
-        self.validate_taker_obligation_kinds_same()?;
+        self.validate_taker_obligation_kind_currencies_same()?;
         self.validate_taker_obligation_specified()?;
         self.validate_taker_obligation_limit_rate_valid()?;
         self.validate_taker_obligation_market_offset_not_supported()?;
@@ -32,12 +33,12 @@ impl Order {
         Ok(())
     }
 
-    fn validate_maker_obligation_kinds_same(&self) -> Result<(), N3xbError> {
+    fn validate_maker_obligation_kind_currencies_same(&self) -> Result<(), N3xbError> {
         let mut obligation_kind: Option<ObligationKind> = None;
 
         for maker_obligation_kind in &self.maker_obligation.kinds {
             if let Some(kind) = obligation_kind.to_owned() {
-                if kind != maker_obligation_kind.to_owned() {
+                if !maker_obligation_kind.is_same_currency_as(kind) {
                     return Err(N3xbError::Simple(format!(
                         "Maker Obligation Kinds in Order not all of the same kinds"
                     )));
@@ -64,14 +65,14 @@ impl Order {
         Ok(())
     }
 
-    fn validate_taker_obligation_kinds_same(&self) -> Result<(), N3xbError> {
+    fn validate_taker_obligation_kind_currencies_same(&self) -> Result<(), N3xbError> {
         let mut obligation_kind: Option<ObligationKind> = None;
 
         for taker_obligation_kind in &self.taker_obligation.kinds {
             if let Some(kind) = obligation_kind.to_owned() {
-                if kind != taker_obligation_kind.to_owned() {
+                if !taker_obligation_kind.is_same_currency_as(kind) {
                     return Err(N3xbError::Simple(format!(
-                        "Maker Obligation Kinds in Order not all of the same kinds"
+                        "Taker Obligation Kinds in Order not all of the same kinds"
                     )));
                 }
             } else {
@@ -121,28 +122,26 @@ impl Order {
             .parameters
             .contains(&TradeParameter::BondsRequired)
         {
-            if let Some(maker_bond_pct) = self.trade_details.content.maker_bond_pct {
-                if maker_bond_pct == 0 {
-                    return Err(N3xbError::Simple(format!(
-                        "Trade Details Maker Bond Percentage should not be zero"
-                    )));
-                }
-            } else {
+            if self.trade_details.content.maker_bond_pct.is_none() {
                 return Err(N3xbError::Simple(format!(
                     "Trade Details Maker Bond Percentage should be specified"
                 )));
             }
 
-            if let Some(taker_bond_pct) = self.trade_details.content.taker_bond_pct {
-                if taker_bond_pct == 0 {
-                    return Err(N3xbError::Simple(format!(
-                        "Trade Details Taker Bond Percentage should not be zero"
-                    )));
-                }
-            } else {
+            if self.trade_details.content.taker_bond_pct.is_none() {
                 return Err(N3xbError::Simple(format!(
                     "Trade Details Taker Bond Percentage should be specified"
                 )));
+            }
+
+            if let Some(maker_bond_pct) = self.trade_details.content.maker_bond_pct {
+                if let Some(taker_bond_pct) = self.trade_details.content.taker_bond_pct {
+                    if maker_bond_pct == 0 && taker_bond_pct == 0 {
+                        return Err(N3xbError::Simple(format!(
+                            "Trade Details Maker & Taker Bond Percentages should not be both zeros"
+                        )));
+                    }
+                }
             }
         }
         Ok(())
@@ -151,36 +150,244 @@ impl Order {
 
 #[cfg(test)]
 mod tests {
-    #[tokio::test]
-    async fn test_validate_order() {}
+    use std::collections::HashSet;
+
+    use crate::{
+        common::types::{FiatPaymentMethod, ObligationKind},
+        order::{
+            MakerObligation, MakerObligationContent, TakerObligation, TakerObligationContent,
+            TradeDetails, TradeDetailsContent, TradeParameter, TradeTimeOutLimit,
+        },
+        testing::SomeTestParams,
+    };
+
+    use iso_currency::Currency;
 
     #[tokio::test]
-    async fn test_validate_order_maker_obligation_kinds_mismatches() {}
+    async fn test_validate_order() {
+        let order = SomeTestParams::make_some_order(None, None, None);
+        order.validate().unwrap();
+    }
 
     #[tokio::test]
-    async fn test_validate_order_maker_obligation_amount_zero() {}
+    async fn test_validate_order_maker_obligation_kind_currencies_mismatches() {
+        let maker_obligation_kinds = HashSet::from([
+            ObligationKind::Fiat(Currency::JPY, FiatPaymentMethod::TransferWise),
+            ObligationKind::Fiat(Currency::EUR, FiatPaymentMethod::TransferWise),
+        ]);
+
+        let maker_obligation = MakerObligation {
+            kinds: maker_obligation_kinds,
+            content: SomeTestParams::maker_obligation_content(),
+        };
+
+        let order = SomeTestParams::make_some_order(Some(maker_obligation), None, None);
+        let result = order.validate();
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
-    async fn test_validate_order_maker_obligation_amount_less_than_min() {}
+    async fn test_validate_order_maker_obligation_amount_zero() {
+        let maker_obligation_content = MakerObligationContent {
+            amount: 0,
+            amount_min: None,
+        };
+
+        let maker_obligation = MakerObligation {
+            kinds: SomeTestParams::maker_obligation_kinds(),
+            content: maker_obligation_content,
+        };
+
+        let order = SomeTestParams::make_some_order(Some(maker_obligation), None, None);
+        let result = order.validate();
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
-    async fn test_validate_order_taker_obligation_kinds_mismatches() {}
+    async fn test_validate_order_maker_obligation_amount_less_than_min() {
+        let maker_obligation_content = MakerObligationContent {
+            amount: 1000000,
+            amount_min: Some(1000001),
+        };
+
+        let maker_obligation = MakerObligation {
+            kinds: SomeTestParams::maker_obligation_kinds(),
+            content: maker_obligation_content,
+        };
+
+        let order = SomeTestParams::make_some_order(Some(maker_obligation), None, None);
+        let result = order.validate();
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
-    async fn test_validate_order_taker_obligation_under_specified() {}
+    async fn test_validate_order_taker_obligation_kind_currencies_mismatches() {
+        let taker_obligation_kinds = HashSet::from([
+            ObligationKind::Fiat(Currency::TWD, FiatPaymentMethod::TransferWise),
+            ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::TransferWise),
+        ]);
+
+        let taker_obligation = TakerObligation {
+            kinds: taker_obligation_kinds,
+            content: SomeTestParams::taker_obligation_content(),
+        };
+
+        let order = SomeTestParams::make_some_order(None, Some(taker_obligation), None);
+        let result = order.validate();
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
-    async fn test_validate_order_taker_obligation_limit_rate_zero() {}
+    async fn test_validate_order_taker_obligation_under_specified() {
+        let taker_obligation_content = TakerObligationContent {
+            limit_rate: None,
+            market_offset_pct: None,
+            market_oracles: None,
+        };
+
+        let taker_obligation = TakerObligation {
+            kinds: SomeTestParams::taker_obligation_kinds(),
+            content: taker_obligation_content,
+        };
+
+        let order = SomeTestParams::make_some_order(None, Some(taker_obligation), None);
+        let result = order.validate();
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
-    async fn test_validate_order_taker_obligation_limit_rate_negative() {}
+    async fn test_validate_order_taker_obligation_limit_rate_zero() {
+        let taker_obligation_content = TakerObligationContent {
+            limit_rate: Some(0.0),
+            market_offset_pct: None,
+            market_oracles: None,
+        };
+
+        let taker_obligation = TakerObligation {
+            kinds: SomeTestParams::taker_obligation_kinds(),
+            content: taker_obligation_content,
+        };
+
+        let order = SomeTestParams::make_some_order(None, Some(taker_obligation), None);
+        let result = order.validate();
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
-    async fn test_validate_order_taker_obligation_market_offset() {}
+    async fn test_validate_order_taker_obligation_limit_rate_negative() {
+        let taker_obligation_content = TakerObligationContent {
+            limit_rate: Some(-40.0),
+            market_offset_pct: None,
+            market_oracles: None,
+        };
+
+        let taker_obligation = TakerObligation {
+            kinds: SomeTestParams::taker_obligation_kinds(),
+            content: taker_obligation_content,
+        };
+
+        let order = SomeTestParams::make_some_order(None, Some(taker_obligation), None);
+        let result = order.validate();
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
-    async fn test_validate_order_maker_bond_pct_missing() {}
+    async fn test_validate_order_taker_obligation_market_offset() {
+        let market_oracles = HashSet::from([
+            "https://www.bitstamp.com/api/".to_string(),
+            "https://www.kraken.com/api/".to_string(),
+        ]);
+        let taker_obligation_content = TakerObligationContent {
+            limit_rate: None,
+            market_offset_pct: Some(1.0),
+            market_oracles: Some(market_oracles),
+        };
+
+        let taker_obligation = TakerObligation {
+            kinds: SomeTestParams::taker_obligation_kinds(),
+            content: taker_obligation_content,
+        };
+
+        let order = SomeTestParams::make_some_order(None, Some(taker_obligation), None);
+        let result = order.validate();
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
-    async fn test_validate_order_taker_bond_pct_missing() {}
+    async fn test_validate_order_maker_bond_pct_missing() {
+        let trade_parameters = HashSet::from([
+            TradeParameter::BondsRequired,
+            TradeParameter::AcceptsPartialTake,
+            TradeParameter::TrustedArbitration,
+            TradeParameter::TrustedEscrow,
+            TradeParameter::TradeTimesOut(TradeTimeOutLimit::NoTimeout),
+        ]);
+
+        let trade_details_content = TradeDetailsContent {
+            maker_bond_pct: None,
+            taker_bond_pct: Some(10),
+            trade_timeout: None,
+        };
+
+        let trade_details = TradeDetails {
+            parameters: trade_parameters,
+            content: trade_details_content,
+        };
+
+        let order = SomeTestParams::make_some_order(None, None, Some(trade_details));
+        let result = order.validate();
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_validate_order_taker_bond_pct_missing() {
+        let trade_parameters = HashSet::from([
+            TradeParameter::BondsRequired,
+            TradeParameter::AcceptsPartialTake,
+            TradeParameter::TrustedArbitration,
+            TradeParameter::TrustedEscrow,
+            TradeParameter::TradeTimesOut(TradeTimeOutLimit::NoTimeout),
+        ]);
+
+        let trade_details_content = TradeDetailsContent {
+            maker_bond_pct: Some(10),
+            taker_bond_pct: None,
+            trade_timeout: None,
+        };
+
+        let trade_details = TradeDetails {
+            parameters: trade_parameters,
+            content: trade_details_content,
+        };
+
+        let order = SomeTestParams::make_some_order(None, None, Some(trade_details));
+        let result = order.validate();
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_validate_order_bond_pcts_both_zeros() {
+        let trade_parameters = HashSet::from([
+            TradeParameter::BondsRequired,
+            TradeParameter::AcceptsPartialTake,
+            TradeParameter::TrustedArbitration,
+            TradeParameter::TrustedEscrow,
+            TradeParameter::TradeTimesOut(TradeTimeOutLimit::NoTimeout),
+        ]);
+
+        let trade_details_content = TradeDetailsContent {
+            maker_bond_pct: Some(0),
+            taker_bond_pct: Some(0),
+            trade_timeout: None,
+        };
+
+        let trade_details = TradeDetails {
+            parameters: trade_parameters,
+            content: trade_details_content,
+        };
+
+        let order = SomeTestParams::make_some_order(None, None, Some(trade_details));
+        let result = order.validate();
+        assert!(result.is_err());
+    }
 }
