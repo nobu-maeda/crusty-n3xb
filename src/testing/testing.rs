@@ -7,6 +7,7 @@ use secp256k1::{PublicKey, SecretKey, XOnlyPublicKey};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::common::error::N3xbError;
 use crate::common::types::*;
 use crate::offer::Obligation;
 use crate::order::*;
@@ -118,7 +119,7 @@ impl SomeTestParams {
         maker_obligation: Option<MakerObligation>,
         taker_obligation: Option<TakerObligation>,
         trade_details: Option<TradeDetails>,
-    ) -> Order {
+    ) -> Result<Order, N3xbError> {
         // Build and send the Maker Order
         let mut builder: OrderBuilder = OrderBuilder::new();
         builder.pubkey(SomeTestParams::some_x_only_public_key());
@@ -152,7 +153,7 @@ impl SomeTestParams {
 
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
 
-        builder.build().unwrap()
+        builder.build()
     }
 }
 

@@ -94,9 +94,7 @@ impl OrderBuilder {
 
         let pow_difficulty = self.pow_difficulty.unwrap_or_else(|| 0);
 
-        // TODO: Run Order validation on creation
-
-        Ok(Order {
+        let order = Order {
             pubkey: pubkey.to_owned(),
             event_id: "".to_string(),
             trade_uuid: trade_uuid.to_owned(),
@@ -106,7 +104,10 @@ impl OrderBuilder {
             trade_engine_specifics: trade_engine_specifics,
             pow_difficulty,
             _private: (),
-        })
+        };
+
+        order.validate()?;
+        Ok(order)
     }
 }
 
