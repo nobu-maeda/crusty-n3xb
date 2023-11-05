@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
+use log::warn;
 use secp256k1::{SecretKey, XOnlyPublicKey};
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -94,11 +95,21 @@ impl Manager {
     }
 
     pub async fn query_order_notes(&mut self) -> Result<Vec<Order>, N3xbError> {
-        let orders = self.interfacer_handle.query_order_notes().await?;
+        let mut orders = self.interfacer_handle.query_order_notes().await?;
+        let queried_length = orders.len();
 
-        // TODO: Validate received Orders
+        let valid_orders: Vec<Order> = orders
+            .drain(..)
+            .filter(|order| order.validate().is_ok())
+            .collect();
+        let valid_length = valid_orders.len();
 
-        Ok(orders)
+        if valid_length < queried_length {
+            let filtered_orders = queried_length - valid_length;
+            warn!("{} orders filtered out on original query result of {} orders leaving {} valid orders returned", filtered_orders, queried_length, valid_length);
+        }
+
+        Ok(valid_orders)
     }
 
     pub async fn take_order(&self, order: Order, offer: Offer) -> Result<Taker, N3xbError> {
