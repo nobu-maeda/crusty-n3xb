@@ -18,6 +18,7 @@ pub struct Order {
     pub trade_details: TradeDetails,
     pub trade_engine_specifics: Box<dyn SerdeGenericTrait>,
     pub pow_difficulty: u64,
+    pub(crate) _private: (),
 }
 
 impl Order {

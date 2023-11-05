@@ -105,6 +105,7 @@ impl OrderBuilder {
             trade_details: trade_details.to_owned(),
             trade_engine_specifics: trade_engine_specifics,
             pow_difficulty,
+            _private: (),
         })
     }
 }

@@ -735,6 +735,7 @@ impl InterfacerActor {
             trade_details,
             trade_engine_specifics: maker_order_note.trade_engine_specifics,
             pow_difficulty: maker_order_note.pow_difficulty,
+            _private: (),
         })
     }
 
@@ -906,6 +907,7 @@ mod tests {
             trade_details,
             trade_engine_specifics: boxed_trade_engine_specifics,
             pow_difficulty: SomeTestParams::pow_difficulty(),
+            _private: (),
         };
 
         interfacer_handle
