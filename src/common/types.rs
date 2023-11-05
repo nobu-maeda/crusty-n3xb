@@ -205,11 +205,31 @@ const OBLIGATION_KIND_SPLIT_CHAR: &str = "-";
 
 impl ObligationKind {
     pub fn is_bitcoin(&self) -> bool {
-        return match self {
+        match self {
             ObligationKind::Bitcoin(_) => true,
             ObligationKind::Fiat(_, _) => false,
             ObligationKind::Custom(_) => false,
-        };
+        }
+    }
+
+    pub fn is_same_currency_as(&self, kind: ObligationKind) -> bool {
+        match self {
+            ObligationKind::Bitcoin(_) => match kind {
+                ObligationKind::Bitcoin(_) => true,
+                ObligationKind::Fiat(_, _) => false,
+                ObligationKind::Custom(_) => false,
+            },
+            ObligationKind::Fiat(self_currency, _) => match kind {
+                ObligationKind::Bitcoin(_) => false,
+                ObligationKind::Fiat(kind_currency, _) => self_currency.to_owned() == kind_currency,
+                ObligationKind::Custom(_) => false,
+            },
+            ObligationKind::Custom(self_custom) => match kind {
+                ObligationKind::Bitcoin(_) => false,
+                ObligationKind::Fiat(_, _) => false,
+                ObligationKind::Custom(kind_custom) => self_custom.to_owned() == kind_custom,
+            },
+        }
     }
 
     pub fn to_tags(&self) -> HashSet<String> {
@@ -333,6 +353,34 @@ impl ObligationKind {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn usd_venmo_is_same_currency_usd_cashapp() {
+        let kind1 = ObligationKind::Fiat(Currency::USD, FiatPaymentMethod::Venmo);
+        let kind2 = ObligationKind::Fiat(Currency::USD, FiatPaymentMethod::CashApp);
+        assert!(kind1.is_same_currency_as(kind2));
+    }
+
+    #[test]
+    fn aud_wise_is_not_same_currency_as_gbp_wise() {
+        let kind1 = ObligationKind::Fiat(Currency::AUD, FiatPaymentMethod::TransferWise);
+        let kind2 = ObligationKind::Fiat(Currency::GBP, FiatPaymentMethod::TransferWise);
+        assert!(!kind1.is_same_currency_as(kind2));
+    }
+
+    #[test]
+    fn custom_barter_is_same_currency_as_custom_barter() {
+        let kind1 = ObligationKind::Custom("barter".to_string());
+        let kind2 = ObligationKind::Custom("barter".to_string());
+        assert!(kind1.is_same_currency_as(kind2));
+    }
+
+    #[test]
+    fn custom_barter_is_not_same_currency_as_custom_charity() {
+        let kind1 = ObligationKind::Custom("barter".to_string());
+        let kind2 = ObligationKind::Custom("charity".to_string());
+        assert!(!kind1.is_same_currency_as(kind2));
+    }
 
     #[test]
     fn bitcoin_onchain_obligation_kind_to_tags() {
