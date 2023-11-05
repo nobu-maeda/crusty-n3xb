@@ -113,6 +113,8 @@ impl Manager {
     }
 
     pub async fn take_order(&self, order: Order, offer: Offer) -> Result<Taker, N3xbError> {
+        offer.validate_against(&order)?;
+
         let trade_uuid = order.trade_uuid;
         let taker_engine = TakerEngine::new(self.interfacer.new_handle(), order, offer).await;
         let taker_own = taker_engine.new_handle().await;
