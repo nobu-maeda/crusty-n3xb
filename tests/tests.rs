@@ -184,7 +184,7 @@ mod maker_taker_flow_tests {
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
 
         let order = builder.build().unwrap();
-        maker.make_new_order(order).await.unwrap();
+        let order_maker = maker.make_new_order(order).await.unwrap();
 
         let orders = loop {
             let orders = taker.query_order_notes().await.unwrap();
