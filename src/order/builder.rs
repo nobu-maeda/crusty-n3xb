@@ -71,9 +71,11 @@ impl OrderBuilder {
         let Some(pubkey) = self.pubkey.as_ref() else {
             return Err(N3xbError::Simple("No PubKey".to_string()));
         };
-
-        let Some(trade_uuid) = self.trade_uuid.as_ref() else {
-            return Err(N3xbError::Simple("No Trade UUID".to_string()));  // TODO: Error handling?
+        let trade_uuid = if let Some(explicit_uuid) = self.trade_uuid.as_ref() {
+            explicit_uuid.to_owned()
+        } else {
+            // Generate a new UUID
+            Uuid::new_v4()
         };
 
         let Some(maker_obligation) = self.maker_obligation.as_ref() else {
@@ -97,7 +99,7 @@ impl OrderBuilder {
         let order = Order {
             pubkey: pubkey.to_owned(),
             event_id: "".to_string(),
-            trade_uuid: trade_uuid.to_owned(),
+            trade_uuid: trade_uuid,
             maker_obligation: maker_obligation.to_owned(),
             taker_obligation: taker_obligation.to_owned(),
             trade_details: trade_details.to_owned(),
@@ -226,16 +228,7 @@ mod tests {
 
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
 
-        let result = builder.build();
-
-        match result {
-            Ok(_) => {
-                panic!(
-                    "order_builder_build should not contain trade_uuid and should not result in Ok"
-                );
-            }
-            Err(_) => {} // TODO: Some way to check on Error returned, without hard coupling to Error handling methodology
-        }
+        let order = builder.build().unwrap();
     }
 
     #[tokio::test]
