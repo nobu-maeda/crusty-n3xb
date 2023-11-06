@@ -30,43 +30,61 @@ impl Router {
         &mut self,
         trade_uuid: Uuid,
         tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
-    ) {
+    ) -> Result<(), N3xbError> {
         debug!("register_tx_for_trade_uuid() for {}", trade_uuid);
         if self.peer_message_tx_map.insert(trade_uuid, tx).is_some() {
-            error!(
-                "register_tx_for_trade_uuid() {} already registered",
+            let error = N3xbError::Simple(format!(
+                "register_tx_for_trade_uuid() for {} already registered",
                 trade_uuid
-            );
-        };
+            ));
+            Err(error)
+        } else {
+            Ok(())
+        }
     }
 
-    pub(super) fn unregister_peer_message_tx(&mut self, trade_uuid: Uuid) {
+    pub(super) fn unregister_peer_message_tx(&mut self, trade_uuid: Uuid) -> Result<(), N3xbError> {
         debug!("unregister_tx_for_trade_uuid() for {}", trade_uuid);
         if self.peer_message_tx_map.remove(&trade_uuid).is_none() {
-            error!(
+            let error = N3xbError::Simple(format!(
                 "unregister_tx_for_trade_uuid() {} expected to already be registered",
                 trade_uuid
-            );
+            ));
+            Err(error)
+        } else {
+            Ok(())
         }
     }
 
     pub(super) fn register_peer_message_fallback_tx(
         &mut self,
         tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
-    ) {
+    ) -> Result<(), N3xbError> {
         debug!("register_peer_message_fallback_tx()");
+
+        let mut result = Ok(());
         if self.peer_message_fallback_tx.is_some() {
-            error!("register_peer_message_fallback_tx() already registered");
+            let error = N3xbError::Simple(format!(
+                "register_peer_message_fallback_tx() already registered"
+            ));
+            result = Err(error);
         }
         self.peer_message_fallback_tx = Some(tx);
+        result
     }
 
-    pub(super) fn unregister_peer_message_fallback_tx(&mut self) {
+    pub(super) fn unregister_peer_message_fallback_tx(&mut self) -> Result<(), N3xbError> {
+        debug!("unregister_peer_message_fallback_tx()");
+
+        let mut result = Ok(());
         if self.peer_message_fallback_tx.is_none() {
-            error!("unregister_peer_message_fallback_tx() expected to already be registered");
-        } else {
-            self.peer_message_fallback_tx = None;
+            let error = N3xbError::Simple(format!(
+                "unregister_peer_message_fallback_tx() expected to already be registered"
+            ));
+            result = Err(error);
         }
+        self.peer_message_fallback_tx = None;
+        result
     }
 
     pub(super) async fn handle_peer_message(

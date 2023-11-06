@@ -329,23 +329,23 @@ impl InterfacerActor {
                 tx,
                 rsp_tx,
             } => {
-                self.router.register_peer_message_tx(trade_uuid, tx);
-                rsp_tx.send(Ok(())).unwrap(); // oneshot should never fail
+                let result = self.router.register_peer_message_tx(trade_uuid, tx);
+                rsp_tx.send(result).unwrap(); // oneshot should never fail
             }
 
             InterfacerRequest::UnregisterTradeTx { trade_uuid, rsp_tx } => {
-                self.router.unregister_peer_message_tx(trade_uuid);
-                rsp_tx.send(Ok(())).unwrap(); // oneshot should never fail
+                let result = self.router.unregister_peer_message_tx(trade_uuid);
+                rsp_tx.send(result).unwrap(); // oneshot should never fail
             }
 
             InterfacerRequest::RegisterfallbackTx { tx, rsp_tx } => {
-                self.router.register_peer_message_fallback_tx(tx);
-                rsp_tx.send(Ok(())).unwrap(); // oneshot should never fail
+                let result = self.router.register_peer_message_fallback_tx(tx);
+                rsp_tx.send(result).unwrap(); // oneshot should never fail
             }
 
             InterfacerRequest::UnregisterfallbackTx { rsp_tx } => {
-                self.router.unregister_peer_message_fallback_tx();
-                rsp_tx.send(Ok(())).unwrap(); // oneshot should never fail
+                let result = self.router.unregister_peer_message_fallback_tx();
+                rsp_tx.send(result).unwrap(); // oneshot should never fail
             }
 
             // Send Maker Order Notes
