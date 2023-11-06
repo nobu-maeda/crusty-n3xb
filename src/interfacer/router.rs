@@ -111,6 +111,7 @@ mod tests {
         router.register_peer_message_fallback_tx(peer_message_fallback_tx);
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -176,6 +177,7 @@ mod tests {
         router.register_peer_message_fallback_tx(peer_message_fallback_tx);
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -238,6 +240,7 @@ mod tests {
         router.register_peer_message_tx(Uuid::new_v4(), event_tx);
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),

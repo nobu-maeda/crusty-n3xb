@@ -125,6 +125,7 @@ mod maker_taker_flow_tests {
     };
     use log::info;
     use tokio::time::sleep;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn order_offer_response() {
@@ -243,6 +244,7 @@ mod maker_taker_flow_tests {
 
         // Create Taker Offer to take the Order
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),

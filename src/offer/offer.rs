@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use std::{any::Any, fmt::Debug};
 
@@ -18,6 +19,7 @@ pub struct Obligation {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Offer {
+    pub offer_uuid: Uuid,
     pub maker_obligation: Obligation,
     pub taker_obligation: Obligation,
     pub market_oracle_used: Option<String>, // TODO: Change to URL type
@@ -172,6 +174,7 @@ impl Offer {
 #[cfg(test)]
 mod tests {
     use iso_currency::Currency;
+    use uuid::Uuid;
 
     use crate::{
         common::types::{BitcoinSettlementMethod, FiatPaymentMethod, ObligationKind},
@@ -187,6 +190,7 @@ mod tests {
         let order = SomeTestParams::make_some_order(None, None, None).unwrap();
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -214,6 +218,7 @@ mod tests {
         let order = SomeTestParams::make_some_order(Some(maker_obligation), None, None).unwrap();
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -237,6 +242,7 @@ mod tests {
         };
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: offer_maker_obligation,
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -265,6 +271,7 @@ mod tests {
         let order = SomeTestParams::make_some_order(Some(maker_obligation), None, None).unwrap();
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -293,6 +300,7 @@ mod tests {
         let order = SomeTestParams::make_some_order(Some(maker_obligation), None, None).unwrap();
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -320,6 +328,7 @@ mod tests {
         let order = SomeTestParams::make_some_order(Some(maker_obligation), None, None).unwrap();
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -347,6 +356,7 @@ mod tests {
         let order = SomeTestParams::make_some_order(Some(maker_obligation), None, None).unwrap();
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -371,6 +381,7 @@ mod tests {
         };
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: offer_maker_obligation,
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -395,6 +406,7 @@ mod tests {
         };
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: offer_maker_obligation,
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -419,6 +431,7 @@ mod tests {
         };
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: offer_maker_obligation,
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -446,6 +459,7 @@ mod tests {
         let order = SomeTestParams::make_some_order(None, None, Some(trade_details)).unwrap();
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -470,6 +484,7 @@ mod tests {
         };
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: offer_taker_obligation,
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -500,6 +515,7 @@ mod tests {
         };
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: offer_maker_obligation,
             taker_obligation: offer_taker_obligation,
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -524,6 +540,7 @@ mod tests {
         };
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: offer_taker_obligation,
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -548,6 +565,7 @@ mod tests {
         };
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: offer_taker_obligation,
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -575,6 +593,7 @@ mod tests {
         let order = SomeTestParams::make_some_order(None, None, Some(trade_details)).unwrap();
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
@@ -593,6 +612,7 @@ mod tests {
         let order = SomeTestParams::make_some_order(None, None, None).unwrap();
 
         let offer = Offer {
+            offer_uuid: Uuid::new_v4(),
             maker_obligation: SomeTestParams::offer_maker_obligation(),
             taker_obligation: SomeTestParams::offer_taker_obligation(),
             market_oracle_used: Some("https://www.bitstamp.com/api/".to_string()),

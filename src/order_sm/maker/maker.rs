@@ -146,7 +146,7 @@ impl MakerActor {
         // Confirm that the offer is valid and compatible with the initial order
         match offer.validate_against(&self.order) {
             Ok(_) => {
-                // For offers, add to lists of offers
+                self.offers.insert(offer.offer_uuid, offer.clone());
 
                 // Notify user of new offer recieved
             }
