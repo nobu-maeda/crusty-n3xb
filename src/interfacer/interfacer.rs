@@ -102,7 +102,7 @@ impl InterfacerHandle {
         tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = InterfacerRequest::RegisterfallbackTx { tx, rsp_tx };
+        let request = InterfacerRequest::RegisterFallbackTx { tx, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()?;
         Ok(())
@@ -110,7 +110,7 @@ impl InterfacerHandle {
 
     pub(crate) async fn unregister_peer_message_fallback_tx(&mut self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = InterfacerRequest::UnregisterfallbackTx { rsp_tx };
+        let request = InterfacerRequest::UnregisterFallbackTx { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()?;
         Ok(())
@@ -229,11 +229,11 @@ pub(super) enum InterfacerRequest {
         trade_uuid: Uuid,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
-    RegisterfallbackTx {
+    RegisterFallbackTx {
         tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
-    UnregisterfallbackTx {
+    UnregisterFallbackTx {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     SendMakerOrderNote {
@@ -338,12 +338,12 @@ impl InterfacerActor {
                 rsp_tx.send(result).unwrap(); // oneshot should never fail
             }
 
-            InterfacerRequest::RegisterfallbackTx { tx, rsp_tx } => {
+            InterfacerRequest::RegisterFallbackTx { tx, rsp_tx } => {
                 let result = self.router.register_peer_message_fallback_tx(tx);
                 rsp_tx.send(result).unwrap(); // oneshot should never fail
             }
 
-            InterfacerRequest::UnregisterfallbackTx { rsp_tx } => {
+            InterfacerRequest::UnregisterFallbackTx { rsp_tx } => {
                 let result = self.router.unregister_peer_message_fallback_tx();
                 rsp_tx.send(result).unwrap(); // oneshot should never fail
             }

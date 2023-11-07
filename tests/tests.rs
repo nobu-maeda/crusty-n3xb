@@ -128,7 +128,7 @@ mod maker_taker_flow_tests {
     use uuid::Uuid;
 
     #[tokio::test]
-    async fn order_offer_response() {
+    async fn test_order_offer_response() {
         let mut logger = env_logger::builder();
         logger.is_test(true);
         logger.filter_level(log::LevelFilter::Debug);
@@ -267,4 +267,24 @@ mod maker_taker_flow_tests {
         // assert that port is now available.
         assert!(relay::port_is_available(relay.port));
     }
+
+    // TODO： Dual Threaded Maker Taker Complete Flow
+    //
+    // Thread 1
+    // - Creates Manager
+    // - Create Order
+    // - Make Order -> creates Maker
+    // - Wait for Taker Offer Notif -> Query Offers -> Accept Offer
+    // - Exit Loop on Success
+
+    // Thread 2
+    // - Creates Manager
+    // - Query & poll for Orders
+    // - * Optionally create ability to subscribe to a certain filter of Orders
+    // - Take Order -> creates Taker
+    // - Wait for Offer Acceptance Notif
+    // - Exit Loop on Success
+
+    #[tokio::test]
+    async fn test_dual_thread_full_flow() {}
 }

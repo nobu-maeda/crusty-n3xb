@@ -1,4 +1,4 @@
-use log::{debug, error};
+use log::debug;
 use std::collections::HashMap;
 
 use tokio::sync::mpsc;
@@ -125,8 +125,12 @@ mod tests {
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
         let (peer_message_fallback_tx, mut fallback_rx) =
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
-        router.register_peer_message_tx(trade_uuid, event_tx);
-        router.register_peer_message_fallback_tx(peer_message_fallback_tx);
+        router
+            .register_peer_message_tx(trade_uuid, event_tx)
+            .unwrap();
+        router
+            .register_peer_message_fallback_tx(peer_message_fallback_tx)
+            .unwrap();
 
         let offer = Offer {
             offer_uuid: Uuid::new_v4(),
@@ -191,8 +195,12 @@ mod tests {
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
         let (peer_message_fallback_tx, mut fallback_rx) =
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
-        router.register_peer_message_tx(Uuid::new_v4(), event_tx);
-        router.register_peer_message_fallback_tx(peer_message_fallback_tx);
+        router
+            .register_peer_message_tx(Uuid::new_v4(), event_tx)
+            .unwrap();
+        router
+            .register_peer_message_fallback_tx(peer_message_fallback_tx)
+            .unwrap();
 
         let offer = Offer {
             offer_uuid: Uuid::new_v4(),
