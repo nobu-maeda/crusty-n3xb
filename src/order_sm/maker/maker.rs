@@ -1,3 +1,4 @@
+use log::error;
 use std::collections::HashMap;
 
 use tokio::{
@@ -138,8 +139,8 @@ impl MakerActor {
     ) {
         match peer_message_type {
             SerdeGenericType::TakerOffer => {
-                let offer = peer_message.downcast_ref::<Offer>().expect("Received peer message of SerdeGenericType::TakerOffer, but failed to downcast into message into Offer");
-                self.handle_taker_offer(offer);
+                let offer = peer_message.downcast_ref::<Offer>().expect("Received peer message of SerdeGenericType::TakerOffer, but failed to downcast into message into Offer").to_owned();
+                self.handle_taker_offer(offer).await;
             }
 
             SerdeGenericType::TradeResponse => {
@@ -152,20 +153,25 @@ impl MakerActor {
         }
     }
 
-    fn handle_taker_offer(&mut self, offer: &Offer) {
-        // TODO:
-        // Confirm that the offer is valid and compatible with the initial order
-        match offer.validate_against(&self.order) {
+    async fn handle_taker_offer(&mut self, offer: Offer) {
+        let valid = offer.validate_against(&self.order);
+        match valid {
             Ok(_) => {
                 self.offers.insert(offer.offer_uuid, offer.clone());
 
                 // Notify user of new offer recieved
+                if let Some(tx) = &self.notif_tx {
+                    if let Some(error) = tx.send(Ok(offer)).await.err() {
+                        error!(
+                            "handle_taker_offer() failed in notifying user with mpsc - {}",
+                            error
+                        );
+                    }
+                }
             }
 
             Err(_error) => {
-                // Reject offer by sending Taker a Trade Response message
-
-                // Notify user that invalid offer was received
+                // TODO: Reject offer by sending Taker a Trade Response message
             }
         }
     }
