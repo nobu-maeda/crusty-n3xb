@@ -28,9 +28,22 @@ impl Maker {
         maker
     }
 
-    async fn make_new_order(&self) -> Result<(), N3xbError> {
+    pub async fn make_new_order(&self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = MakerRequest::SendMakerOrder { rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+
+    pub async fn register_for_taker_offer_notifs(
+        &self,
+        notif_tx: mpsc::Sender<Result<Offer, N3xbError>>,
+    ) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = MakerRequest::RegisterNotifTx {
+            tx: notif_tx,
+            rsp_tx,
+        };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
