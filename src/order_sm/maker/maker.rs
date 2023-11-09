@@ -35,6 +35,13 @@ impl Maker {
         rsp_rx.await.unwrap()
     }
 
+    pub async fn query_offers(&self) -> Vec<Offer> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Vec<Offer>>();
+        let request = MakerRequest::QueryOffers { rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+
     pub async fn register_offer_notif_tx(
         &self,
         notif_tx: mpsc::Sender<Result<Offer, N3xbError>>,
@@ -81,7 +88,9 @@ pub(super) enum MakerRequest {
     SendMakerOrder {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
-    QueryOffers,
+    QueryOffers {
+        rsp_tx: oneshot::Sender<Vec<Offer>>,
+    },
     SendTradeResponse,
     RegisterOfferNotifTx {
         tx: mpsc::Sender<Result<Offer, N3xbError>>,
@@ -141,7 +150,7 @@ impl MakerActor {
     async fn handle_request(&mut self, request: MakerRequest) {
         match request {
             MakerRequest::SendMakerOrder { rsp_tx } => self.send_maker_order(rsp_tx).await,
-            MakerRequest::QueryOffers => todo!(),
+            MakerRequest::QueryOffers { rsp_tx } => self.query_offers(rsp_tx).await,
             MakerRequest::SendTradeResponse => todo!(),
             MakerRequest::RegisterOfferNotifTx { tx, rsp_tx } => {
                 self.register_notif_tx(tx, rsp_tx).await;
@@ -150,6 +159,50 @@ impl MakerActor {
                 self.unregister_notif_tx(rsp_tx).await;
             }
         }
+    }
+
+    async fn send_maker_order(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+        let order = self.order.clone();
+        let result = self.interfacer_handle.send_maker_order_note(order).await;
+        rsp_tx.send(result).unwrap(); // oneshot should not fail
+    }
+
+    async fn query_offers(&mut self, rsp_tx: oneshot::Sender<Vec<Offer>>) {
+        let mut offers = Vec::<Offer>::new();
+        for (_uuid, offer) in &self.offers {
+            offers.push(offer.clone());
+        }
+        rsp_tx.send(offers).unwrap(); // oneshot should not fail
+    }
+
+    async fn register_notif_tx(
+        &mut self,
+        tx: mpsc::Sender<Result<Offer, N3xbError>>,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    ) {
+        let mut result = Ok(());
+        if self.notif_tx.is_some() {
+            let error = N3xbError::Simple(format!(
+                "Maker of Order {} already have notif_tx registered",
+                self.order.trade_uuid
+            ));
+            result = Err(error);
+        }
+        self.notif_tx = Some(tx);
+        rsp_tx.send(result).unwrap();
+    }
+
+    async fn unregister_notif_tx(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+        let mut result = Ok(());
+        if self.notif_tx.is_none() {
+            let error = N3xbError::Simple(format!(
+                "Maker of Order {} expected to already have notif_tx registered",
+                self.order.trade_uuid
+            ));
+            result = Err(error);
+        }
+        self.notif_tx = None;
+        rsp_tx.send(result).unwrap();
     }
 
     async fn handle_peer_message(
@@ -194,41 +247,5 @@ impl MakerActor {
                 // TODO: Reject offer by sending Taker a Trade Response message
             }
         }
-    }
-
-    async fn send_maker_order(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
-        let order = self.order.clone();
-        let result = self.interfacer_handle.send_maker_order_note(order).await;
-        rsp_tx.send(result).unwrap(); // oneshot should not fail
-    }
-
-    async fn register_notif_tx(
-        &mut self,
-        tx: mpsc::Sender<Result<Offer, N3xbError>>,
-        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
-    ) {
-        let mut result = Ok(());
-        if self.notif_tx.is_some() {
-            let error = N3xbError::Simple(format!(
-                "Maker of Order {} already have notif_tx registered",
-                self.order.trade_uuid
-            ));
-            result = Err(error);
-        }
-        self.notif_tx = Some(tx);
-        rsp_tx.send(result).unwrap();
-    }
-
-    async fn unregister_notif_tx(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
-        let mut result = Ok(());
-        if self.notif_tx.is_none() {
-            let error = N3xbError::Simple(format!(
-                "Maker of Order {} expected to already have notif_tx registered",
-                self.order.trade_uuid
-            ));
-            result = Err(error);
-        }
-        self.notif_tx = None;
-        rsp_tx.send(result).unwrap();
     }
 }

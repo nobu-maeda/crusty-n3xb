@@ -69,6 +69,9 @@ impl MakerTesterActor {
         assert_eq!(offer.offer_uuid, self.offer_uuid);
 
         // Query Offers
+        let offers = maker.query_offers().await;
+        assert!(offers.len() >= 1);
+        assert!(offers.iter().any(|o| o.offer_uuid == self.offer_uuid));
 
         // Accept Offer
 
