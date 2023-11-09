@@ -9,21 +9,9 @@ pub struct TakerTester {
 }
 
 impl TakerTester {
-    pub async fn start(
-        manager: Manager,
-        trade_uuid: Uuid,
-        offer_event_id: String,
-        trade_rsp_event_id: String,
-    ) -> Self {
+    pub async fn start(manager: Manager, trade_uuid: Uuid) -> Self {
         let (cmpl_tx, cmpl_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let actor = TakerTesterActor::new(
-            cmpl_tx,
-            manager,
-            trade_uuid,
-            offer_event_id,
-            trade_rsp_event_id,
-        )
-        .await;
+        let actor = TakerTesterActor::new(cmpl_tx, manager, trade_uuid).await;
         tokio::spawn(async move { actor.run().await });
         Self { cmpl_rx }
     }
@@ -37,8 +25,6 @@ struct TakerTesterActor {
     cmpl_tx: oneshot::Sender<Result<(), N3xbError>>,
     manager: Manager,
     trade_uuid: Uuid,
-    offer_event_id: String,
-    trade_rsp_event_id: String,
 }
 
 impl TakerTesterActor {
@@ -46,15 +32,11 @@ impl TakerTesterActor {
         cmpl_tx: oneshot::Sender<Result<(), N3xbError>>,
         manager: Manager,
         trade_uuid: Uuid,
-        offer_event_id: String,
-        trade_rsp_event_id: String,
     ) -> Self {
         Self {
             cmpl_tx,
             manager,
             trade_uuid,
-            offer_event_id,
-            trade_rsp_event_id,
         }
     }
 
@@ -73,10 +55,7 @@ impl TakerTesterActor {
         };
 
         // Take Order with Offer -> creates Taker
-        let mut builder = SomeTestOfferParams::default_builder();
-        builder.event_id(self.offer_event_id); // This overrides the Event ID of the Taker Offer mostly for testing purposes. Normally this is generated as part of the ID of the Nostr Event.
-        let offer = builder.build().unwrap();
-
+        let offer = SomeTestOfferParams::default_builder().build().unwrap();
         let taker = self.manager.take_order(order, offer).await.unwrap();
 
         // Wait for Offer Acceptance Notif

@@ -1,14 +1,10 @@
 use std::result::Result;
 
-use secp256k1::XOnlyPublicKey;
-
 use crate::common::{error::N3xbError, types::SerdeGenericTrait};
 
 use super::{Obligation, Offer};
 
 pub struct OfferBuilder {
-    pubkey: Option<XOnlyPublicKey>,
-    event_id: String,
     maker_obligation: Option<Obligation>,
     taker_obligation: Option<Obligation>,
     market_oracle_used: Option<String>,
@@ -19,24 +15,12 @@ pub struct OfferBuilder {
 impl OfferBuilder {
     pub fn new() -> Self {
         Self {
-            pubkey: None,
-            event_id: "".to_string(), // Normally this is only generated on deserialization. But can be override and send across the wire
             maker_obligation: None,
             taker_obligation: None,
             market_oracle_used: None,
             trade_engine_specifics: None,
             pow_difficulty: None,
         }
-    }
-
-    pub fn pubkey(&mut self, pubkey: impl Into<XOnlyPublicKey>) -> &mut Self {
-        self.pubkey = Some(pubkey.into());
-        self
-    }
-
-    pub fn event_id(&mut self, event_id: impl Into<String>) -> &mut Self {
-        self.event_id = event_id.into();
-        self
     }
 
     pub fn maker_obligation(&mut self, maker_obligation: impl Into<Obligation>) -> &mut Self {
@@ -68,10 +52,6 @@ impl OfferBuilder {
     }
 
     pub fn build(&mut self) -> Result<Offer, N3xbError> {
-        let Some(pubkey) = self.pubkey.as_ref() else {
-            return Err(N3xbError::Simple("No PubKey".to_string()));
-        };
-
         let Some(maker_obligation) = self.maker_obligation.as_ref() else {
             return Err(N3xbError::Simple("No Maker Obligations defined".to_string()));  // TODO: Error handling?
         };
@@ -85,8 +65,6 @@ impl OfferBuilder {
         };
 
         let offer = Offer {
-            pubkey: pubkey.to_owned(),
-            event_id: self.event_id.to_owned(),
             maker_obligation: maker_obligation.to_owned(),
             taker_obligation: taker_obligation.to_owned(),
             market_oracle_used: self.market_oracle_used.take(),

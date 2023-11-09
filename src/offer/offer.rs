@@ -1,4 +1,3 @@
-use secp256k1::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};
 
 use std::{any::Any, fmt::Debug};
@@ -19,8 +18,6 @@ pub struct Obligation {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Offer {
-    pub pubkey: XOnlyPublicKey,
-    pub event_id: String,
     pub maker_obligation: Obligation,
     pub taker_obligation: Obligation,
     pub market_oracle_used: Option<String>, // TODO: Change to URL type

@@ -160,7 +160,6 @@ impl SomeTestOfferParams {
 
     pub fn default_builder() -> OfferBuilder {
         let mut builder: OfferBuilder = OfferBuilder::new();
-        builder.pubkey(Self::some_x_only_public_key());
         builder.maker_obligation(Self::maker_obligation());
         builder.taker_obligation(Self::taker_obligation());
 

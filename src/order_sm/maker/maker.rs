@@ -1,4 +1,5 @@
 use log::error;
+use secp256k1::XOnlyPublicKey;
 use std::collections::HashMap;
 
 use tokio::{
@@ -35,8 +36,8 @@ impl Maker {
         rsp_rx.await.unwrap()
     }
 
-    pub async fn query_offers(&self) -> Vec<Offer> {
-        let (rsp_tx, rsp_rx) = oneshot::channel::<Vec<Offer>>();
+    pub async fn query_offers(&self) -> HashMap<XOnlyPublicKey, Offer> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<HashMap<XOnlyPublicKey, Offer>>();
         let request = MakerRequest::QueryOffers { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
@@ -51,7 +52,7 @@ impl Maker {
 
     pub async fn register_offer_notif_tx(
         &self,
-        notif_tx: mpsc::Sender<Result<Offer, N3xbError>>,
+        notif_tx: mpsc::Sender<Result<XOnlyPublicKey, N3xbError>>,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = MakerRequest::RegisterOfferNotifTx {
@@ -96,14 +97,14 @@ pub(super) enum MakerRequest {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     QueryOffers {
-        rsp_tx: oneshot::Sender<Vec<Offer>>,
+        rsp_tx: oneshot::Sender<HashMap<XOnlyPublicKey, Offer>>,
     },
     AcceptOffer {
         trade_rsp: TradeResponse,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     RegisterOfferNotifTx {
-        tx: mpsc::Sender<Result<Offer, N3xbError>>,
+        tx: mpsc::Sender<Result<XOnlyPublicKey, N3xbError>>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     UnregisterOfferNotifTx {
@@ -115,8 +116,8 @@ struct MakerActor {
     rx: mpsc::Receiver<MakerRequest>,
     interfacer_handle: InterfacerHandle,
     order: Order,
-    offers: HashMap<String, Offer>,
-    notif_tx: Option<mpsc::Sender<Result<Offer, N3xbError>>>,
+    offers: HashMap<XOnlyPublicKey, Offer>,
+    notif_tx: Option<mpsc::Sender<Result<XOnlyPublicKey, N3xbError>>>,
 }
 
 impl MakerActor {
@@ -125,7 +126,7 @@ impl MakerActor {
         interfacer_handle: InterfacerHandle,
         order: Order,
     ) -> Self {
-        let offers: HashMap<String, Offer> = HashMap::new();
+        let offers: HashMap<XOnlyPublicKey, Offer> = HashMap::new();
 
         MakerActor {
             rx,
@@ -138,7 +139,7 @@ impl MakerActor {
 
     async fn run(&mut self) {
         let (tx, mut rx) =
-            mpsc::channel::<(String, SerdeGenericType, Box<dyn SerdeGenericTrait>)>(20);
+            mpsc::channel::<(XOnlyPublicKey, SerdeGenericType, Box<dyn SerdeGenericTrait>)>(20);
 
         self.interfacer_handle
             .register_peer_message_tx(self.order.trade_uuid.clone(), tx)
@@ -150,8 +151,8 @@ impl MakerActor {
                 Some(request) = self.rx.recv() => {
                     self.handle_request(request).await;
                 },
-                Some((event_id, peer_message_type, peer_message)) = rx.recv() => {
-                    self.handle_peer_message(event_id, peer_message_type, peer_message).await;
+                Some((pubkey, peer_message_type, peer_message)) = rx.recv() => {
+                    self.handle_peer_message(pubkey, peer_message_type, peer_message).await;
                 },
                 else => break,
             }
@@ -180,12 +181,8 @@ impl MakerActor {
         rsp_tx.send(result).unwrap(); // oneshot should not fail
     }
 
-    async fn query_offers(&mut self, rsp_tx: oneshot::Sender<Vec<Offer>>) {
-        let mut offers = Vec::<Offer>::new();
-        for (_uuid, offer) in &self.offers {
-            offers.push(offer.clone());
-        }
-        rsp_tx.send(offers).unwrap(); // oneshot should not fail
+    async fn query_offers(&mut self, rsp_tx: oneshot::Sender<HashMap<XOnlyPublicKey, Offer>>) {
+        rsp_tx.send(self.offers.clone()).unwrap(); // oneshot should not fail
     }
 
     async fn accept_offer(
@@ -198,7 +195,7 @@ impl MakerActor {
 
     async fn register_notif_tx(
         &mut self,
-        tx: mpsc::Sender<Result<Offer, N3xbError>>,
+        tx: mpsc::Sender<Result<XOnlyPublicKey, N3xbError>>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
         let mut result = Ok(());
@@ -228,19 +225,14 @@ impl MakerActor {
 
     async fn handle_peer_message(
         &mut self,
-        event_id: String,
+        pubkey: XOnlyPublicKey,
         peer_message_type: SerdeGenericType,
         peer_message: Box<dyn SerdeGenericTrait>,
     ) {
         match peer_message_type {
             SerdeGenericType::TakerOffer => {
-                let mut offer = peer_message.downcast_ref::<Offer>().expect("Received peer message of SerdeGenericType::TakerOffer, but failed to downcast into message into Offer").to_owned();
-
-                // If the event id is not overridden, then set it to the event ID of the event
-                if offer.event_id == "" {
-                    offer.event_id = event_id;
-                }
-                self.handle_taker_offer(offer).await;
+                let offer = peer_message.downcast_ref::<Offer>().expect("Received peer message of SerdeGenericType::TakerOffer, but failed to downcast into message into Offer").to_owned();
+                self.handle_taker_offer(pubkey, offer).await;
             }
 
             SerdeGenericType::TradeResponse => {
@@ -253,16 +245,15 @@ impl MakerActor {
         }
     }
 
-    async fn handle_taker_offer(&mut self, offer: Offer) {
+    async fn handle_taker_offer(&mut self, pubkey: XOnlyPublicKey, offer: Offer) {
         let valid = offer.validate_against(&self.order);
         match valid {
             Ok(_) => {
-                let event_id = offer.event_id.clone();
-                self.offers.insert(event_id, offer.clone());
+                self.offers.insert(pubkey, offer.clone());
 
                 // Notify user of new offer recieved
                 if let Some(tx) = &self.notif_tx {
-                    if let Some(error) = tx.send(Ok(offer)).await.err() {
+                    if let Some(error) = tx.send(Ok(pubkey)).await.err() {
                         error!(
                             "handle_taker_offer() failed in notifying user with mpsc - {}",
                             error
