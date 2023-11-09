@@ -301,12 +301,23 @@ mod maker_taker_flow_tests {
 
         let order = SomeTestOrderParams::default_builder().build().unwrap();
         let trade_uuid = order.trade_uuid.clone();
-        let offer_uuid = Uuid::new_v4();
-        let accept_uuid = Uuid::new_v4();
+        let offer_event_id = Uuid::new_v4().to_string();
+        let trade_rsp_event_id = Uuid::new_v4().to_string();
 
-        let maker_tester = MakerTester::start(maker_manager, order, offer_uuid, accept_uuid).await;
-        let taker_tester =
-            TakerTester::start(taker_manager, trade_uuid, offer_uuid, accept_uuid).await;
+        let maker_tester = MakerTester::start(
+            maker_manager,
+            order,
+            offer_event_id.clone(),
+            trade_rsp_event_id.clone(),
+        )
+        .await;
+        let taker_tester = TakerTester::start(
+            taker_manager,
+            trade_uuid,
+            offer_event_id,
+            trade_rsp_event_id,
+        )
+        .await;
 
         maker_tester.wait_for_completion().await.unwrap();
         taker_tester.wait_for_completion().await.unwrap();

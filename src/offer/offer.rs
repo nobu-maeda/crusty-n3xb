@@ -1,5 +1,5 @@
+use secp256k1::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use std::{any::Any, fmt::Debug};
 
@@ -19,12 +19,14 @@ pub struct Obligation {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Offer {
-    pub offer_uuid: Uuid,
+    pub pubkey: XOnlyPublicKey,
+    pub event_id: String,
     pub maker_obligation: Obligation,
     pub taker_obligation: Obligation,
     pub market_oracle_used: Option<String>, // TODO: Change to URL type
     pub trade_engine_specifics: Box<dyn SerdeGenericTrait>,
     pub pow_difficulty: Option<u64>,
+    pub(crate) _private: (),
 }
 
 #[typetag::serde(name = "n3xB-taker-offer")]

@@ -1,13 +1,14 @@
 use std::result::Result;
 
-use uuid::Uuid;
+use secp256k1::XOnlyPublicKey;
 
 use crate::common::{error::N3xbError, types::SerdeGenericTrait};
 
 use super::{Obligation, Offer};
 
 pub struct OfferBuilder {
-    offer_uuid: Option<Uuid>,
+    pubkey: Option<XOnlyPublicKey>,
+    event_id: String,
     maker_obligation: Option<Obligation>,
     taker_obligation: Option<Obligation>,
     market_oracle_used: Option<String>,
@@ -18,7 +19,8 @@ pub struct OfferBuilder {
 impl OfferBuilder {
     pub fn new() -> Self {
         Self {
-            offer_uuid: None,
+            pubkey: None,
+            event_id: "".to_string(), // Normally this is only generated on deserialization. But can be override and send across the wire
             maker_obligation: None,
             taker_obligation: None,
             market_oracle_used: None,
@@ -27,8 +29,13 @@ impl OfferBuilder {
         }
     }
 
-    pub fn offer_uuid(&mut self, offer_uuid: impl Into<Uuid>) -> &mut Self {
-        self.offer_uuid = Some(offer_uuid.into());
+    pub fn pubkey(&mut self, pubkey: impl Into<XOnlyPublicKey>) -> &mut Self {
+        self.pubkey = Some(pubkey.into());
+        self
+    }
+
+    pub fn event_id(&mut self, event_id: impl Into<String>) -> &mut Self {
+        self.event_id = event_id.into();
         self
     }
 
@@ -61,10 +68,8 @@ impl OfferBuilder {
     }
 
     pub fn build(&mut self) -> Result<Offer, N3xbError> {
-        let offer_uuid = if let Some(explici_uuid) = self.offer_uuid.as_ref() {
-            explici_uuid.to_owned()
-        } else {
-            Uuid::new_v4()
+        let Some(pubkey) = self.pubkey.as_ref() else {
+            return Err(N3xbError::Simple("No PubKey".to_string()));
         };
 
         let Some(maker_obligation) = self.maker_obligation.as_ref() else {
@@ -80,12 +85,14 @@ impl OfferBuilder {
         };
 
         let offer = Offer {
-            offer_uuid,
+            pubkey: pubkey.to_owned(),
+            event_id: self.event_id.to_owned(),
             maker_obligation: maker_obligation.to_owned(),
             taker_obligation: taker_obligation.to_owned(),
             market_oracle_used: self.market_oracle_used.take(),
             trade_engine_specifics,
             pow_difficulty: self.pow_difficulty.take(),
+            _private: (),
         };
 
         Ok(offer)

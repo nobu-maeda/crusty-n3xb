@@ -1,6 +1,5 @@
 use crusty_n3xb::{common::error::N3xbError, manager::Manager, offer::Offer, order::Order};
 use tokio::sync::{mpsc, oneshot};
-use uuid::Uuid;
 
 pub struct MakerTester {
     cmpl_rx: oneshot::Receiver<Result<(), N3xbError>>,
@@ -10,11 +9,13 @@ impl MakerTester {
     pub async fn start(
         manager: Manager,
         order: Order,
-        offer_uuid: Uuid,
-        accept_uuid: Uuid,
+        offer_event_id: String,
+        trade_rsp_event_id: String,
     ) -> Self {
         let (cmpl_tx, cmpl_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let actor = MakerTesterActor::new(cmpl_tx, manager, order, offer_uuid, accept_uuid).await;
+        let actor =
+            MakerTesterActor::new(cmpl_tx, manager, order, offer_event_id, trade_rsp_event_id)
+                .await;
         tokio::spawn(async move { actor.run().await });
         Self { cmpl_rx }
     }
@@ -28,8 +29,8 @@ struct MakerTesterActor {
     cmpl_tx: oneshot::Sender<Result<(), N3xbError>>,
     manager: Manager,
     order: Order,
-    offer_uuid: Uuid,
-    accept_uuid: Uuid,
+    offer_event_id: String,
+    trade_rsp_event_id: String,
 }
 
 impl MakerTesterActor {
@@ -37,15 +38,15 @@ impl MakerTesterActor {
         cmpl_tx: oneshot::Sender<Result<(), N3xbError>>,
         manager: Manager,
         order: Order,
-        offer_uuid: Uuid,
-        accept_uuid: Uuid,
+        offer_event_id: String,
+        trade_rsp_event_id: String,
     ) -> Self {
         Self {
             cmpl_tx,
             manager,
             order,
-            offer_uuid,
-            accept_uuid,
+            offer_event_id,
+            trade_rsp_event_id,
         }
     }
 
@@ -66,12 +67,12 @@ impl MakerTesterActor {
         let offer = notif_result.unwrap();
 
         // Check that the Offer is as expected
-        assert_eq!(offer.offer_uuid, self.offer_uuid);
+        assert_eq!(offer.event_id, self.offer_event_id);
 
         // Query Offers
         let offers = maker.query_offers().await;
         assert!(offers.len() >= 1);
-        assert!(offers.iter().any(|o| o.offer_uuid == self.offer_uuid));
+        assert!(offers.iter().any(|o| o.event_id == self.offer_event_id));
 
         // Accept Offer
 

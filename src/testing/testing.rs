@@ -134,6 +134,14 @@ impl SomeTestOrderParams {
 pub struct SomeTestOfferParams {}
 
 impl SomeTestOfferParams {
+    pub fn some_x_only_public_key() -> XOnlyPublicKey {
+        let kpk = PublicKey::from_str(
+            "0218845781f631c48f1c9709e23092067d06837f30aa0cd0544ac887fe91ddd166",
+        )
+        .unwrap();
+        XOnlyPublicKey::from(kpk)
+    }
+
     pub fn maker_obligation() -> Obligation {
         Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
@@ -152,6 +160,7 @@ impl SomeTestOfferParams {
 
     pub fn default_builder() -> OfferBuilder {
         let mut builder: OfferBuilder = OfferBuilder::new();
+        builder.pubkey(Self::some_x_only_public_key());
         builder.maker_obligation(Self::maker_obligation());
         builder.taker_obligation(Self::taker_obligation());
 

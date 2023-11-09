@@ -5,7 +5,6 @@ use tokio::{
     select,
     sync::{mpsc, oneshot},
 };
-use uuid::Uuid;
 
 use crate::{
     common::{
@@ -116,7 +115,7 @@ struct MakerActor {
     rx: mpsc::Receiver<MakerRequest>,
     interfacer_handle: InterfacerHandle,
     order: Order,
-    offers: HashMap<Uuid, Offer>,
+    offers: HashMap<String, Offer>,
     notif_tx: Option<mpsc::Sender<Result<Offer, N3xbError>>>,
 }
 
@@ -126,7 +125,7 @@ impl MakerActor {
         interfacer_handle: InterfacerHandle,
         order: Order,
     ) -> Self {
-        let offers: HashMap<Uuid, Offer> = HashMap::new();
+        let offers: HashMap<String, Offer> = HashMap::new();
 
         MakerActor {
             rx,
@@ -138,7 +137,8 @@ impl MakerActor {
     }
 
     async fn run(&mut self) {
-        let (tx, mut rx) = mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(20);
+        let (tx, mut rx) =
+            mpsc::channel::<(String, SerdeGenericType, Box<dyn SerdeGenericTrait>)>(20);
 
         self.interfacer_handle
             .register_peer_message_tx(self.order.trade_uuid.clone(), tx)
@@ -150,8 +150,8 @@ impl MakerActor {
                 Some(request) = self.rx.recv() => {
                     self.handle_request(request).await;
                 },
-                Some((peer_message_type, peer_message)) = rx.recv() => {
-                    self.handle_peer_message(peer_message_type, peer_message).await;
+                Some((event_id, peer_message_type, peer_message)) = rx.recv() => {
+                    self.handle_peer_message(event_id, peer_message_type, peer_message).await;
                 },
                 else => break,
             }
@@ -228,12 +228,18 @@ impl MakerActor {
 
     async fn handle_peer_message(
         &mut self,
+        event_id: String,
         peer_message_type: SerdeGenericType,
         peer_message: Box<dyn SerdeGenericTrait>,
     ) {
         match peer_message_type {
             SerdeGenericType::TakerOffer => {
-                let offer = peer_message.downcast_ref::<Offer>().expect("Received peer message of SerdeGenericType::TakerOffer, but failed to downcast into message into Offer").to_owned();
+                let mut offer = peer_message.downcast_ref::<Offer>().expect("Received peer message of SerdeGenericType::TakerOffer, but failed to downcast into message into Offer").to_owned();
+
+                // If the event id is not overridden, then set it to the event ID of the event
+                if offer.event_id == "" {
+                    offer.event_id = event_id;
+                }
                 self.handle_taker_offer(offer).await;
             }
 
@@ -251,7 +257,8 @@ impl MakerActor {
         let valid = offer.validate_against(&self.order);
         match valid {
             Ok(_) => {
-                self.offers.insert(offer.offer_uuid, offer.clone());
+                let event_id = offer.event_id.clone();
+                self.offers.insert(event_id, offer.clone());
 
                 // Notify user of new offer recieved
                 if let Some(tx) = &self.notif_tx {

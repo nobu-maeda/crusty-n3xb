@@ -14,8 +14,9 @@ use super::peer_messaging::PeerMessage;
 
 pub(super) struct Router {
     peer_message_tx_map:
-        HashMap<Uuid, mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>>,
-    peer_message_fallback_tx: Option<mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>>,
+        HashMap<Uuid, mpsc::Sender<(String, SerdeGenericType, Box<dyn SerdeGenericTrait>)>>,
+    peer_message_fallback_tx:
+        Option<mpsc::Sender<(String, SerdeGenericType, Box<dyn SerdeGenericTrait>)>>,
 }
 
 impl Router {
@@ -29,7 +30,7 @@ impl Router {
     pub(super) fn register_peer_message_tx(
         &mut self,
         trade_uuid: Uuid,
-        tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
+        tx: mpsc::Sender<(String, SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
     ) -> Result<(), N3xbError> {
         debug!("register_tx_for_trade_uuid() for {}", trade_uuid);
         if self.peer_message_tx_map.insert(trade_uuid, tx).is_some() {
@@ -58,7 +59,7 @@ impl Router {
 
     pub(super) fn register_peer_message_fallback_tx(
         &mut self,
-        tx: mpsc::Sender<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
+        tx: mpsc::Sender<(String, SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
     ) -> Result<(), N3xbError> {
         debug!("register_peer_message_fallback_tx()");
 
@@ -89,16 +90,17 @@ impl Router {
 
     pub(super) async fn handle_peer_message(
         &mut self,
+        event_id: String,
         peer_message: PeerMessage,
     ) -> Result<(), N3xbError> {
         if let Some(tx) = self.peer_message_tx_map.get(&peer_message.trade_uuid) {
-            tx.send((peer_message.message_type, peer_message.message))
+            tx.send((event_id, peer_message.message_type, peer_message.message))
                 .await?;
             return Ok(());
         }
 
         if let Some(tx) = &self.peer_message_fallback_tx {
-            tx.send((peer_message.message_type, peer_message.message))
+            tx.send((event_id, peer_message.message_type, peer_message.message))
                 .await?;
             return Ok(());
         }
@@ -122,9 +124,9 @@ mod tests {
         let trade_uuid = SomeTestOrderParams::some_uuid();
         let mut router = Router::new();
         let (event_tx, mut event_rx) =
-            mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
+            mpsc::channel::<(String, SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
         let (peer_message_fallback_tx, mut fallback_rx) =
-            mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
+            mpsc::channel::<(String, SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
         router
             .register_peer_message_tx(trade_uuid, event_tx)
             .unwrap();
@@ -143,13 +145,16 @@ mod tests {
             message: Box::new(offer),
         };
 
-        router.handle_peer_message(peer_message).await.unwrap();
+        router
+            .handle_peer_message("".to_string(), peer_message)
+            .await
+            .unwrap();
 
         let mut event_count = 0;
         let mut fallback_count = 0;
 
         while let Some(event) = event_rx.try_recv().ok() {
-            let (serde_type, serde_message) = event;
+            let (_event_id, serde_type, serde_message) = event;
             match serde_type {
                 SerdeGenericType::TakerOffer => {
                     let _ = serde_message.downcast_ref::<Offer>().unwrap();
@@ -162,7 +167,7 @@ mod tests {
         }
 
         while let Some(event) = fallback_rx.try_recv().ok() {
-            let (serde_type, serde_message) = event;
+            let (_event_id, serde_type, serde_message) = event;
             match serde_type {
                 SerdeGenericType::TakerOffer => {
                     let _ = serde_message.downcast_ref::<Offer>().unwrap();
@@ -183,9 +188,9 @@ mod tests {
         let trade_uuid = SomeTestOrderParams::some_uuid();
         let mut router = Router::new();
         let (event_tx, mut event_rx) =
-            mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
+            mpsc::channel::<(String, SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
         let (peer_message_fallback_tx, mut fallback_rx) =
-            mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
+            mpsc::channel::<(String, SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
         router
             .register_peer_message_tx(Uuid::new_v4(), event_tx)
             .unwrap();
@@ -204,13 +209,16 @@ mod tests {
             message: Box::new(offer),
         };
 
-        router.handle_peer_message(peer_message).await.unwrap();
+        router
+            .handle_peer_message("".to_string(), peer_message)
+            .await
+            .unwrap();
 
         let mut event_count = 0;
         let mut fallback_count = 0;
 
         while let Some(event) = event_rx.try_recv().ok() {
-            let (serde_type, serde_message) = event;
+            let (_event_id, serde_type, serde_message) = event;
             match serde_type {
                 SerdeGenericType::TakerOffer => {
                     let _ = serde_message.downcast_ref::<Offer>().unwrap();
@@ -223,7 +231,7 @@ mod tests {
         }
 
         while let Some(event) = fallback_rx.try_recv().ok() {
-            let (serde_type, serde_message) = event;
+            let (_event_id, serde_type, serde_message) = event;
             match serde_type {
                 SerdeGenericType::TakerOffer => {
                     let _ = serde_message.downcast_ref::<Offer>().unwrap();
@@ -244,7 +252,7 @@ mod tests {
         let trade_uuid = SomeTestOrderParams::some_uuid();
         let mut router = Router::new();
         let (event_tx, mut event_rx) =
-            mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
+            mpsc::channel::<(String, SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
         router
             .register_peer_message_tx(Uuid::new_v4(), event_tx)
             .unwrap();
@@ -260,13 +268,15 @@ mod tests {
             message: Box::new(offer),
         };
 
-        let result = router.handle_peer_message(peer_message).await;
+        let result = router
+            .handle_peer_message("".to_string(), peer_message)
+            .await;
 
         let mut event_count = 0;
         let fallback_count = 0;
 
         while let Some(event) = event_rx.try_recv().ok() {
-            let (serde_type, serde_message) = event;
+            let (_event_id, serde_type, serde_message) = event;
             match serde_type {
                 SerdeGenericType::TakerOffer => {
                     let _ = serde_message.downcast_ref::<Offer>().unwrap();
