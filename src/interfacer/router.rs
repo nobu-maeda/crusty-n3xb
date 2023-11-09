@@ -263,7 +263,9 @@ mod tests {
         let mut router = Router::new();
         let (event_tx, mut event_rx) =
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
-        router.register_peer_message_tx(Uuid::new_v4(), event_tx);
+        router
+            .register_peer_message_tx(Uuid::new_v4(), event_tx)
+            .unwrap();
 
         let offer = Offer {
             offer_uuid: Uuid::new_v4(),

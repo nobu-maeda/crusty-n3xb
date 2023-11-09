@@ -7,7 +7,6 @@ use secp256k1::{PublicKey, SecretKey, XOnlyPublicKey};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::common::error::N3xbError;
 use crate::common::types::*;
 use crate::offer::Obligation;
 use crate::order::*;
@@ -115,34 +114,29 @@ impl SomeTestParams {
         None
     }
 
-    pub fn make_some_order(
-        maker_obligation: Option<MakerObligation>,
-        taker_obligation: Option<TakerObligation>,
-        trade_details: Option<TradeDetails>,
-    ) -> Result<Order, N3xbError> {
-        // Build and send the Maker Order
+    pub fn default_order_buidler() -> OrderBuilder {
         let mut builder: OrderBuilder = OrderBuilder::new();
         builder.pubkey(SomeTestParams::some_x_only_public_key());
         builder.trade_uuid(SomeTestParams::some_uuid());
 
-        let maker_obligation = maker_obligation.unwrap_or(MakerObligation {
+        let maker_obligation = MakerObligation {
             kinds: SomeTestParams::maker_obligation_kinds(),
             content: SomeTestParams::maker_obligation_content(),
-        });
+        };
 
         builder.maker_obligation(maker_obligation);
 
-        let taker_obligation = taker_obligation.unwrap_or(TakerObligation {
+        let taker_obligation = TakerObligation {
             kinds: SomeTestParams::taker_obligation_kinds(),
             content: SomeTestParams::taker_obligation_content(),
-        });
+        };
 
         builder.taker_obligation(taker_obligation);
 
-        let trade_details = trade_details.unwrap_or(TradeDetails {
+        let trade_details = TradeDetails {
             parameters: SomeTestParams::trade_parameters(),
             content: SomeTestParams::trade_details_content(),
-        });
+        };
 
         builder.trade_details(trade_details);
 
@@ -153,7 +147,7 @@ impl SomeTestParams {
 
         builder.pow_difficulty(SomeTestParams::pow_difficulty());
 
-        builder.build()
+        builder
     }
 }
 

@@ -166,7 +166,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_order() {
-        _ = SomeTestParams::make_some_order(None, None, None).unwrap();
+        _ = SomeTestParams::default_order_buidler().build().unwrap();
     }
 
     #[tokio::test]
@@ -181,7 +181,9 @@ mod tests {
             content: SomeTestParams::maker_obligation_content(),
         };
 
-        let result = SomeTestParams::make_some_order(Some(maker_obligation), None, None);
+        let result = SomeTestParams::default_order_buidler()
+            .maker_obligation(maker_obligation)
+            .build();
         assert!(result.is_err());
     }
 
@@ -197,7 +199,9 @@ mod tests {
             content: maker_obligation_content,
         };
 
-        let result = SomeTestParams::make_some_order(Some(maker_obligation), None, None);
+        let result = SomeTestParams::default_order_buidler()
+            .maker_obligation(maker_obligation)
+            .build();
         assert!(result.is_err());
     }
 
@@ -213,7 +217,9 @@ mod tests {
             content: maker_obligation_content,
         };
 
-        let result = SomeTestParams::make_some_order(Some(maker_obligation), None, None);
+        let result = SomeTestParams::default_order_buidler()
+            .maker_obligation(maker_obligation)
+            .build();
         assert!(result.is_err());
     }
 
@@ -229,7 +235,9 @@ mod tests {
             content: SomeTestParams::taker_obligation_content(),
         };
 
-        let result = SomeTestParams::make_some_order(None, Some(taker_obligation), None);
+        let result = SomeTestParams::default_order_buidler()
+            .taker_obligation(taker_obligation)
+            .build();
         assert!(result.is_err());
     }
 
@@ -246,7 +254,9 @@ mod tests {
             content: taker_obligation_content,
         };
 
-        let result = SomeTestParams::make_some_order(None, Some(taker_obligation), None);
+        let result = SomeTestParams::default_order_buidler()
+            .taker_obligation(taker_obligation)
+            .build();
         assert!(result.is_err());
     }
 
@@ -263,7 +273,9 @@ mod tests {
             content: taker_obligation_content,
         };
 
-        let result = SomeTestParams::make_some_order(None, Some(taker_obligation), None);
+        let result = SomeTestParams::default_order_buidler()
+            .taker_obligation(taker_obligation)
+            .build();
         assert!(result.is_err());
     }
 
@@ -280,7 +292,9 @@ mod tests {
             content: taker_obligation_content,
         };
 
-        let result = SomeTestParams::make_some_order(None, Some(taker_obligation), None);
+        let result = SomeTestParams::default_order_buidler()
+            .taker_obligation(taker_obligation)
+            .build();
         assert!(result.is_err());
     }
 
@@ -301,7 +315,9 @@ mod tests {
             content: taker_obligation_content,
         };
 
-        let result = SomeTestParams::make_some_order(None, Some(taker_obligation), None);
+        let result = SomeTestParams::default_order_buidler()
+            .taker_obligation(taker_obligation)
+            .build();
         assert!(result.is_err());
     }
 
@@ -326,7 +342,9 @@ mod tests {
             content: trade_details_content,
         };
 
-        let result = SomeTestParams::make_some_order(None, None, Some(trade_details));
+        let result = SomeTestParams::default_order_buidler()
+            .trade_details(trade_details)
+            .build();
         assert!(result.is_err());
     }
 
@@ -351,7 +369,9 @@ mod tests {
             content: trade_details_content,
         };
 
-        let result = SomeTestParams::make_some_order(None, None, Some(trade_details));
+        let result = SomeTestParams::default_order_buidler()
+            .trade_details(trade_details)
+            .build();
         assert!(result.is_err());
     }
 
@@ -376,7 +396,9 @@ mod tests {
             content: trade_details_content,
         };
 
-        let result = SomeTestParams::make_some_order(None, None, Some(trade_details));
+        let result = SomeTestParams::default_order_buidler()
+            .trade_details(trade_details)
+            .build();
         assert!(result.is_err());
     }
 }
