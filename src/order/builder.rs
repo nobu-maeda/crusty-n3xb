@@ -8,7 +8,7 @@ use crate::common::types::SerdeGenericTrait;
 
 pub struct OrderBuilder {
     pubkey: Option<XOnlyPublicKey>,
-    trade_uuid: Option<Uuid>, // TODO: Change to UUID type
+    trade_uuid: Option<Uuid>,
     maker_obligation: Option<MakerObligation>,
     taker_obligation: Option<TakerObligation>,
     trade_details: Option<TradeDetails>,
@@ -91,7 +91,7 @@ impl OrderBuilder {
         };
 
         let Some(trade_engine_specifics) = self.trade_engine_specifics.take() else {
-            return Err(N3xbError::Simple("No Engine Details defined".to_string()));  // TODO: Error handling?
+            return Err(N3xbError::Simple("No Trade Engine Details defined".to_string()));  // TODO: Error handling?
         };
 
         let pow_difficulty = self.pow_difficulty.unwrap_or_else(|| 0);
@@ -123,23 +123,23 @@ mod tests {
     async fn test_order_builder_build() {
         let mut builder: OrderBuilder = OrderBuilder::new();
 
-        builder.pubkey(SomeTestParams::some_x_only_public_key());
+        builder.pubkey(SomeTestOrderParams::some_x_only_public_key());
 
-        builder.trade_uuid(SomeTestParams::some_uuid());
+        builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kinds(),
-            content: SomeTestParams::maker_obligation_content(),
+            kinds: SomeTestOrderParams::maker_obligation_kinds(),
+            content: SomeTestOrderParams::maker_obligation_content(),
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kinds(),
-            content: SomeTestParams::taker_obligation_content(),
+            kinds: SomeTestOrderParams::taker_obligation_kinds(),
+            content: SomeTestOrderParams::taker_obligation_content(),
         });
 
         builder.trade_details(TradeDetails {
-            parameters: SomeTestParams::trade_parameters(),
-            content: SomeTestParams::trade_details_content(),
+            parameters: SomeTestOrderParams::trade_parameters(),
+            content: SomeTestOrderParams::trade_details_content(),
         });
 
         let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
@@ -147,36 +147,36 @@ mod tests {
         });
         builder.trade_engine_specifics(trade_engine_specifics);
 
-        builder.pow_difficulty(SomeTestParams::pow_difficulty());
+        builder.pow_difficulty(SomeTestOrderParams::pow_difficulty());
 
         let result = builder.build();
 
         match result {
             Ok(order) => {
-                assert_eq!(order.trade_uuid, SomeTestParams::some_uuid());
+                assert_eq!(order.trade_uuid, SomeTestOrderParams::some_uuid());
                 assert_eq!(
                     order.maker_obligation.kinds,
-                    SomeTestParams::maker_obligation_kinds()
+                    SomeTestOrderParams::maker_obligation_kinds()
                 );
                 assert_eq!(
                     order.maker_obligation.content,
-                    SomeTestParams::maker_obligation_content()
+                    SomeTestOrderParams::maker_obligation_content()
                 );
                 assert_eq!(
                     order.taker_obligation.kinds,
-                    SomeTestParams::taker_obligation_kinds()
+                    SomeTestOrderParams::taker_obligation_kinds()
                 );
                 assert_eq!(
                     order.taker_obligation.content,
-                    SomeTestParams::taker_obligation_content()
+                    SomeTestOrderParams::taker_obligation_content()
                 );
                 assert_eq!(
                     order.trade_details.parameters,
-                    SomeTestParams::trade_parameters()
+                    SomeTestOrderParams::trade_parameters()
                 );
                 assert_eq!(
                     order.trade_details.content,
-                    SomeTestParams::trade_details_content()
+                    SomeTestOrderParams::trade_details_content()
                 );
 
                 let maker_order_specifics = order
@@ -188,7 +188,7 @@ mod tests {
                     maker_order_specifics.test_specific_field,
                     SomeTestParams::engine_specific_str()
                 );
-                assert_eq!(order.pow_difficulty, SomeTestParams::pow_difficulty());
+                assert_eq!(order.pow_difficulty, SomeTestOrderParams::pow_difficulty());
             }
             Err(error) => {
                 panic!(
@@ -203,21 +203,21 @@ mod tests {
     async fn test_order_builder_build_trade_uuid_missing() {
         let mut builder: OrderBuilder = OrderBuilder::new();
 
-        builder.pubkey(SomeTestParams::some_x_only_public_key());
+        builder.pubkey(SomeTestOrderParams::some_x_only_public_key());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kinds(),
-            content: SomeTestParams::maker_obligation_content(),
+            kinds: SomeTestOrderParams::maker_obligation_kinds(),
+            content: SomeTestOrderParams::maker_obligation_content(),
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kinds(),
-            content: SomeTestParams::taker_obligation_content(),
+            kinds: SomeTestOrderParams::taker_obligation_kinds(),
+            content: SomeTestOrderParams::taker_obligation_content(),
         });
 
         builder.trade_details(TradeDetails {
-            parameters: SomeTestParams::trade_parameters(),
-            content: SomeTestParams::trade_details_content(),
+            parameters: SomeTestOrderParams::trade_parameters(),
+            content: SomeTestOrderParams::trade_details_content(),
         });
 
         let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
@@ -226,27 +226,27 @@ mod tests {
 
         builder.trade_engine_specifics(trade_engine_specifics);
 
-        builder.pow_difficulty(SomeTestParams::pow_difficulty());
+        builder.pow_difficulty(SomeTestOrderParams::pow_difficulty());
 
-        let order = builder.build().unwrap();
+        let _ = builder.build().unwrap();
     }
 
     #[tokio::test]
     async fn test_order_builder_build_maker_obligation_missing() {
         let mut builder: OrderBuilder = OrderBuilder::new();
 
-        builder.pubkey(SomeTestParams::some_x_only_public_key());
+        builder.pubkey(SomeTestOrderParams::some_x_only_public_key());
 
-        builder.trade_uuid(SomeTestParams::some_uuid());
+        builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kinds(),
-            content: SomeTestParams::taker_obligation_content(),
+            kinds: SomeTestOrderParams::taker_obligation_kinds(),
+            content: SomeTestOrderParams::taker_obligation_content(),
         });
 
         builder.trade_details(TradeDetails {
-            parameters: SomeTestParams::trade_parameters(),
-            content: SomeTestParams::trade_details_content(),
+            parameters: SomeTestOrderParams::trade_parameters(),
+            content: SomeTestOrderParams::trade_details_content(),
         });
 
         let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
@@ -255,7 +255,7 @@ mod tests {
 
         builder.trade_engine_specifics(trade_engine_specifics);
 
-        builder.pow_difficulty(SomeTestParams::pow_difficulty());
+        builder.pow_difficulty(SomeTestOrderParams::pow_difficulty());
 
         let result = builder.build();
 
@@ -271,18 +271,18 @@ mod tests {
     async fn test_order_builder_build_taker_obligation_missing() {
         let mut builder: OrderBuilder = OrderBuilder::new();
 
-        builder.pubkey(SomeTestParams::some_x_only_public_key());
+        builder.pubkey(SomeTestOrderParams::some_x_only_public_key());
 
-        builder.trade_uuid(SomeTestParams::some_uuid());
+        builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kinds(),
-            content: SomeTestParams::maker_obligation_content(),
+            kinds: SomeTestOrderParams::maker_obligation_kinds(),
+            content: SomeTestOrderParams::maker_obligation_content(),
         });
 
         builder.trade_details(TradeDetails {
-            parameters: SomeTestParams::trade_parameters(),
-            content: SomeTestParams::trade_details_content(),
+            parameters: SomeTestOrderParams::trade_parameters(),
+            content: SomeTestOrderParams::trade_details_content(),
         });
 
         let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
@@ -291,7 +291,7 @@ mod tests {
 
         builder.trade_engine_specifics(trade_engine_specifics);
 
-        builder.pow_difficulty(SomeTestParams::pow_difficulty());
+        builder.pow_difficulty(SomeTestOrderParams::pow_difficulty());
 
         let result = builder.build();
 
@@ -307,18 +307,18 @@ mod tests {
     async fn test_order_builder_build_trade_details_missing() {
         let mut builder: OrderBuilder = OrderBuilder::new();
 
-        builder.pubkey(SomeTestParams::some_x_only_public_key());
+        builder.pubkey(SomeTestOrderParams::some_x_only_public_key());
 
-        builder.trade_uuid(SomeTestParams::some_uuid());
+        builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kinds(),
-            content: SomeTestParams::maker_obligation_content(),
+            kinds: SomeTestOrderParams::maker_obligation_kinds(),
+            content: SomeTestOrderParams::maker_obligation_content(),
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kinds(),
-            content: SomeTestParams::taker_obligation_content(),
+            kinds: SomeTestOrderParams::taker_obligation_kinds(),
+            content: SomeTestOrderParams::taker_obligation_content(),
         });
 
         let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
@@ -327,7 +327,7 @@ mod tests {
 
         builder.trade_engine_specifics(trade_engine_specifics);
 
-        builder.pow_difficulty(SomeTestParams::pow_difficulty());
+        builder.pow_difficulty(SomeTestOrderParams::pow_difficulty());
 
         let result = builder.build();
 
@@ -343,26 +343,26 @@ mod tests {
     async fn test_order_builder_build_engine_details_missing() {
         let mut builder: OrderBuilder = OrderBuilder::new();
 
-        builder.pubkey(SomeTestParams::some_x_only_public_key());
+        builder.pubkey(SomeTestOrderParams::some_x_only_public_key());
 
-        builder.trade_uuid(SomeTestParams::some_uuid());
+        builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kinds(),
-            content: SomeTestParams::maker_obligation_content(),
+            kinds: SomeTestOrderParams::maker_obligation_kinds(),
+            content: SomeTestOrderParams::maker_obligation_content(),
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kinds(),
-            content: SomeTestParams::taker_obligation_content(),
+            kinds: SomeTestOrderParams::taker_obligation_kinds(),
+            content: SomeTestOrderParams::taker_obligation_content(),
         });
 
         builder.trade_details(TradeDetails {
-            parameters: SomeTestParams::trade_parameters(),
-            content: SomeTestParams::trade_details_content(),
+            parameters: SomeTestOrderParams::trade_parameters(),
+            content: SomeTestOrderParams::trade_details_content(),
         });
 
-        builder.pow_difficulty(SomeTestParams::pow_difficulty());
+        builder.pow_difficulty(SomeTestOrderParams::pow_difficulty());
 
         let result = builder.build();
 
@@ -378,23 +378,23 @@ mod tests {
     async fn test_order_builder_build_pow_difficulty_default() {
         let mut builder: OrderBuilder = OrderBuilder::new();
 
-        builder.pubkey(SomeTestParams::some_x_only_public_key());
+        builder.pubkey(SomeTestOrderParams::some_x_only_public_key());
 
-        builder.trade_uuid(SomeTestParams::some_uuid());
+        builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kinds(),
-            content: SomeTestParams::maker_obligation_content(),
+            kinds: SomeTestOrderParams::maker_obligation_kinds(),
+            content: SomeTestOrderParams::maker_obligation_content(),
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kinds(),
-            content: SomeTestParams::taker_obligation_content(),
+            kinds: SomeTestOrderParams::taker_obligation_kinds(),
+            content: SomeTestOrderParams::taker_obligation_content(),
         });
 
         builder.trade_details(TradeDetails {
-            parameters: SomeTestParams::trade_parameters(),
-            content: SomeTestParams::trade_details_content(),
+            parameters: SomeTestOrderParams::trade_parameters(),
+            content: SomeTestOrderParams::trade_details_content(),
         });
 
         let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
@@ -407,30 +407,30 @@ mod tests {
 
         match result {
             Ok(order) => {
-                assert_eq!(order.trade_uuid, SomeTestParams::some_uuid());
+                assert_eq!(order.trade_uuid, SomeTestOrderParams::some_uuid());
                 assert_eq!(
                     order.maker_obligation.kinds,
-                    SomeTestParams::maker_obligation_kinds()
+                    SomeTestOrderParams::maker_obligation_kinds()
                 );
                 assert_eq!(
                     order.maker_obligation.content,
-                    SomeTestParams::maker_obligation_content()
+                    SomeTestOrderParams::maker_obligation_content()
                 );
                 assert_eq!(
                     order.taker_obligation.kinds,
-                    SomeTestParams::taker_obligation_kinds()
+                    SomeTestOrderParams::taker_obligation_kinds()
                 );
                 assert_eq!(
                     order.taker_obligation.content,
-                    SomeTestParams::taker_obligation_content()
+                    SomeTestOrderParams::taker_obligation_content()
                 );
                 assert_eq!(
                     order.trade_details.parameters,
-                    SomeTestParams::trade_parameters()
+                    SomeTestOrderParams::trade_parameters()
                 );
                 assert_eq!(
                     order.trade_details.content,
-                    SomeTestParams::trade_details_content()
+                    SomeTestOrderParams::trade_details_content()
                 );
 
                 let maker_order_specifics = order

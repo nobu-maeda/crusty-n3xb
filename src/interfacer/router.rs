@@ -114,12 +114,12 @@ mod tests {
     use super::*;
     use crate::{
         offer::Offer,
-        testing::{SomeTestParams, SomeTradeEngineTakerOfferSpecifics},
+        testing::{SomeTestOfferParams, SomeTestOrderParams},
     };
 
     #[tokio::test]
     async fn test_tx_for_trade_uuid() {
-        let trade_uuid = SomeTestParams::some_uuid();
+        let trade_uuid = SomeTestOrderParams::some_uuid();
         let mut router = Router::new();
         let (event_tx, mut event_rx) =
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
@@ -132,16 +132,7 @@ mod tests {
             .register_peer_message_fallback_tx(peer_message_fallback_tx)
             .unwrap();
 
-        let offer = Offer {
-            offer_uuid: Uuid::new_v4(),
-            maker_obligation: SomeTestParams::offer_maker_obligation(),
-            taker_obligation: SomeTestParams::offer_taker_obligation(),
-            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
-            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
-                test_specific_field: SomeTestParams::engine_specific_str(),
-            }),
-            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
-        };
+        let offer = SomeTestOfferParams::default_builder().build().unwrap();
 
         let peer_message = PeerMessage {
             r#type: "n3xb-peer-message".to_string(),
@@ -189,7 +180,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_peer_message_fallback_tx() {
-        let trade_uuid = SomeTestParams::some_uuid();
+        let trade_uuid = SomeTestOrderParams::some_uuid();
         let mut router = Router::new();
         let (event_tx, mut event_rx) =
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
@@ -202,16 +193,7 @@ mod tests {
             .register_peer_message_fallback_tx(peer_message_fallback_tx)
             .unwrap();
 
-        let offer = Offer {
-            offer_uuid: Uuid::new_v4(),
-            maker_obligation: SomeTestParams::offer_maker_obligation(),
-            taker_obligation: SomeTestParams::offer_taker_obligation(),
-            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
-            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
-                test_specific_field: SomeTestParams::engine_specific_str(),
-            }),
-            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
-        };
+        let offer = SomeTestOfferParams::default_builder().build().unwrap();
 
         let peer_message = PeerMessage {
             r#type: "n3xb-peer-message".to_string(),
@@ -259,7 +241,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_no_matching_registered_tx() {
-        let trade_uuid = SomeTestParams::some_uuid();
+        let trade_uuid = SomeTestOrderParams::some_uuid();
         let mut router = Router::new();
         let (event_tx, mut event_rx) =
             mpsc::channel::<(SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
@@ -267,16 +249,7 @@ mod tests {
             .register_peer_message_tx(Uuid::new_v4(), event_tx)
             .unwrap();
 
-        let offer = Offer {
-            offer_uuid: Uuid::new_v4(),
-            maker_obligation: SomeTestParams::offer_maker_obligation(),
-            taker_obligation: SomeTestParams::offer_taker_obligation(),
-            market_oracle_used: SomeTestParams::offer_marker_oracle_used(),
-            trade_engine_specifics: Box::new(SomeTradeEngineTakerOfferSpecifics {
-                test_specific_field: SomeTestParams::engine_specific_str(),
-            }),
-            pow_difficulty: SomeTestParams::offer_pow_difficulty(),
-        };
+        let offer = SomeTestOfferParams::default_builder().build().unwrap();
 
         let peer_message = PeerMessage {
             r#type: "n3xb-peer-message".to_string(),

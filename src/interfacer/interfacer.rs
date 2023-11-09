@@ -839,7 +839,7 @@ mod tests {
     async fn test_get_public_key() {
         let mut client = Client::new();
         client.expect_keys().returning(|| {
-            let secret_key = SomeTestParams::some_secret_key();
+            let secret_key = SomeTestOrderParams::some_secret_key();
             Keys::new(secret_key)
         });
         client.expect_subscribe().returning(|_| {});
@@ -853,7 +853,7 @@ mod tests {
             Interfacer::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
         let interfacer_handle = interfacer.new_handle();
 
-        let secret_key = SomeTestParams::some_secret_key();
+        let secret_key = SomeTestOrderParams::some_secret_key();
         let keys = Keys::new(secret_key);
         let public_key = keys.public_key();
         assert_eq!(public_key, interfacer_handle.get_public_key().await);
@@ -878,18 +878,18 @@ mod tests {
         let interfacer_handle = interfacer.new_handle();
 
         let maker_obligation = MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kinds(),
-            content: SomeTestParams::maker_obligation_content(),
+            kinds: SomeTestOrderParams::maker_obligation_kinds(),
+            content: SomeTestOrderParams::maker_obligation_content(),
         };
 
         let taker_obligation = TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kinds(),
-            content: SomeTestParams::taker_obligation_content(),
+            kinds: SomeTestOrderParams::taker_obligation_kinds(),
+            content: SomeTestOrderParams::taker_obligation_content(),
         };
 
         let trade_details = TradeDetails {
-            parameters: SomeTestParams::trade_parameters(),
-            content: SomeTestParams::trade_details_content(),
+            parameters: SomeTestOrderParams::trade_parameters(),
+            content: SomeTestOrderParams::trade_details_content(),
         };
 
         let trade_engine_specifics = SomeTradeEngineMakerOrderSpecifics {
@@ -899,14 +899,14 @@ mod tests {
         let boxed_trade_engine_specifics = Box::new(trade_engine_specifics);
 
         let order = Order {
-            pubkey: SomeTestParams::some_x_only_public_key(),
+            pubkey: SomeTestOrderParams::some_x_only_public_key(),
             event_id: "".to_string(),
-            trade_uuid: SomeTestParams::some_uuid(),
+            trade_uuid: SomeTestOrderParams::some_uuid(),
             maker_obligation,
             taker_obligation,
             trade_details,
             trade_engine_specifics: boxed_trade_engine_specifics,
-            pow_difficulty: SomeTestParams::pow_difficulty(),
+            pow_difficulty: SomeTestOrderParams::pow_difficulty(),
             _private: (),
         };
 
@@ -919,7 +919,7 @@ mod tests {
     fn send_maker_order_note_expectation(event: Event) -> Result<EventId, Error> {
         print!("Nostr Event: {:?}\n", event);
         print!("Nostr Event Content: {:?}\n", event.content);
-        assert!(event.content == SomeTestParams::expected_json_string());
+        assert!(event.content == SomeTestOrderParams::expected_json_string());
         Ok(event.id)
     }
 

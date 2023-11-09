@@ -8,12 +8,24 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::common::types::*;
-use crate::offer::Obligation;
+use crate::offer::*;
 use crate::order::*;
 
 pub struct SomeTestParams {}
 
 impl SomeTestParams {
+    pub fn engine_name_str() -> String {
+        "some-trade-mechanics".to_string()
+    }
+
+    pub fn engine_specific_str() -> String {
+        "some-test-specific-info".to_string()
+    }
+}
+
+pub struct SomeTestOrderParams {}
+
+impl SomeTestOrderParams {
     pub fn some_secret_key() -> SecretKey {
         SecretKey::from_str("01010101010101010001020304050607ffff0000ffff00006363636363636363")
             .unwrap()
@@ -74,14 +86,6 @@ impl SomeTestParams {
         }
     }
 
-    pub fn engine_name_str() -> String {
-        "some-trade-mechanics".to_string()
-    }
-
-    pub fn engine_specific_str() -> String {
-        "some-test-specific-info".to_string()
-    }
-
     pub fn pow_difficulty() -> u64 {
         8u64
     }
@@ -90,52 +94,28 @@ impl SomeTestParams {
         "{\"maker_obligation\":{\"amount\":1000000,\"amount_min\":null},\"taker_obligation\":{\"limit_rate\":40.0,\"market_offset_pct\":null,\"market_oracles\":null},\"trade_details\":{\"maker_bond_pct\":10,\"taker_bond_pct\":10,\"trade_timeout\":null},\"trade_engine_specifics\":{\"type\":\"some-trade-engine-maker-order-specifics\",\"test_specific_field\":\"some-test-specific-info\"},\"pow_difficulty\":8}".to_string()
     }
 
-    pub fn offer_maker_obligation() -> Obligation {
-        Obligation {
-            kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
-            amount: 1000000,
-            bond_amount: Some(4000000),
-        }
-    }
-
-    pub fn offer_taker_obligation() -> Obligation {
-        Obligation {
-            kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Lightning),
-            amount: 40000000,
-            bond_amount: Some(4000000),
-        }
-    }
-
-    pub fn offer_marker_oracle_used() -> Option<String> {
-        None
-    }
-
-    pub fn offer_pow_difficulty() -> Option<u64> {
-        None
-    }
-
-    pub fn default_order_buidler() -> OrderBuilder {
+    pub fn default_builder() -> OrderBuilder {
         let mut builder: OrderBuilder = OrderBuilder::new();
-        builder.pubkey(SomeTestParams::some_x_only_public_key());
-        builder.trade_uuid(SomeTestParams::some_uuid());
+        builder.pubkey(Self::some_x_only_public_key());
+        builder.trade_uuid(Self::some_uuid());
 
         let maker_obligation = MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kinds(),
-            content: SomeTestParams::maker_obligation_content(),
+            kinds: Self::maker_obligation_kinds(),
+            content: Self::maker_obligation_content(),
         };
 
         builder.maker_obligation(maker_obligation);
 
         let taker_obligation = TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kinds(),
-            content: SomeTestParams::taker_obligation_content(),
+            kinds: Self::taker_obligation_kinds(),
+            content: Self::taker_obligation_content(),
         };
 
         builder.taker_obligation(taker_obligation);
 
         let trade_details = TradeDetails {
-            parameters: SomeTestParams::trade_parameters(),
-            content: SomeTestParams::trade_details_content(),
+            parameters: Self::trade_parameters(),
+            content: Self::trade_details_content(),
         };
 
         builder.trade_details(trade_details);
@@ -145,8 +125,40 @@ impl SomeTestParams {
         });
         builder.trade_engine_specifics(trade_engine_specifics);
 
-        builder.pow_difficulty(SomeTestParams::pow_difficulty());
+        builder.pow_difficulty(Self::pow_difficulty());
 
+        builder
+    }
+}
+
+pub struct SomeTestOfferParams {}
+
+impl SomeTestOfferParams {
+    pub fn maker_obligation() -> Obligation {
+        Obligation {
+            kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
+            amount: 1000000,
+            bond_amount: Some(4000000),
+        }
+    }
+
+    pub fn taker_obligation() -> Obligation {
+        Obligation {
+            kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Lightning),
+            amount: 40000000,
+            bond_amount: Some(4000000),
+        }
+    }
+
+    pub fn default_builder() -> OfferBuilder {
+        let mut builder: OfferBuilder = OfferBuilder::new();
+        builder.maker_obligation(Self::maker_obligation());
+        builder.taker_obligation(Self::taker_obligation());
+
+        let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
+            test_specific_field: SomeTestParams::engine_specific_str(),
+        });
+        builder.trade_engine_specifics(trade_engine_specifics);
         builder
     }
 }

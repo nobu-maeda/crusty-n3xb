@@ -159,14 +159,14 @@ mod tests {
             MakerObligation, MakerObligationContent, TakerObligation, TakerObligationContent,
             TradeDetails, TradeDetailsContent, TradeParameter, TradeTimeOutLimit,
         },
-        testing::SomeTestParams,
+        testing::SomeTestOrderParams,
     };
 
     use iso_currency::Currency;
 
     #[tokio::test]
     async fn test_validate_order() {
-        _ = SomeTestParams::default_order_buidler().build().unwrap();
+        _ = SomeTestOrderParams::default_builder().build().unwrap();
     }
 
     #[tokio::test]
@@ -178,10 +178,10 @@ mod tests {
 
         let maker_obligation = MakerObligation {
             kinds: maker_obligation_kinds,
-            content: SomeTestParams::maker_obligation_content(),
+            content: SomeTestOrderParams::maker_obligation_content(),
         };
 
-        let result = SomeTestParams::default_order_buidler()
+        let result = SomeTestOrderParams::default_builder()
             .maker_obligation(maker_obligation)
             .build();
         assert!(result.is_err());
@@ -195,11 +195,11 @@ mod tests {
         };
 
         let maker_obligation = MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kinds(),
+            kinds: SomeTestOrderParams::maker_obligation_kinds(),
             content: maker_obligation_content,
         };
 
-        let result = SomeTestParams::default_order_buidler()
+        let result = SomeTestOrderParams::default_builder()
             .maker_obligation(maker_obligation)
             .build();
         assert!(result.is_err());
@@ -213,11 +213,11 @@ mod tests {
         };
 
         let maker_obligation = MakerObligation {
-            kinds: SomeTestParams::maker_obligation_kinds(),
+            kinds: SomeTestOrderParams::maker_obligation_kinds(),
             content: maker_obligation_content,
         };
 
-        let result = SomeTestParams::default_order_buidler()
+        let result = SomeTestOrderParams::default_builder()
             .maker_obligation(maker_obligation)
             .build();
         assert!(result.is_err());
@@ -232,10 +232,10 @@ mod tests {
 
         let taker_obligation = TakerObligation {
             kinds: taker_obligation_kinds,
-            content: SomeTestParams::taker_obligation_content(),
+            content: SomeTestOrderParams::taker_obligation_content(),
         };
 
-        let result = SomeTestParams::default_order_buidler()
+        let result = SomeTestOrderParams::default_builder()
             .taker_obligation(taker_obligation)
             .build();
         assert!(result.is_err());
@@ -250,11 +250,11 @@ mod tests {
         };
 
         let taker_obligation = TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kinds(),
+            kinds: SomeTestOrderParams::taker_obligation_kinds(),
             content: taker_obligation_content,
         };
 
-        let result = SomeTestParams::default_order_buidler()
+        let result = SomeTestOrderParams::default_builder()
             .taker_obligation(taker_obligation)
             .build();
         assert!(result.is_err());
@@ -269,11 +269,11 @@ mod tests {
         };
 
         let taker_obligation = TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kinds(),
+            kinds: SomeTestOrderParams::taker_obligation_kinds(),
             content: taker_obligation_content,
         };
 
-        let result = SomeTestParams::default_order_buidler()
+        let result = SomeTestOrderParams::default_builder()
             .taker_obligation(taker_obligation)
             .build();
         assert!(result.is_err());
@@ -288,11 +288,11 @@ mod tests {
         };
 
         let taker_obligation = TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kinds(),
+            kinds: SomeTestOrderParams::taker_obligation_kinds(),
             content: taker_obligation_content,
         };
 
-        let result = SomeTestParams::default_order_buidler()
+        let result = SomeTestOrderParams::default_builder()
             .taker_obligation(taker_obligation)
             .build();
         assert!(result.is_err());
@@ -311,11 +311,11 @@ mod tests {
         };
 
         let taker_obligation = TakerObligation {
-            kinds: SomeTestParams::taker_obligation_kinds(),
+            kinds: SomeTestOrderParams::taker_obligation_kinds(),
             content: taker_obligation_content,
         };
 
-        let result = SomeTestParams::default_order_buidler()
+        let result = SomeTestOrderParams::default_builder()
             .taker_obligation(taker_obligation)
             .build();
         assert!(result.is_err());
@@ -342,7 +342,7 @@ mod tests {
             content: trade_details_content,
         };
 
-        let result = SomeTestParams::default_order_buidler()
+        let result = SomeTestOrderParams::default_builder()
             .trade_details(trade_details)
             .build();
         assert!(result.is_err());
@@ -369,7 +369,7 @@ mod tests {
             content: trade_details_content,
         };
 
-        let result = SomeTestParams::default_order_buidler()
+        let result = SomeTestOrderParams::default_builder()
             .trade_details(trade_details)
             .build();
         assert!(result.is_err());
@@ -396,7 +396,7 @@ mod tests {
             content: trade_details_content,
         };
 
-        let result = SomeTestParams::default_order_buidler()
+        let result = SomeTestOrderParams::default_builder()
             .trade_details(trade_details)
             .build();
         assert!(result.is_err());
