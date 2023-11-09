@@ -119,6 +119,9 @@ mod make_order_tests {
 mod maker_taker_flow_tests {
     use std::time::Duration;
 
+    use crate::maker_tester::MakerTester;
+    use crate::taker_tester::TakerTester;
+
     use super::relay;
     use super::INIT;
     use crusty_n3xb::order::Order;
@@ -129,6 +132,7 @@ mod maker_taker_flow_tests {
     };
     use log::info;
     use tokio::time::sleep;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_order_offer_response() {
@@ -280,5 +284,31 @@ mod maker_taker_flow_tests {
     // - Exit Loop on Success
 
     #[tokio::test]
-    async fn test_dual_thread_full_flow() {}
+    async fn test_dual_thread_full_flow() {
+        let relay = relay::start_relay().unwrap();
+        relay::wait_for_healthy_relay(&relay).await.unwrap();
+
+        let test_engine_name = SomeTestParams::engine_name_str();
+        let maker_manager = Manager::new(&test_engine_name).await;
+        let taker_manager = Manager::new(&test_engine_name).await;
+
+        let relays = vec![(format!("{}:{}", "ws://localhost", relay.port), None)];
+        maker_manager
+            .add_relays(relays.clone(), true)
+            .await
+            .unwrap();
+        taker_manager.add_relays(relays, true).await.unwrap();
+
+        let order = SomeTestOrderParams::default_builder().build().unwrap();
+        let trade_uuid = order.trade_uuid.clone();
+        let offer_uuid = Uuid::new_v4();
+        let accept_uuid = Uuid::new_v4();
+
+        let maker_tester = MakerTester::start(maker_manager, order, offer_uuid, accept_uuid).await;
+        let taker_tester =
+            TakerTester::start(taker_manager, trade_uuid, offer_uuid, accept_uuid).await;
+
+        maker_tester.wait_for_completion().await.unwrap();
+        taker_tester.wait_for_completion().await.unwrap();
+    }
 }
