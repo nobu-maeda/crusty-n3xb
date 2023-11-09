@@ -15,6 +15,7 @@ use crate::{
     interfacer::InterfacerHandle,
     offer::Offer,
     order::Order,
+    trade_rsp::TradeResponse,
 };
 
 pub struct Maker {
@@ -38,6 +39,13 @@ impl Maker {
     pub async fn query_offers(&self) -> Vec<Offer> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Vec<Offer>>();
         let request = MakerRequest::QueryOffers { rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+
+    pub async fn accept_offer(&self, trade_rsp: TradeResponse) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = MakerRequest::AcceptOffer { trade_rsp, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -91,7 +99,10 @@ pub(super) enum MakerRequest {
     QueryOffers {
         rsp_tx: oneshot::Sender<Vec<Offer>>,
     },
-    SendTradeResponse,
+    AcceptOffer {
+        trade_rsp: TradeResponse,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
     RegisterOfferNotifTx {
         tx: mpsc::Sender<Result<Offer, N3xbError>>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
@@ -151,7 +162,9 @@ impl MakerActor {
         match request {
             MakerRequest::SendMakerOrder { rsp_tx } => self.send_maker_order(rsp_tx).await,
             MakerRequest::QueryOffers { rsp_tx } => self.query_offers(rsp_tx).await,
-            MakerRequest::SendTradeResponse => todo!(),
+            MakerRequest::AcceptOffer { trade_rsp, rsp_tx } => {
+                self.accept_offer(trade_rsp, rsp_tx).await
+            }
             MakerRequest::RegisterOfferNotifTx { tx, rsp_tx } => {
                 self.register_notif_tx(tx, rsp_tx).await;
             }
@@ -173,6 +186,14 @@ impl MakerActor {
             offers.push(offer.clone());
         }
         rsp_tx.send(offers).unwrap(); // oneshot should not fail
+    }
+
+    async fn accept_offer(
+        &mut self,
+        trade_rsp: TradeResponse,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    ) {
+        // TODO: Send Trade Response to Interfacer
     }
 
     async fn register_notif_tx(

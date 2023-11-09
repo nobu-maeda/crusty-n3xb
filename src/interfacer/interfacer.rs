@@ -244,7 +244,7 @@ pub(super) enum InterfacerRequest {
         rsp_tx: oneshot::Sender<Result<Vec<Order>, N3xbError>>,
     },
     SendTakerOfferMessage {
-        public_key: XOnlyPublicKey,
+        public_key: XOnlyPublicKey, // Pubkey of destination receipient (Maker)
         maker_order_note_id: String,
         trade_uuid: Uuid,
         offer: Offer,
