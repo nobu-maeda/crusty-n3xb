@@ -35,15 +35,22 @@ impl Maker {
         rsp_rx.await.unwrap()
     }
 
-    pub async fn register_for_taker_offer_notifs(
+    pub async fn register_offer_notif_tx(
         &self,
         notif_tx: mpsc::Sender<Result<Offer, N3xbError>>,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = MakerRequest::RegisterNotifTx {
+        let request = MakerRequest::RegisterOfferNotifTx {
             tx: notif_tx,
             rsp_tx,
         };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+
+    pub async fn unregister_offer_notif_tx(&self) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = MakerRequest::UnregisterOfferNotifTx { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -76,11 +83,11 @@ pub(super) enum MakerRequest {
     },
     QueryOffers,
     SendTradeResponse,
-    RegisterNotifTx {
+    RegisterOfferNotifTx {
         tx: mpsc::Sender<Result<Offer, N3xbError>>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
-    UnregisterNotifTx {
+    UnregisterOfferNotifTx {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
 }
@@ -136,10 +143,10 @@ impl MakerActor {
             MakerRequest::SendMakerOrder { rsp_tx } => self.send_maker_order(rsp_tx).await,
             MakerRequest::QueryOffers => todo!(),
             MakerRequest::SendTradeResponse => todo!(),
-            MakerRequest::RegisterNotifTx { tx, rsp_tx } => {
+            MakerRequest::RegisterOfferNotifTx { tx, rsp_tx } => {
                 self.register_notif_tx(tx, rsp_tx).await;
             }
-            MakerRequest::UnregisterNotifTx { rsp_tx } => {
+            MakerRequest::UnregisterOfferNotifTx { rsp_tx } => {
                 self.unregister_notif_tx(rsp_tx).await;
             }
         }

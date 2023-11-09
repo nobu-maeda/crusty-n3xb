@@ -59,10 +59,7 @@ impl MakerTesterActor {
         // Register for Taker Offer Notifs from Maker
         let (notif_tx, mut notif_rx) =
             mpsc::channel::<Result<Offer, N3xbError>>(Self::MAKER_TEST_ACTOR_NOTIF_CHANNEL_SIZE);
-        maker
-            .register_for_taker_offer_notifs(notif_tx)
-            .await
-            .unwrap();
+        maker.register_offer_notif_tx(notif_tx).await.unwrap();
 
         // Wait for a Taker Offer Notif - This can be made into a loop if wanted, or to wait for a particular offer
         let notif_result = notif_rx.recv().await.unwrap();

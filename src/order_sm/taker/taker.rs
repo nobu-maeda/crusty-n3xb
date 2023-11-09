@@ -53,8 +53,8 @@ pub(super) enum TakerRequest {
     SendTakerOffer {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
-    RegisterNotifTx,
-    UnregisterNotifTx,
+    RegisterTradeNotifTx,
+    UnregisterTradeNotifTx,
 }
 
 struct TakerActor {
@@ -94,8 +94,8 @@ impl TakerActor {
     async fn handle_request(&mut self, request: TakerRequest) {
         match request {
             TakerRequest::SendTakerOffer { rsp_tx } => self.send_taker_offer(rsp_tx).await,
-            TakerRequest::RegisterNotifTx => todo!(),
-            TakerRequest::UnregisterNotifTx => todo!(),
+            TakerRequest::RegisterTradeNotifTx => todo!(),
+            TakerRequest::UnregisterTradeNotifTx => todo!(),
         }
     }
 
