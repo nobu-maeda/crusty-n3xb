@@ -55,11 +55,11 @@ impl MakerTesterActor {
         let notif_result = notif_rx.recv().await.unwrap();
         let taker_pubkey = notif_result.unwrap();
 
-        // Query Offers
+        // Query Offer
         let offers = maker.query_offers().await;
-        let offer = offers.get(&taker_pubkey).unwrap();
+        assert!(offers.len() >= 1);
 
-        // Validate the Offer before accepting it
+        let offer = maker.query_offer(taker_pubkey).await.unwrap();
         offer.validate_against(&self.order).unwrap();
 
         // Accept Offer

@@ -43,6 +43,13 @@ impl Maker {
         rsp_rx.await.unwrap()
     }
 
+    pub async fn query_offer(&self, pubkey: XOnlyPublicKey) -> Option<Offer> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Option<Offer>>();
+        let request = MakerRequest::QueryOffer { pubkey, rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+
     pub async fn accept_offer(&self, trade_rsp: TradeResponse) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = MakerRequest::AcceptOffer { trade_rsp, rsp_tx };
@@ -98,6 +105,10 @@ pub(super) enum MakerRequest {
     },
     QueryOffers {
         rsp_tx: oneshot::Sender<HashMap<XOnlyPublicKey, Offer>>,
+    },
+    QueryOffer {
+        pubkey: XOnlyPublicKey,
+        rsp_tx: oneshot::Sender<Option<Offer>>,
     },
     AcceptOffer {
         trade_rsp: TradeResponse,
@@ -163,6 +174,7 @@ impl MakerActor {
         match request {
             MakerRequest::SendMakerOrder { rsp_tx } => self.send_maker_order(rsp_tx).await,
             MakerRequest::QueryOffers { rsp_tx } => self.query_offers(rsp_tx).await,
+            MakerRequest::QueryOffer { pubkey, rsp_tx } => self.query_offer(pubkey, rsp_tx).await,
             MakerRequest::AcceptOffer { trade_rsp, rsp_tx } => {
                 self.accept_offer(trade_rsp, rsp_tx).await
             }
@@ -183,6 +195,15 @@ impl MakerActor {
 
     async fn query_offers(&mut self, rsp_tx: oneshot::Sender<HashMap<XOnlyPublicKey, Offer>>) {
         rsp_tx.send(self.offers.clone()).unwrap(); // oneshot should not fail
+    }
+
+    async fn query_offer(
+        &mut self,
+        pubkey: XOnlyPublicKey,
+        rsp_tx: oneshot::Sender<Option<Offer>>,
+    ) {
+        let offer = self.offers.get(&pubkey).cloned();
+        rsp_tx.send(offer).unwrap(); // oneshot should not fail
     }
 
     async fn accept_offer(
