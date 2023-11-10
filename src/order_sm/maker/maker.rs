@@ -1,5 +1,4 @@
 use log::error;
-use secp256k1::XOnlyPublicKey;
 use std::collections::HashMap;
 
 use tokio::{
@@ -8,12 +7,9 @@ use tokio::{
 };
 
 use crate::{
-    common::{
-        error::N3xbError,
-        types::{SerdeGenericTrait, SerdeGenericType},
-    },
-    interfacer::InterfacerHandle,
-    offer::Offer,
+    common::{error::N3xbError, types::SerdeGenericType},
+    interfacer::{InterfacerHandle, PeerEnvelope},
+    offer::{Offer, OfferEnvelope},
     order::Order,
     trade_rsp::TradeResponse,
 };
@@ -36,16 +32,16 @@ impl Maker {
         rsp_rx.await.unwrap()
     }
 
-    pub async fn query_offers(&self) -> HashMap<XOnlyPublicKey, Offer> {
-        let (rsp_tx, rsp_rx) = oneshot::channel::<HashMap<XOnlyPublicKey, Offer>>();
+    pub async fn query_offers(&self) -> HashMap<String, OfferEnvelope> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<HashMap<String, OfferEnvelope>>();
         let request = MakerRequest::QueryOffers { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
 
-    pub async fn query_offer(&self, pubkey: XOnlyPublicKey) -> Option<Offer> {
-        let (rsp_tx, rsp_rx) = oneshot::channel::<Option<Offer>>();
-        let request = MakerRequest::QueryOffer { pubkey, rsp_tx };
+    pub async fn query_offer(&self, event_id: String) -> Option<OfferEnvelope> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Option<OfferEnvelope>>();
+        let request = MakerRequest::QueryOffer { event_id, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -59,7 +55,7 @@ impl Maker {
 
     pub async fn register_offer_notif_tx(
         &self,
-        notif_tx: mpsc::Sender<Result<XOnlyPublicKey, N3xbError>>,
+        notif_tx: mpsc::Sender<Result<OfferEnvelope, N3xbError>>,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = MakerRequest::RegisterOfferNotifTx {
@@ -104,18 +100,18 @@ pub(super) enum MakerRequest {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     QueryOffers {
-        rsp_tx: oneshot::Sender<HashMap<XOnlyPublicKey, Offer>>,
+        rsp_tx: oneshot::Sender<HashMap<String, OfferEnvelope>>,
     },
     QueryOffer {
-        pubkey: XOnlyPublicKey,
-        rsp_tx: oneshot::Sender<Option<Offer>>,
+        event_id: String,
+        rsp_tx: oneshot::Sender<Option<OfferEnvelope>>,
     },
     AcceptOffer {
         trade_rsp: TradeResponse,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     RegisterOfferNotifTx {
-        tx: mpsc::Sender<Result<XOnlyPublicKey, N3xbError>>,
+        tx: mpsc::Sender<Result<OfferEnvelope, N3xbError>>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     UnregisterOfferNotifTx {
@@ -127,8 +123,8 @@ struct MakerActor {
     rx: mpsc::Receiver<MakerRequest>,
     interfacer_handle: InterfacerHandle,
     order: Order,
-    offers: HashMap<XOnlyPublicKey, Offer>,
-    notif_tx: Option<mpsc::Sender<Result<XOnlyPublicKey, N3xbError>>>,
+    offer_envelopes: HashMap<String, OfferEnvelope>,
+    notif_tx: Option<mpsc::Sender<Result<OfferEnvelope, N3xbError>>>,
 }
 
 impl MakerActor {
@@ -137,20 +133,19 @@ impl MakerActor {
         interfacer_handle: InterfacerHandle,
         order: Order,
     ) -> Self {
-        let offers: HashMap<XOnlyPublicKey, Offer> = HashMap::new();
+        let offer_envelopes: HashMap<String, OfferEnvelope> = HashMap::new();
 
         MakerActor {
             rx,
             interfacer_handle,
             order,
-            offers,
+            offer_envelopes,
             notif_tx: None,
         }
     }
 
     async fn run(&mut self) {
-        let (tx, mut rx) =
-            mpsc::channel::<(XOnlyPublicKey, SerdeGenericType, Box<dyn SerdeGenericTrait>)>(20);
+        let (tx, mut rx) = mpsc::channel::<PeerEnvelope>(20);
 
         self.interfacer_handle
             .register_peer_message_tx(self.order.trade_uuid.clone(), tx)
@@ -162,8 +157,8 @@ impl MakerActor {
                 Some(request) = self.rx.recv() => {
                     self.handle_request(request).await;
                 },
-                Some((pubkey, peer_message_type, peer_message)) = rx.recv() => {
-                    self.handle_peer_message(pubkey, peer_message_type, peer_message).await;
+                Some(envelope) = rx.recv() => {
+                    self.handle_peer_message(envelope).await;
                 },
                 else => break,
             }
@@ -174,7 +169,9 @@ impl MakerActor {
         match request {
             MakerRequest::SendMakerOrder { rsp_tx } => self.send_maker_order(rsp_tx).await,
             MakerRequest::QueryOffers { rsp_tx } => self.query_offers(rsp_tx).await,
-            MakerRequest::QueryOffer { pubkey, rsp_tx } => self.query_offer(pubkey, rsp_tx).await,
+            MakerRequest::QueryOffer { event_id, rsp_tx } => {
+                self.query_offer(event_id, rsp_tx).await
+            }
             MakerRequest::AcceptOffer { trade_rsp, rsp_tx } => {
                 self.accept_offer(trade_rsp, rsp_tx).await
             }
@@ -193,16 +190,16 @@ impl MakerActor {
         rsp_tx.send(result).unwrap(); // oneshot should not fail
     }
 
-    async fn query_offers(&mut self, rsp_tx: oneshot::Sender<HashMap<XOnlyPublicKey, Offer>>) {
-        rsp_tx.send(self.offers.clone()).unwrap(); // oneshot should not fail
+    async fn query_offers(&mut self, rsp_tx: oneshot::Sender<HashMap<String, OfferEnvelope>>) {
+        rsp_tx.send(self.offer_envelopes.clone()).unwrap(); // oneshot should not fail
     }
 
     async fn query_offer(
         &mut self,
-        pubkey: XOnlyPublicKey,
-        rsp_tx: oneshot::Sender<Option<Offer>>,
+        event_id: String,
+        rsp_tx: oneshot::Sender<Option<OfferEnvelope>>,
     ) {
-        let offer = self.offers.get(&pubkey).cloned();
+        let offer = self.offer_envelopes.get(&event_id).cloned();
         rsp_tx.send(offer).unwrap(); // oneshot should not fail
     }
 
@@ -216,7 +213,7 @@ impl MakerActor {
 
     async fn register_notif_tx(
         &mut self,
-        tx: mpsc::Sender<Result<XOnlyPublicKey, N3xbError>>,
+        tx: mpsc::Sender<Result<OfferEnvelope, N3xbError>>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
         let mut result = Ok(());
@@ -244,16 +241,16 @@ impl MakerActor {
         rsp_tx.send(result).unwrap();
     }
 
-    async fn handle_peer_message(
-        &mut self,
-        pubkey: XOnlyPublicKey,
-        peer_message_type: SerdeGenericType,
-        peer_message: Box<dyn SerdeGenericTrait>,
-    ) {
-        match peer_message_type {
+    async fn handle_peer_message(&mut self, peer_envelope: PeerEnvelope) {
+        match peer_envelope.message_type {
             SerdeGenericType::TakerOffer => {
-                let offer = peer_message.downcast_ref::<Offer>().expect("Received peer message of SerdeGenericType::TakerOffer, but failed to downcast into message into Offer").to_owned();
-                self.handle_taker_offer(pubkey, offer).await;
+                let offer = peer_envelope.message.downcast_ref::<Offer>().expect("Received peer message of SerdeGenericType::TakerOffer, but failed to downcast into message into Offer").to_owned();
+                let offer_envelope = OfferEnvelope {
+                    pubkey: peer_envelope.pubkey,
+                    event_id: peer_envelope.event_id,
+                    offer,
+                };
+                self.handle_taker_offer(offer_envelope).await;
             }
 
             SerdeGenericType::TradeResponse => {
@@ -266,15 +263,16 @@ impl MakerActor {
         }
     }
 
-    async fn handle_taker_offer(&mut self, pubkey: XOnlyPublicKey, offer: Offer) {
-        let valid = offer.validate_against(&self.order);
+    async fn handle_taker_offer(&mut self, offer_envelope: OfferEnvelope) {
+        let valid = offer_envelope.offer.validate_against(&self.order);
         match valid {
             Ok(_) => {
-                self.offers.insert(pubkey, offer.clone());
+                self.offer_envelopes
+                    .insert(offer_envelope.event_id.clone(), offer_envelope.clone());
 
                 // Notify user of new offer recieved
                 if let Some(tx) = &self.notif_tx {
-                    if let Some(error) = tx.send(Ok(pubkey)).await.err() {
+                    if let Some(error) = tx.send(Ok(offer_envelope)).await.err() {
                         error!(
                             "handle_taker_offer() failed in notifying user with mpsc - {}",
                             error

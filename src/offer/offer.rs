@@ -1,3 +1,4 @@
+use secp256k1::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};
 
 use std::{any::Any, fmt::Debug};
@@ -8,6 +9,12 @@ use crate::{
 };
 
 // Take Order Message Data Structure
+#[derive(Clone, Debug)]
+pub struct OfferEnvelope {
+    pub pubkey: XOnlyPublicKey,
+    pub event_id: String,
+    pub offer: Offer,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Obligation {

@@ -1,23 +1,17 @@
 use log::debug;
-use secp256k1::XOnlyPublicKey;
 use std::collections::HashMap;
 
+use secp256k1::XOnlyPublicKey;
 use tokio::sync::mpsc;
-
 use uuid::Uuid;
 
-use crate::common::{
-    error::N3xbError,
-    types::{SerdeGenericTrait, SerdeGenericType},
-};
+use crate::common::error::N3xbError;
 
-use super::peer_messaging::PeerMessage;
+use super::peer_messaging::{PeerEnvelope, PeerMessage};
 
 pub(super) struct Router {
-    peer_message_tx_map:
-        HashMap<Uuid, mpsc::Sender<(XOnlyPublicKey, SerdeGenericType, Box<dyn SerdeGenericTrait>)>>,
-    peer_message_fallback_tx:
-        Option<mpsc::Sender<(XOnlyPublicKey, SerdeGenericType, Box<dyn SerdeGenericTrait>)>>,
+    peer_message_tx_map: HashMap<Uuid, mpsc::Sender<PeerEnvelope>>,
+    peer_message_fallback_tx: Option<mpsc::Sender<PeerEnvelope>>,
 }
 
 impl Router {
@@ -31,7 +25,7 @@ impl Router {
     pub(super) fn register_peer_message_tx(
         &mut self,
         trade_uuid: Uuid,
-        tx: mpsc::Sender<(XOnlyPublicKey, SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
+        tx: mpsc::Sender<PeerEnvelope>,
     ) -> Result<(), N3xbError> {
         debug!("register_tx_for_trade_uuid() for {}", trade_uuid);
         if self.peer_message_tx_map.insert(trade_uuid, tx).is_some() {
@@ -60,7 +54,7 @@ impl Router {
 
     pub(super) fn register_peer_message_fallback_tx(
         &mut self,
-        tx: mpsc::Sender<(XOnlyPublicKey, SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
+        tx: mpsc::Sender<PeerEnvelope>,
     ) -> Result<(), N3xbError> {
         debug!("register_peer_message_fallback_tx()");
 
@@ -92,17 +86,23 @@ impl Router {
     pub(super) async fn handle_peer_message(
         &mut self,
         pubkey: XOnlyPublicKey,
+        event_id: String,
         peer_message: PeerMessage,
     ) -> Result<(), N3xbError> {
+        let envelope = PeerEnvelope {
+            pubkey,
+            event_id,
+            message_type: peer_message.message_type.clone(),
+            message: peer_message.message.clone(),
+        };
+
         if let Some(tx) = self.peer_message_tx_map.get(&peer_message.trade_uuid) {
-            tx.send((pubkey, peer_message.message_type, peer_message.message))
-                .await?;
+            tx.send(envelope).await?;
             return Ok(());
         }
 
         if let Some(tx) = &self.peer_message_fallback_tx {
-            tx.send((pubkey, peer_message.message_type, peer_message.message))
-                .await?;
+            tx.send(envelope).await?;
             return Ok(());
         }
 
@@ -116,6 +116,8 @@ impl Router {
 mod tests {
     use super::*;
     use crate::{
+        common::types::SerdeGenericType,
+        interfacer::peer_messaging::PeerEnvelope,
         offer::Offer,
         testing::{SomeTestOfferParams, SomeTestOrderParams},
     };
@@ -124,10 +126,8 @@ mod tests {
     async fn test_tx_for_trade_uuid() {
         let trade_uuid = SomeTestOrderParams::some_uuid();
         let mut router = Router::new();
-        let (event_tx, mut event_rx) =
-            mpsc::channel::<(XOnlyPublicKey, SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
-        let (peer_message_fallback_tx, mut fallback_rx) =
-            mpsc::channel::<(XOnlyPublicKey, SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
+        let (event_tx, mut event_rx) = mpsc::channel::<PeerEnvelope>(1);
+        let (peer_message_fallback_tx, mut fallback_rx) = mpsc::channel::<PeerEnvelope>(1);
         router
             .register_peer_message_tx(trade_uuid, event_tx)
             .unwrap();
@@ -147,35 +147,43 @@ mod tests {
         };
 
         router
-            .handle_peer_message(SomeTestOfferParams::some_x_only_public_key(), peer_message)
+            .handle_peer_message(
+                SomeTestOfferParams::some_x_only_public_key(),
+                "".to_string(),
+                peer_message,
+            )
             .await
             .unwrap();
 
         let mut event_count = 0;
         let mut fallback_count = 0;
 
-        while let Some(event) = event_rx.try_recv().ok() {
-            let (_event_id, serde_type, serde_message) = event;
-            match serde_type {
+        while let Some(peer_envelope) = event_rx.try_recv().ok() {
+            match peer_envelope.message_type {
                 SerdeGenericType::TakerOffer => {
-                    let _ = serde_message.downcast_ref::<Offer>().unwrap();
+                    let _ = peer_envelope.message.downcast_ref::<Offer>().unwrap();
                     event_count += 1;
                 }
                 _ => {
-                    panic!("Unexpected serde type {:?} from rx", serde_type);
+                    panic!(
+                        "Unexpected serde type {:?} from rx",
+                        peer_envelope.message_type
+                    );
                 }
             }
         }
 
-        while let Some(event) = fallback_rx.try_recv().ok() {
-            let (_event_id, serde_type, serde_message) = event;
-            match serde_type {
+        while let Some(peer_envelope) = fallback_rx.try_recv().ok() {
+            match peer_envelope.message_type {
                 SerdeGenericType::TakerOffer => {
-                    let _ = serde_message.downcast_ref::<Offer>().unwrap();
+                    let _ = peer_envelope.message.downcast_ref::<Offer>().unwrap();
                     fallback_count += 1;
                 }
                 _ => {
-                    panic!("Unexpected serde type {:?} from rx", serde_type);
+                    panic!(
+                        "Unexpected serde type {:?} from rx",
+                        peer_envelope.message_type
+                    );
                 }
             }
         }
@@ -188,10 +196,8 @@ mod tests {
     async fn test_peer_message_fallback_tx() {
         let trade_uuid = SomeTestOrderParams::some_uuid();
         let mut router = Router::new();
-        let (event_tx, mut event_rx) =
-            mpsc::channel::<(XOnlyPublicKey, SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
-        let (peer_message_fallback_tx, mut fallback_rx) =
-            mpsc::channel::<(XOnlyPublicKey, SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
+        let (event_tx, mut event_rx) = mpsc::channel::<PeerEnvelope>(1);
+        let (peer_message_fallback_tx, mut fallback_rx) = mpsc::channel::<PeerEnvelope>(1);
         router
             .register_peer_message_tx(Uuid::new_v4(), event_tx)
             .unwrap();
@@ -211,35 +217,43 @@ mod tests {
         };
 
         router
-            .handle_peer_message(SomeTestOfferParams::some_x_only_public_key(), peer_message)
+            .handle_peer_message(
+                SomeTestOfferParams::some_x_only_public_key(),
+                "".to_string(),
+                peer_message,
+            )
             .await
             .unwrap();
 
         let mut event_count = 0;
         let mut fallback_count = 0;
 
-        while let Some(event) = event_rx.try_recv().ok() {
-            let (_event_id, serde_type, serde_message) = event;
-            match serde_type {
+        while let Some(peer_envelope) = event_rx.try_recv().ok() {
+            match peer_envelope.message_type {
                 SerdeGenericType::TakerOffer => {
-                    let _ = serde_message.downcast_ref::<Offer>().unwrap();
+                    let _ = peer_envelope.message.downcast_ref::<Offer>().unwrap();
                     event_count += 1;
                 }
                 _ => {
-                    panic!("Unexpected serde type {:?} from rx", serde_type);
+                    panic!(
+                        "Unexpected serde type {:?} from rx",
+                        peer_envelope.message_type
+                    );
                 }
             }
         }
 
-        while let Some(event) = fallback_rx.try_recv().ok() {
-            let (_event_id, serde_type, serde_message) = event;
-            match serde_type {
+        while let Some(peer_envelope) = fallback_rx.try_recv().ok() {
+            match peer_envelope.message_type {
                 SerdeGenericType::TakerOffer => {
-                    let _ = serde_message.downcast_ref::<Offer>().unwrap();
+                    let _ = peer_envelope.message.downcast_ref::<Offer>().unwrap();
                     fallback_count += 1;
                 }
                 _ => {
-                    panic!("Unexpected serde type {:?} from rx", serde_type);
+                    panic!(
+                        "Unexpected serde type {:?} from rx",
+                        peer_envelope.message_type
+                    );
                 }
             }
         }
@@ -252,8 +266,7 @@ mod tests {
     async fn test_no_matching_registered_tx() {
         let trade_uuid = SomeTestOrderParams::some_uuid();
         let mut router = Router::new();
-        let (event_tx, mut event_rx) =
-            mpsc::channel::<(XOnlyPublicKey, SerdeGenericType, Box<dyn SerdeGenericTrait>)>(1);
+        let (event_tx, mut event_rx) = mpsc::channel::<PeerEnvelope>(1);
         router
             .register_peer_message_tx(Uuid::new_v4(), event_tx)
             .unwrap();
@@ -270,21 +283,27 @@ mod tests {
         };
 
         let result = router
-            .handle_peer_message(SomeTestOfferParams::some_x_only_public_key(), peer_message)
+            .handle_peer_message(
+                SomeTestOfferParams::some_x_only_public_key(),
+                "".to_string(),
+                peer_message,
+            )
             .await;
 
         let mut event_count = 0;
         let fallback_count = 0;
 
-        while let Some(event) = event_rx.try_recv().ok() {
-            let (_event_id, serde_type, serde_message) = event;
-            match serde_type {
+        while let Some(peer_envelope) = event_rx.try_recv().ok() {
+            match peer_envelope.message_type {
                 SerdeGenericType::TakerOffer => {
-                    let _ = serde_message.downcast_ref::<Offer>().unwrap();
+                    let _ = peer_envelope.message.downcast_ref::<Offer>().unwrap();
                     event_count += 1;
                 }
                 _ => {
-                    panic!("Unexpected serde type {:?} from rx", serde_type);
+                    panic!(
+                        "Unexpected serde type {:?} from rx",
+                        peer_envelope.message_type
+                    );
                 }
             }
         }

@@ -10,14 +10,14 @@ use uuid::Uuid;
 
 use crate::common::error::N3xbError;
 use crate::common::types::{
-    EventKind, ObligationKind, OrderTag, SerdeGenericTrait, SerdeGenericType, N3XB_APPLICATION_TAG,
+    EventKind, ObligationKind, OrderTag, SerdeGenericType, N3XB_APPLICATION_TAG,
 };
 use crate::offer::Offer;
 use crate::order::{MakerObligation, Order, TakerObligation, TradeDetails, TradeParameter};
 
 use super::maker_order_note::MakerOrderNote;
 use super::nostr::*;
-use super::peer_messaging::PeerMessage;
+use super::peer_messaging::{PeerEnvelope, PeerMessage};
 use super::router::Router;
 
 pub(crate) struct InterfacerHandle {
@@ -73,7 +73,7 @@ impl InterfacerHandle {
     pub(crate) async fn register_peer_message_tx(
         &mut self,
         trade_uuid: Uuid,
-        tx: mpsc::Sender<(XOnlyPublicKey, SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
+        tx: mpsc::Sender<PeerEnvelope>,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = InterfacerRequest::RegisterTradeTx {
@@ -99,7 +99,7 @@ impl InterfacerHandle {
 
     pub(crate) async fn register_peer_message_fallback_tx(
         &mut self,
-        tx: mpsc::Sender<(XOnlyPublicKey, SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
+        tx: mpsc::Sender<PeerEnvelope>,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = InterfacerRequest::RegisterFallbackTx { tx, rsp_tx };
@@ -222,7 +222,7 @@ pub(super) enum InterfacerRequest {
     },
     RegisterTradeTx {
         trade_uuid: Uuid,
-        tx: mpsc::Sender<(XOnlyPublicKey, SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
+        tx: mpsc::Sender<PeerEnvelope>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     UnregisterTradeTx {
@@ -230,7 +230,7 @@ pub(super) enum InterfacerRequest {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     RegisterFallbackTx {
-        tx: mpsc::Sender<(XOnlyPublicKey, SerdeGenericType, Box<dyn SerdeGenericTrait>)>,
+        tx: mpsc::Sender<PeerEnvelope>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     UnregisterFallbackTx {
@@ -422,7 +422,7 @@ impl InterfacerActor {
             Ok(peer_message) => {
                 if let Some(error) = self
                     .router
-                    .handle_peer_message(event.pubkey, peer_message)
+                    .handle_peer_message(event.pubkey, event.id.to_string(), peer_message)
                     .await
                     .err()
                 {

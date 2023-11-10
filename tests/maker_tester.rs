@@ -1,5 +1,4 @@
-use crusty_n3xb::{common::error::N3xbError, manager::Manager, order::Order};
-use secp256k1::XOnlyPublicKey;
+use crusty_n3xb::{common::error::N3xbError, manager::Manager, offer::OfferEnvelope, order::Order};
 use tokio::sync::{mpsc, oneshot};
 
 pub struct MakerTester {
@@ -46,20 +45,24 @@ impl MakerTesterActor {
         let maker = self.manager.make_new_order(order).await.unwrap();
 
         // Register for Taker Offer Notifs from Maker
-        let (notif_tx, mut notif_rx) = mpsc::channel::<Result<XOnlyPublicKey, N3xbError>>(
+        let (notif_tx, mut notif_rx) = mpsc::channel::<Result<OfferEnvelope, N3xbError>>(
             Self::MAKER_TEST_ACTOR_NOTIF_CHANNEL_SIZE,
         );
         maker.register_offer_notif_tx(notif_tx).await.unwrap();
 
         // Wait for a Taker Offer Notif - This can be made into a loop if wanted, or to wait for a particular offer
         let notif_result = notif_rx.recv().await.unwrap();
-        let taker_pubkey = notif_result.unwrap();
+        let offer_envelope = notif_result.unwrap();
 
         // Query Offer
-        let offers = maker.query_offers().await;
-        assert!(offers.len() >= 1);
+        let offer_envelopes = maker.query_offers().await;
+        assert!(offer_envelopes.len() >= 1);
 
-        let offer = maker.query_offer(taker_pubkey).await.unwrap();
+        let offer = maker
+            .query_offer(offer_envelope.event_id)
+            .await
+            .unwrap()
+            .offer;
         offer.validate_against(&self.order).unwrap();
 
         // Accept Offer

@@ -5,3 +5,4 @@ mod peer_messaging;
 mod router;
 
 pub(crate) use interfacer::{Interfacer, InterfacerHandle};
+pub(crate) use peer_messaging::PeerEnvelope;
