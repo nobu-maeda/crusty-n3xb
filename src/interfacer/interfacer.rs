@@ -50,8 +50,7 @@ impl InterfacerHandle {
             rsp_tx,
         };
         self.tx.send(request).await.unwrap();
-        rsp_rx.await.unwrap()?;
-        Ok(())
+        rsp_rx.await.unwrap()
     }
 
     pub(crate) async fn remove_relay(&self, relay: impl Into<String>) -> Result<(), N3xbError> {
@@ -61,8 +60,7 @@ impl InterfacerHandle {
             rsp_tx,
         };
         self.tx.send(request).await.unwrap();
-        rsp_rx.await.unwrap()?;
-        Ok(())
+        rsp_rx.await.unwrap()
     }
 
     pub(crate) async fn get_relays(&self) -> Vec<Url> {
@@ -84,8 +82,7 @@ impl InterfacerHandle {
             rsp_tx,
         };
         self.tx.send(request).await.unwrap();
-        rsp_rx.await.unwrap()?;
-        Ok(())
+        rsp_rx.await.unwrap()
     }
 
     pub(crate) async fn unregister_peer_message_tx(
@@ -95,8 +92,7 @@ impl InterfacerHandle {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = InterfacerRequest::UnregisterTradeTx { trade_uuid, rsp_tx };
         self.tx.send(request).await.unwrap();
-        rsp_rx.await.unwrap()?;
-        Ok(())
+        rsp_rx.await.unwrap()
     }
 
     pub(crate) async fn register_peer_message_fallback_tx(
@@ -106,20 +102,18 @@ impl InterfacerHandle {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = InterfacerRequest::RegisterFallbackTx { tx, rsp_tx };
         self.tx.send(request).await.unwrap();
-        rsp_rx.await.unwrap()?;
-        Ok(())
+        rsp_rx.await.unwrap()
     }
 
     pub(crate) async fn unregister_peer_message_fallback_tx(&mut self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = InterfacerRequest::UnregisterFallbackTx { rsp_tx };
         self.tx.send(request).await.unwrap();
-        rsp_rx.await.unwrap()?;
-        Ok(())
+        rsp_rx.await.unwrap()
     }
 
-    pub(crate) async fn send_maker_order_note(&self, order: Order) -> Result<(), N3xbError> {
-        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+    pub(crate) async fn send_maker_order_note(&self, order: Order) -> Result<String, N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<String, N3xbError>>();
         let request = InterfacerRequest::SendMakerOrderNote { order, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
@@ -240,7 +234,7 @@ pub(super) enum InterfacerRequest {
     },
     SendMakerOrderNote {
         order: Order,
-        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+        rsp_tx: oneshot::Sender<Result<String, N3xbError>>,
     },
     QueryOrders {
         rsp_tx: oneshot::Sender<Result<Vec<OrderEnvelope>, N3xbError>>,
@@ -505,7 +499,7 @@ impl InterfacerActor {
     async fn send_maker_order_note(
         &self,
         order: Order,
-        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+        rsp_tx: oneshot::Sender<Result<String, N3xbError>>,
     ) {
         // Create Note Content
         let maker_order_note = MakerOrderNote {
@@ -565,7 +559,7 @@ impl InterfacerActor {
             .await;
 
         match result {
-            Ok(_) => rsp_tx.send(Ok(())).unwrap(),
+            Ok(event_id) => rsp_tx.send(Ok(event_id.to_string())).unwrap(),
             Err(error) => rsp_tx.send(Err(error.into())).unwrap(),
         }
     }

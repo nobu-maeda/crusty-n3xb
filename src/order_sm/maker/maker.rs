@@ -123,6 +123,7 @@ struct MakerActor {
     rx: mpsc::Receiver<MakerRequest>,
     interfacer_handle: InterfacerHandle,
     order: Order,
+    order_event_id: Option<String>,
     offer_envelopes: HashMap<String, OfferEnvelope>,
     notif_tx: Option<mpsc::Sender<Result<OfferEnvelope, N3xbError>>>,
 }
@@ -139,6 +140,7 @@ impl MakerActor {
             rx,
             interfacer_handle,
             order,
+            order_event_id: None,
             offer_envelopes,
             notif_tx: None,
         }
@@ -187,7 +189,15 @@ impl MakerActor {
     async fn send_maker_order(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         let order = self.order.clone();
         let result = self.interfacer_handle.send_maker_order_note(order).await;
-        rsp_tx.send(result).unwrap(); // oneshot should not fail
+        match result {
+            Ok(event_id) => {
+                self.order_event_id = Some(event_id.clone());
+                rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
+            }
+            Err(error) => {
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+            }
+        }
     }
 
     async fn query_offers(&mut self, rsp_tx: oneshot::Sender<HashMap<String, OfferEnvelope>>) {
