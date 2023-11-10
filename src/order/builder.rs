@@ -97,8 +97,6 @@ impl OrderBuilder {
         let pow_difficulty = self.pow_difficulty.unwrap_or_else(|| 0);
 
         let order = Order {
-            pubkey: pubkey.to_owned(),
-            event_id: "".to_string(), // This doesn't get sent thru the Maker Oder Note, And only gets populated on deserilaization
             trade_uuid: trade_uuid,
             maker_obligation: maker_obligation.to_owned(),
             taker_obligation: taker_obligation.to_owned(),

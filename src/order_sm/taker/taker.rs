@@ -1,3 +1,4 @@
+use secp256k1::XOnlyPublicKey;
 use tokio::{
     select,
     sync::{mpsc, oneshot},
@@ -33,11 +34,21 @@ impl TakerEngine {
 
     pub(crate) async fn new(
         interfacer_handle: InterfacerHandle,
+        maker_pubkey: XOnlyPublicKey,
+        maker_order_event_id: String,
         order: Order,
         offer: Offer,
     ) -> Self {
         let (tx, rx) = mpsc::channel::<TakerRequest>(Self::TAKER_REQUEST_CHANNEL_SIZE);
-        let mut actor = TakerActor::new(rx, interfacer_handle, order, offer).await;
+        let mut actor = TakerActor::new(
+            rx,
+            interfacer_handle,
+            maker_pubkey,
+            maker_order_event_id,
+            order,
+            offer,
+        )
+        .await;
         tokio::spawn(async move { actor.run().await });
         Self { tx }
     }
@@ -60,6 +71,8 @@ pub(super) enum TakerRequest {
 struct TakerActor {
     rx: mpsc::Receiver<TakerRequest>,
     interfacer_handle: InterfacerHandle,
+    maker_pubkey: XOnlyPublicKey,
+    maker_order_event_id: String,
     order: Order,
     offer: Offer,
 }
@@ -68,12 +81,16 @@ impl TakerActor {
     pub(crate) async fn new(
         rx: mpsc::Receiver<TakerRequest>,
         interfacer_handle: InterfacerHandle,
+        maker_pubkey: XOnlyPublicKey,
+        maker_order_event_id: String,
         order: Order,
         offer: Offer,
     ) -> Self {
         TakerActor {
             rx,
             interfacer_handle,
+            maker_pubkey,
+            maker_order_event_id,
             order,
             offer,
         }
@@ -105,8 +122,8 @@ impl TakerActor {
         let result = self
             .interfacer_handle
             .send_taker_offer_message(
-                self.order.pubkey.clone(),
-                self.order.event_id.clone(),
+                self.maker_pubkey.clone(),
+                self.maker_order_event_id.clone(),
                 self.order.trade_uuid.clone(),
                 offer,
             )

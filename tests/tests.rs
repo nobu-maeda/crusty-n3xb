@@ -56,40 +56,42 @@ mod make_order_tests {
         let order = builder.build().unwrap();
         manager.make_new_order(order).await.unwrap();
 
-        let orders = loop {
-            let orders = manager.query_order_notes().await.unwrap();
-            if !orders.is_empty() {
-                break orders;
+        let order_envelopes = loop {
+            let order_envelopes = manager.query_orders().await.unwrap();
+            if !order_envelopes.is_empty() {
+                break order_envelopes;
             }
         };
 
-        assert_eq!(orders[0].trade_uuid, SomeTestOrderParams::some_uuid());
+        let order = order_envelopes[0].order.clone();
+
+        assert_eq!(order.trade_uuid, SomeTestOrderParams::some_uuid());
         assert_eq!(
-            orders[0].maker_obligation.kinds,
+            order.maker_obligation.kinds,
             SomeTestOrderParams::maker_obligation_kinds()
         );
         assert_eq!(
-            orders[0].maker_obligation.content,
+            order.maker_obligation.content,
             SomeTestOrderParams::maker_obligation_content()
         );
         assert_eq!(
-            orders[0].taker_obligation.kinds,
+            order.taker_obligation.kinds,
             SomeTestOrderParams::taker_obligation_kinds()
         );
         assert_eq!(
-            orders[0].taker_obligation.content,
+            order.taker_obligation.content,
             SomeTestOrderParams::taker_obligation_content()
         );
         assert_eq!(
-            orders[0].trade_details.parameters,
+            order.trade_details.parameters,
             SomeTestOrderParams::trade_parameters()
         );
         assert_eq!(
-            orders[0].trade_details.content,
+            order.trade_details.content,
             SomeTestOrderParams::trade_details_content()
         );
 
-        let trade_engine_specifics = orders[0]
+        let trade_engine_specifics = order
             .trade_engine_specifics
             .any_ref()
             .downcast_ref::<SomeTradeEngineMakerOrderSpecifics>()
@@ -99,10 +101,7 @@ mod make_order_tests {
             trade_engine_specifics.test_specific_field,
             SomeTestParams::engine_specific_str()
         );
-        assert_eq!(
-            orders[0].pow_difficulty,
-            SomeTestOrderParams::pow_difficulty()
-        );
+        assert_eq!(order.pow_difficulty, SomeTestOrderParams::pow_difficulty());
 
         // Shutdown the relay
         relay.shutdown_tx.send(()).unwrap();
@@ -124,7 +123,7 @@ mod maker_taker_flow_tests {
 
     use super::relay;
     use super::INIT;
-    use crusty_n3xb::order::Order;
+    use crusty_n3xb::order::{Order, OrderEnvelope};
     use crusty_n3xb::testing::*;
     use crusty_n3xb::{
         manager::Manager,
@@ -192,23 +191,25 @@ mod maker_taker_flow_tests {
         let order = builder.build().unwrap();
         let _ = maker.make_new_order(order).await.unwrap();
 
-        let orders = loop {
-            let orders = taker.query_order_notes().await.unwrap();
-            if !orders.is_empty() {
-                break orders;
+        let order_envelopes = loop {
+            let order_envelopes = taker.query_orders().await.unwrap();
+            if !order_envelopes.is_empty() {
+                break order_envelopes;
             }
         };
 
-        let mut opt_order: Option<Order> = None;
-        for order in orders {
-            if order.pubkey == maker_pubkey && order.trade_uuid == SomeTestOrderParams::some_uuid()
+        let mut opt_order_envelope: Option<OrderEnvelope> = None;
+        for order_envelope in order_envelopes {
+            if order_envelope.pubkey == maker_pubkey
+                && order_envelope.order.trade_uuid == SomeTestOrderParams::some_uuid()
             {
-                opt_order = Some(order);
+                opt_order_envelope = Some(order_envelope);
             }
         }
 
-        assert!(opt_order.is_some());
-        let order = opt_order.unwrap();
+        assert!(opt_order_envelope.is_some());
+        let order_envelope = opt_order_envelope.unwrap();
+        let order = order_envelope.order.clone();
 
         assert_eq!(order.trade_uuid, SomeTestOrderParams::some_uuid());
         assert_eq!(
@@ -251,7 +252,7 @@ mod maker_taker_flow_tests {
 
         // Create Taker Offer to take the Order
         let offer = SomeTestOfferParams::default_builder().build().unwrap();
-        taker.take_order(order, offer).await.unwrap();
+        taker.take_order(order_envelope, offer).await.unwrap();
 
         sleep(Duration::from_millis(500)).await;
 

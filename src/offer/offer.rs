@@ -14,6 +14,7 @@ pub struct OfferEnvelope {
     pub pubkey: XOnlyPublicKey,
     pub event_id: String,
     pub offer: Offer,
+    pub(crate) _private: (),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

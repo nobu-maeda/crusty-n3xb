@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::common::error::N3xbError;
 use crate::interfacer::{Interfacer, InterfacerHandle};
 use crate::offer::Offer;
-use crate::order::Order;
+use crate::order::{Order, OrderEnvelope};
 use crate::order_sm::maker::{Maker, MakerEngine};
 use crate::order_sm::taker::{Taker, TakerEngine};
 
@@ -94,29 +94,39 @@ impl Manager {
         Ok(maker_returned)
     }
 
-    pub async fn query_order_notes(&mut self) -> Result<Vec<Order>, N3xbError> {
-        let mut orders = self.interfacer_handle.query_order_notes().await?;
-        let queried_length = orders.len();
+    pub async fn query_orders(&mut self) -> Result<Vec<OrderEnvelope>, N3xbError> {
+        let mut order_envelopes = self.interfacer_handle.query_orders().await?;
+        let queried_length = order_envelopes.len();
 
-        let valid_orders: Vec<Order> = orders
+        let valid_order_envelopes: Vec<OrderEnvelope> = order_envelopes
             .drain(..)
-            .filter(|order| order.validate().is_ok())
+            .filter(|order_envelope| order_envelope.order.validate().is_ok())
             .collect();
-        let valid_length = valid_orders.len();
+        let valid_length = valid_order_envelopes.len();
 
         if valid_length < queried_length {
             let filtered_orders = queried_length - valid_length;
             warn!("{} orders filtered out on original query result of {} orders leaving {} valid orders returned", filtered_orders, queried_length, valid_length);
         }
-
-        Ok(valid_orders)
+        Ok(valid_order_envelopes)
     }
 
-    pub async fn take_order(&self, order: Order, offer: Offer) -> Result<Taker, N3xbError> {
-        offer.validate_against(&order)?;
+    pub async fn take_order(
+        &self,
+        order_envelope: OrderEnvelope,
+        offer: Offer,
+    ) -> Result<Taker, N3xbError> {
+        offer.validate_against(&order_envelope.order)?;
 
-        let trade_uuid = order.trade_uuid;
-        let taker_engine = TakerEngine::new(self.interfacer.new_handle(), order, offer).await;
+        let trade_uuid = order_envelope.order.trade_uuid;
+        let taker_engine = TakerEngine::new(
+            self.interfacer.new_handle(),
+            order_envelope.pubkey,
+            order_envelope.event_id,
+            order_envelope.order,
+            offer,
+        )
+        .await;
         let taker_own = taker_engine.new_handle().await;
         let taker_returned = taker_engine.new_handle().await;
 

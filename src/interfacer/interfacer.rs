@@ -13,7 +13,9 @@ use crate::common::types::{
     EventKind, ObligationKind, OrderTag, SerdeGenericType, N3XB_APPLICATION_TAG,
 };
 use crate::offer::Offer;
-use crate::order::{MakerObligation, Order, TakerObligation, TradeDetails, TradeParameter};
+use crate::order::{
+    MakerObligation, Order, OrderEnvelope, TakerObligation, TradeDetails, TradeParameter,
+};
 
 use super::maker_order_note::MakerOrderNote;
 use super::nostr::*;
@@ -123,9 +125,9 @@ impl InterfacerHandle {
         rsp_rx.await.unwrap()
     }
 
-    pub(crate) async fn query_order_notes(&self) -> Result<Vec<Order>, N3xbError> {
-        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<Vec<Order>, N3xbError>>();
-        let request = InterfacerRequest::QueryOrderNotes { rsp_tx };
+    pub(crate) async fn query_orders(&self) -> Result<Vec<OrderEnvelope>, N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<Vec<OrderEnvelope>, N3xbError>>();
+        let request = InterfacerRequest::QueryOrders { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -240,8 +242,8 @@ pub(super) enum InterfacerRequest {
         order: Order,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
-    QueryOrderNotes {
-        rsp_tx: oneshot::Sender<Result<Vec<Order>, N3xbError>>,
+    QueryOrders {
+        rsp_tx: oneshot::Sender<Result<Vec<OrderEnvelope>, N3xbError>>,
     },
     SendTakerOfferMessage {
         public_key: XOnlyPublicKey, // Pubkey of destination receipient (Maker)
@@ -354,7 +356,7 @@ impl InterfacerActor {
             }
 
             // Query Order Notes
-            InterfacerRequest::QueryOrderNotes { rsp_tx } => self.query_order_notes(rsp_tx).await,
+            InterfacerRequest::QueryOrders { rsp_tx } => self.query_orders(rsp_tx).await,
 
             // Send Taker Offer Message
             InterfacerRequest::SendTakerOfferMessage {
@@ -602,7 +604,7 @@ impl InterfacerActor {
 
     // Query Order Notes
 
-    async fn query_order_notes(&self, rsp_tx: oneshot::Sender<Result<Vec<Order>, N3xbError>>) {
+    async fn query_orders(&self, rsp_tx: oneshot::Sender<Result<Vec<OrderEnvelope>, N3xbError>>) {
         let mut tag_set: Vec<OrderTag> = Vec::new();
         tag_set.push(OrderTag::TradeEngineName(self.trade_engine_name.to_owned()));
         tag_set.push(OrderTag::EventKind(EventKind::MakerOrder));
@@ -618,11 +620,11 @@ impl InterfacerActor {
             }
         };
 
-        let maybe_orders = self.extract_orders_from_events(events);
-        let mut orders: Vec<Order> = Vec::new();
-        for maybe_order in maybe_orders {
-            match maybe_order {
-                Ok(order) => orders.push(order),
+        let maybe_order_envelopes = self.extract_order_envelopes_from_events(events);
+        let mut order_envelopes: Vec<OrderEnvelope> = Vec::new();
+        for maybe_order_envelope in maybe_order_envelopes {
+            match maybe_order_envelope {
+                Ok(order_envelope) => order_envelopes.push(order_envelope),
                 Err(error) => {
                     warn!(
                         "Order extraction from Nostr event failed - {}",
@@ -631,7 +633,7 @@ impl InterfacerActor {
                 }
             }
         }
-        rsp_tx.send(Ok(orders)).unwrap();
+        rsp_tx.send(Ok(order_envelopes)).unwrap();
     }
 
     fn extract_order_tags_from_tags(&self, tags: Vec<Tag>) -> Vec<OrderTag> {
@@ -649,7 +651,7 @@ impl InterfacerActor {
         order_tags
     }
 
-    fn extract_order_from_event(&self, event: Event) -> Result<Order, N3xbError> {
+    fn extract_order_envelope_from_event(&self, event: Event) -> Result<OrderEnvelope, N3xbError> {
         let maker_order_note: MakerOrderNote = serde_json::from_str(event.content.as_str())?;
         let order_tags = self.extract_order_tags_from_tags(event.tags);
 
@@ -731,9 +733,7 @@ impl InterfacerActor {
             return Err(N3xbError::Simple(message));
         };
 
-        Ok(Order {
-            pubkey: event.pubkey,
-            event_id: event.id.to_string(),
+        let order = Order {
             trade_uuid,
             maker_obligation,
             taker_obligation,
@@ -741,16 +741,25 @@ impl InterfacerActor {
             trade_engine_specifics: maker_order_note.trade_engine_specifics,
             pow_difficulty: maker_order_note.pow_difficulty,
             _private: (),
+        };
+        Ok(OrderEnvelope {
+            pubkey: event.pubkey,
+            event_id: event.id.to_string(),
+            order: order,
+            _private: (),
         })
     }
 
-    fn extract_orders_from_events(&self, events: Vec<Event>) -> Vec<Result<Order, N3xbError>> {
-        let mut orders: Vec<Result<Order, N3xbError>> = Vec::new();
+    fn extract_order_envelopes_from_events(
+        &self,
+        events: Vec<Event>,
+    ) -> Vec<Result<OrderEnvelope, N3xbError>> {
+        let mut order_envelopes: Vec<Result<OrderEnvelope, N3xbError>> = Vec::new();
         for event in events {
-            let order = self.extract_order_from_event(event);
-            orders.push(order);
+            let order_envelope = self.extract_order_envelope_from_event(event);
+            order_envelopes.push(order_envelope);
         }
-        orders
+        order_envelopes
     }
 
     fn create_event_tag_filter(tags: Vec<OrderTag>) -> Filter {
@@ -904,8 +913,6 @@ mod tests {
         let boxed_trade_engine_specifics = Box::new(trade_engine_specifics);
 
         let order = Order {
-            pubkey: SomeTestOrderParams::some_x_only_public_key(),
-            event_id: "".to_string(),
             trade_uuid: SomeTestOrderParams::some_uuid(),
             maker_obligation,
             taker_obligation,
@@ -929,13 +936,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_query_order_notes() {
+    async fn test_query_orders() {
         let mut client = Client::new();
         client.expect_keys().returning(|| Keys::generate());
         client.expect_subscribe().returning(|_| {});
         client
             .expect_get_events_of()
-            .returning(query_order_notes_expectation);
+            .returning(query_orders_expectation);
         client.expect_notifications().returning(|| {
             let (tx, rx) = broadcast::channel::<RelayPoolNotification>(1);
             Box::leak(Box::new(tx));
@@ -946,10 +953,10 @@ mod tests {
             Interfacer::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
         let interfacer_handle = interfacer.new_handle();
 
-        let _ = interfacer_handle.query_order_notes().await.unwrap();
+        let _ = interfacer_handle.query_orders().await.unwrap();
     }
 
-    fn query_order_notes_expectation(
+    fn query_orders_expectation(
         filters: Vec<Filter>,
         timeout: Option<Duration>,
     ) -> Result<Vec<Event>, Error> {

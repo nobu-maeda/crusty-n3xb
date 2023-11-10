@@ -249,6 +249,7 @@ impl MakerActor {
                     pubkey: peer_envelope.pubkey,
                     event_id: peer_envelope.event_id,
                     offer,
+                    _private: (),
                 };
                 self.handle_taker_offer(offer_envelope).await;
             }

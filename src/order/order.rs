@@ -8,10 +8,16 @@ use crate::common::{
     types::{ObligationKind, SerdeGenericTrait},
 };
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Order {
+#[derive(Clone, Debug)]
+pub struct OrderEnvelope {
     pub pubkey: XOnlyPublicKey,
     pub event_id: String,
+    pub order: Order,
+    pub(crate) _private: (),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Order {
     pub trade_uuid: Uuid,
     pub maker_obligation: MakerObligation,
     pub taker_obligation: TakerObligation,
