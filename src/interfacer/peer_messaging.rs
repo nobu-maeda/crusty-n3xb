@@ -1,4 +1,4 @@
-use crate::common::types::{SerdeGenericTrait, SerdeGenericType};
+use crate::common::types::{EventIdString, SerdeGenericTrait, SerdeGenericType};
 use secp256k1::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};
 use std::{any::Any, fmt::Debug};
@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 pub(crate) struct PeerEnvelope {
     pub(crate) pubkey: XOnlyPublicKey,
-    pub(crate) event_id: String,
+    pub(crate) event_id: EventIdString,
     pub(crate) message_type: SerdeGenericType,
     pub(crate) message: Box<dyn SerdeGenericTrait>,
 }

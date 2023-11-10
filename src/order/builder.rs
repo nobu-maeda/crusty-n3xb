@@ -1,4 +1,3 @@
-use secp256k1::XOnlyPublicKey;
 use uuid::Uuid;
 
 use super::{obligation::*, order::*, trade_details::*};
@@ -7,7 +6,6 @@ use crate::common::error::*;
 use crate::common::types::SerdeGenericTrait;
 
 pub struct OrderBuilder {
-    pubkey: Option<XOnlyPublicKey>,
     trade_uuid: Option<Uuid>,
     maker_obligation: Option<MakerObligation>,
     taker_obligation: Option<TakerObligation>,
@@ -19,7 +17,6 @@ pub struct OrderBuilder {
 impl OrderBuilder {
     pub fn new() -> Self {
         OrderBuilder {
-            pubkey: Option::<XOnlyPublicKey>::None,
             trade_uuid: Option::<Uuid>::None,
             maker_obligation: Option::<MakerObligation>::None,
             taker_obligation: Option::<TakerObligation>::None,
@@ -27,11 +24,6 @@ impl OrderBuilder {
             trade_engine_specifics: Option::None,
             pow_difficulty: Option::<u64>::None,
         }
-    }
-
-    pub fn pubkey(&mut self, pubkey: impl Into<XOnlyPublicKey>) -> &mut Self {
-        self.pubkey = Some(pubkey.into());
-        self
     }
 
     pub fn trade_uuid(&mut self, trade_uuid: impl Into<Uuid>) -> &mut Self {
@@ -68,9 +60,6 @@ impl OrderBuilder {
     }
 
     pub fn build(&mut self) -> std::result::Result<Order, N3xbError> {
-        let Some(pubkey) = self.pubkey.as_ref() else {
-            return Err(N3xbError::Simple("No PubKey".to_string()));
-        };
         let trade_uuid = if let Some(explicit_uuid) = self.trade_uuid.as_ref() {
             explicit_uuid.to_owned()
         } else {
@@ -120,8 +109,6 @@ mod tests {
     #[tokio::test]
     async fn test_order_builder_build() {
         let mut builder: OrderBuilder = OrderBuilder::new();
-
-        builder.pubkey(SomeTestOrderParams::some_x_only_public_key());
 
         builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
@@ -201,8 +188,6 @@ mod tests {
     async fn test_order_builder_build_trade_uuid_missing() {
         let mut builder: OrderBuilder = OrderBuilder::new();
 
-        builder.pubkey(SomeTestOrderParams::some_x_only_public_key());
-
         builder.maker_obligation(MakerObligation {
             kinds: SomeTestOrderParams::maker_obligation_kinds(),
             content: SomeTestOrderParams::maker_obligation_content(),
@@ -232,8 +217,6 @@ mod tests {
     #[tokio::test]
     async fn test_order_builder_build_maker_obligation_missing() {
         let mut builder: OrderBuilder = OrderBuilder::new();
-
-        builder.pubkey(SomeTestOrderParams::some_x_only_public_key());
 
         builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
@@ -269,8 +252,6 @@ mod tests {
     async fn test_order_builder_build_taker_obligation_missing() {
         let mut builder: OrderBuilder = OrderBuilder::new();
 
-        builder.pubkey(SomeTestOrderParams::some_x_only_public_key());
-
         builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
@@ -304,8 +285,6 @@ mod tests {
     #[tokio::test]
     async fn test_order_builder_build_trade_details_missing() {
         let mut builder: OrderBuilder = OrderBuilder::new();
-
-        builder.pubkey(SomeTestOrderParams::some_x_only_public_key());
 
         builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
@@ -341,8 +320,6 @@ mod tests {
     async fn test_order_builder_build_engine_details_missing() {
         let mut builder: OrderBuilder = OrderBuilder::new();
 
-        builder.pubkey(SomeTestOrderParams::some_x_only_public_key());
-
         builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
@@ -375,8 +352,6 @@ mod tests {
     #[tokio::test]
     async fn test_order_builder_build_pow_difficulty_default() {
         let mut builder: OrderBuilder = OrderBuilder::new();
-
-        builder.pubkey(SomeTestOrderParams::some_x_only_public_key());
 
         builder.trade_uuid(SomeTestOrderParams::some_uuid());
 

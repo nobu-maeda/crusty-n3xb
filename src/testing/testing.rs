@@ -96,7 +96,6 @@ impl SomeTestOrderParams {
 
     pub fn default_builder() -> OrderBuilder {
         let mut builder: OrderBuilder = OrderBuilder::new();
-        builder.pubkey(Self::some_x_only_public_key());
         builder.trade_uuid(Self::some_uuid());
 
         let maker_obligation = MakerObligation {

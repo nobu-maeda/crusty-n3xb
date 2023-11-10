@@ -10,6 +10,8 @@ use std::{collections::HashSet, fmt::Debug, str::FromStr};
 
 use crate::common::error::N3xbError;
 
+pub type EventIdString = String;
+
 pub enum BuySell {
     Buy,
     Sell,

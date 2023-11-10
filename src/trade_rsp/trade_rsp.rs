@@ -1,9 +1,17 @@
 use std::{any::Any, fmt::Debug};
 
+use secp256k1::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::common::types::*;
+
+#[derive(Clone, Debug)]
+pub struct TradeResponseEnvelope {
+    pub pubkey: XOnlyPublicKey,
+    pub event_id: EventIdString,
+    pub trade_response: TradeResponse,
+    _private: (),
+}
 
 #[derive(PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub enum TradeResponseStatus {
@@ -30,7 +38,7 @@ pub enum TradeRejectReason {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TradeResponse {
-    pub offer_uuid: Uuid,
+    pub offer_event_id: EventIdString,
     pub trade_response: TradeResponseStatus,
     pub reject_reason: Vec<TradeRejectReason>,
     pub trade_engine_specifics: Box<dyn SerdeGenericTrait>,

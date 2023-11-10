@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::common::error::N3xbError;
 use crate::common::types::{
-    EventKind, ObligationKind, OrderTag, SerdeGenericType, N3XB_APPLICATION_TAG,
+    EventIdString, EventKind, ObligationKind, OrderTag, SerdeGenericType, N3XB_APPLICATION_TAG,
 };
 use crate::offer::Offer;
 use crate::order::{
@@ -112,8 +112,11 @@ impl InterfacerHandle {
         rsp_rx.await.unwrap()
     }
 
-    pub(crate) async fn send_maker_order_note(&self, order: Order) -> Result<String, N3xbError> {
-        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<String, N3xbError>>();
+    pub(crate) async fn send_maker_order_note(
+        &self,
+        order: Order,
+    ) -> Result<EventIdString, N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<EventIdString, N3xbError>>();
         let request = InterfacerRequest::SendMakerOrderNote { order, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
@@ -132,8 +135,8 @@ impl InterfacerHandle {
         maker_order_note_id: String,
         trade_uuid: Uuid,
         offer: Offer,
-    ) -> Result<(), N3xbError> {
-        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+    ) -> Result<EventIdString, N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<EventIdString, N3xbError>>();
         let request = InterfacerRequest::SendTakerOfferMessage {
             public_key,
             maker_order_note_id,
@@ -234,7 +237,7 @@ pub(super) enum InterfacerRequest {
     },
     SendMakerOrderNote {
         order: Order,
-        rsp_tx: oneshot::Sender<Result<String, N3xbError>>,
+        rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
     },
     QueryOrders {
         rsp_tx: oneshot::Sender<Result<Vec<OrderEnvelope>, N3xbError>>,
@@ -244,7 +247,7 @@ pub(super) enum InterfacerRequest {
         maker_order_note_id: String,
         trade_uuid: Uuid,
         offer: Offer,
-        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+        rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
     },
 }
 
@@ -499,7 +502,7 @@ impl InterfacerActor {
     async fn send_maker_order_note(
         &self,
         order: Order,
-        rsp_tx: oneshot::Sender<Result<String, N3xbError>>,
+        rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
     ) {
         // Create Note Content
         let maker_order_note = MakerOrderNote {
@@ -802,7 +805,7 @@ impl InterfacerActor {
         maker_order_note_id: String,
         trade_uuid: Uuid,
         offer: Offer,
-        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+        rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
     ) {
         let peer_message = PeerMessage {
             r#type: "n3xb-peer-message".to_string(),
@@ -827,7 +830,7 @@ impl InterfacerActor {
             .await;
 
         match result {
-            Ok(_) => rsp_tx.send(Ok(())).unwrap(),
+            Ok(event_id) => rsp_tx.send(Ok(event_id.to_string())).unwrap(),
             Err(error) => rsp_tx.send(Err(error.into())).unwrap(),
         }
     }

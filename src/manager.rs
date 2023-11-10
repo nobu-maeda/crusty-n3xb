@@ -119,14 +119,8 @@ impl Manager {
         offer.validate_against(&order_envelope.order)?;
 
         let trade_uuid = order_envelope.order.trade_uuid;
-        let taker_engine = TakerEngine::new(
-            self.interfacer.new_handle(),
-            order_envelope.pubkey,
-            order_envelope.event_id,
-            order_envelope.order,
-            offer,
-        )
-        .await;
+        let taker_engine =
+            TakerEngine::new(self.interfacer.new_handle(), order_envelope, offer).await;
         let taker_own = taker_engine.new_handle().await;
         let taker_returned = taker_engine.new_handle().await;
 

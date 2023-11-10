@@ -28,7 +28,6 @@ mod make_order_tests {
         manager.add_relays(relays, true).await.unwrap();
 
         let mut builder: OrderBuilder = OrderBuilder::new();
-        builder.pubkey(SomeTestOrderParams::some_x_only_public_key());
         builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
@@ -123,7 +122,7 @@ mod maker_taker_flow_tests {
 
     use super::relay;
     use super::INIT;
-    use crusty_n3xb::order::{Order, OrderEnvelope};
+    use crusty_n3xb::order::OrderEnvelope;
     use crusty_n3xb::testing::*;
     use crusty_n3xb::{
         manager::Manager,
@@ -163,7 +162,6 @@ mod maker_taker_flow_tests {
 
         // Build and send the Maker Order
         let mut builder: OrderBuilder = OrderBuilder::new();
-        builder.pubkey(SomeTestOrderParams::some_x_only_public_key());
         builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {

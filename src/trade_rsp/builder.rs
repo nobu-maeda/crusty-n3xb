@@ -1,11 +1,12 @@
-use uuid::Uuid;
-
-use crate::common::{error::N3xbError, types::SerdeGenericTrait};
+use crate::common::{
+    error::N3xbError,
+    types::{EventIdString, SerdeGenericTrait},
+};
 
 use super::{TradeRejectReason, TradeResponse, TradeResponseStatus};
 
 pub struct TradeResponseBuilder {
-    offer_uuid: Option<Uuid>,
+    offer_event_id: Option<EventIdString>,
     trade_response: Option<TradeResponseStatus>,
     reject_reason: Vec<TradeRejectReason>,
     trade_engine_specifics: Option<Box<dyn SerdeGenericTrait>>,
@@ -14,15 +15,15 @@ pub struct TradeResponseBuilder {
 impl TradeResponseBuilder {
     pub fn new() -> Self {
         Self {
-            offer_uuid: None,
+            offer_event_id: None,
             trade_response: None,
             reject_reason: [].to_vec(),
             trade_engine_specifics: None,
         }
     }
 
-    pub fn offer_uuid(&mut self, offer_uuid: impl Into<Uuid>) -> &mut Self {
-        self.offer_uuid = Some(offer_uuid.into());
+    pub fn offer_event_id(&mut self, offer_event_id: impl Into<EventIdString>) -> &mut Self {
+        self.offer_event_id = Some(offer_event_id.into());
         self
     }
 
@@ -45,8 +46,8 @@ impl TradeResponseBuilder {
     }
 
     pub fn build(&self) -> Result<TradeResponse, N3xbError> {
-        let Some(offer_uuid) = self.offer_uuid.as_ref() else {
-            return Err(N3xbError::Simple("No Offer UUID defined".to_string()));  // TODO: Error handling?
+        let Some(offer_event_id) = self.offer_event_id.as_ref() else {
+            return Err(N3xbError::Simple("No Offer Event ID defined".to_string()));  // TODO: Error handling?
         };
 
         let Some(trade_response) = self.trade_response.as_ref() else {
@@ -64,7 +65,7 @@ impl TradeResponseBuilder {
         };
 
         let trade_rsp = TradeResponse {
-            offer_uuid: offer_uuid.to_owned(),
+            offer_event_id: offer_event_id.to_owned(),
             trade_response: trade_response,
             reject_reason: self.reject_reason.to_owned(),
             trade_engine_specifics: trade_engine_specifics.to_owned(),

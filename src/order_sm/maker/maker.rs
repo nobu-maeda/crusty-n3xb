@@ -7,7 +7,10 @@ use tokio::{
 };
 
 use crate::{
-    common::{error::N3xbError, types::SerdeGenericType},
+    common::{
+        error::N3xbError,
+        types::{EventIdString, SerdeGenericType},
+    },
     interfacer::{InterfacerHandle, PeerEnvelope},
     offer::{Offer, OfferEnvelope},
     order::Order,
@@ -32,14 +35,14 @@ impl Maker {
         rsp_rx.await.unwrap()
     }
 
-    pub async fn query_offers(&self) -> HashMap<String, OfferEnvelope> {
-        let (rsp_tx, rsp_rx) = oneshot::channel::<HashMap<String, OfferEnvelope>>();
+    pub async fn query_offers(&self) -> HashMap<EventIdString, OfferEnvelope> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<HashMap<EventIdString, OfferEnvelope>>();
         let request = MakerRequest::QueryOffers { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
 
-    pub async fn query_offer(&self, event_id: String) -> Option<OfferEnvelope> {
+    pub async fn query_offer(&self, event_id: EventIdString) -> Option<OfferEnvelope> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Option<OfferEnvelope>>();
         let request = MakerRequest::QueryOffer { event_id, rsp_tx };
         self.tx.send(request).await.unwrap();
@@ -100,10 +103,10 @@ pub(super) enum MakerRequest {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     QueryOffers {
-        rsp_tx: oneshot::Sender<HashMap<String, OfferEnvelope>>,
+        rsp_tx: oneshot::Sender<HashMap<EventIdString, OfferEnvelope>>,
     },
     QueryOffer {
-        event_id: String,
+        event_id: EventIdString,
         rsp_tx: oneshot::Sender<Option<OfferEnvelope>>,
     },
     AcceptOffer {
@@ -123,8 +126,11 @@ struct MakerActor {
     rx: mpsc::Receiver<MakerRequest>,
     interfacer_handle: InterfacerHandle,
     order: Order,
-    order_event_id: Option<String>,
-    offer_envelopes: HashMap<String, OfferEnvelope>,
+    order_event_id: Option<EventIdString>,
+    offer_envelopes: HashMap<EventIdString, OfferEnvelope>,
+    accepted_offer_event_id: Option<EventIdString>,
+    trade_rsp: Option<TradeResponse>,
+    trade_rsp_event_id: Option<EventIdString>,
     notif_tx: Option<mpsc::Sender<Result<OfferEnvelope, N3xbError>>>,
 }
 
@@ -134,14 +140,15 @@ impl MakerActor {
         interfacer_handle: InterfacerHandle,
         order: Order,
     ) -> Self {
-        let offer_envelopes: HashMap<String, OfferEnvelope> = HashMap::new();
-
         MakerActor {
             rx,
             interfacer_handle,
             order,
             order_event_id: None,
-            offer_envelopes,
+            offer_envelopes: HashMap::new(),
+            accepted_offer_event_id: None,
+            trade_rsp: None,
+            trade_rsp_event_id: None,
             notif_tx: None,
         }
     }
@@ -200,13 +207,16 @@ impl MakerActor {
         }
     }
 
-    async fn query_offers(&mut self, rsp_tx: oneshot::Sender<HashMap<String, OfferEnvelope>>) {
+    async fn query_offers(
+        &mut self,
+        rsp_tx: oneshot::Sender<HashMap<EventIdString, OfferEnvelope>>,
+    ) {
         rsp_tx.send(self.offer_envelopes.clone()).unwrap(); // oneshot should not fail
     }
 
     async fn query_offer(
         &mut self,
-        event_id: String,
+        event_id: EventIdString,
         rsp_tx: oneshot::Sender<Option<OfferEnvelope>>,
     ) {
         let offer = self.offer_envelopes.get(&event_id).cloned();

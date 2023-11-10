@@ -5,7 +5,7 @@ use secp256k1::XOnlyPublicKey;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::common::error::N3xbError;
+use crate::common::{error::N3xbError, types::EventIdString};
 
 use super::peer_messaging::{PeerEnvelope, PeerMessage};
 
@@ -86,7 +86,7 @@ impl Router {
     pub(super) async fn handle_peer_message(
         &mut self,
         pubkey: XOnlyPublicKey,
-        event_id: String,
+        event_id: EventIdString,
         peer_message: PeerMessage,
     ) -> Result<(), N3xbError> {
         let envelope = PeerEnvelope {

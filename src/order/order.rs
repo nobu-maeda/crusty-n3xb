@@ -5,13 +5,13 @@ use uuid::Uuid;
 use super::{obligation::*, trade_details::*};
 use crate::common::{
     error::N3xbError,
-    types::{ObligationKind, SerdeGenericTrait},
+    types::{EventIdString, ObligationKind, SerdeGenericTrait},
 };
 
 #[derive(Clone, Debug)]
 pub struct OrderEnvelope {
     pub pubkey: XOnlyPublicKey,
-    pub event_id: String,
+    pub event_id: EventIdString,
     pub order: Order,
     pub(crate) _private: (),
 }

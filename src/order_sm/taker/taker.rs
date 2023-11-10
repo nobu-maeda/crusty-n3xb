@@ -1,10 +1,15 @@
-use secp256k1::XOnlyPublicKey;
 use tokio::{
     select,
     sync::{mpsc, oneshot},
 };
 
-use crate::{common::error::N3xbError, interfacer::InterfacerHandle, offer::Offer, order::Order};
+use crate::{
+    common::{error::N3xbError, types::EventIdString},
+    interfacer::InterfacerHandle,
+    offer::Offer,
+    order::OrderEnvelope,
+    trade_rsp::TradeResponseEnvelope,
+};
 
 pub struct Taker {
     tx: mpsc::Sender<TakerRequest>,
@@ -34,21 +39,11 @@ impl TakerEngine {
 
     pub(crate) async fn new(
         interfacer_handle: InterfacerHandle,
-        maker_pubkey: XOnlyPublicKey,
-        maker_order_event_id: String,
-        order: Order,
+        order_envelope: OrderEnvelope,
         offer: Offer,
     ) -> Self {
         let (tx, rx) = mpsc::channel::<TakerRequest>(Self::TAKER_REQUEST_CHANNEL_SIZE);
-        let mut actor = TakerActor::new(
-            rx,
-            interfacer_handle,
-            maker_pubkey,
-            maker_order_event_id,
-            order,
-            offer,
-        )
-        .await;
+        let mut actor = TakerActor::new(rx, interfacer_handle, order_envelope, offer).await;
         tokio::spawn(async move { actor.run().await });
         Self { tx }
     }
@@ -71,28 +66,26 @@ pub(super) enum TakerRequest {
 struct TakerActor {
     rx: mpsc::Receiver<TakerRequest>,
     interfacer_handle: InterfacerHandle,
-    maker_pubkey: XOnlyPublicKey,
-    maker_order_event_id: String,
-    order: Order,
+    order_envelope: OrderEnvelope,
     offer: Offer,
+    offer_event_id: Option<EventIdString>,
+    trade_rsp_envelope: Option<TradeResponseEnvelope>,
 }
 
 impl TakerActor {
     pub(crate) async fn new(
         rx: mpsc::Receiver<TakerRequest>,
         interfacer_handle: InterfacerHandle,
-        maker_pubkey: XOnlyPublicKey,
-        maker_order_event_id: String,
-        order: Order,
+        order_envelope: OrderEnvelope,
         offer: Offer,
     ) -> Self {
         TakerActor {
             rx,
             interfacer_handle,
-            maker_pubkey,
-            maker_order_event_id,
-            order,
+            order_envelope,
             offer,
+            offer_event_id: None,
+            trade_rsp_envelope: None,
         }
     }
 
@@ -117,17 +110,27 @@ impl TakerActor {
     }
 
     async fn send_taker_offer(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+        let order_envelope = self.order_envelope.clone();
         let offer = self.offer.clone();
 
         let result = self
             .interfacer_handle
             .send_taker_offer_message(
-                self.maker_pubkey.clone(),
-                self.maker_order_event_id.clone(),
-                self.order.trade_uuid.clone(),
+                order_envelope.pubkey,
+                order_envelope.event_id,
+                order_envelope.order.trade_uuid,
                 offer,
             )
             .await;
-        rsp_tx.send(result).unwrap(); // oneshot should not fail
+
+        match result {
+            Ok(event_id) => {
+                self.offer_event_id = Some(event_id);
+                rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
+            }
+            Err(err) => {
+                rsp_tx.send(Err(err)).unwrap(); // oneshot should not fail
+            }
+        }
     }
 }

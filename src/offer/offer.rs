@@ -12,7 +12,7 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct OfferEnvelope {
     pub pubkey: XOnlyPublicKey,
-    pub event_id: String,
+    pub event_id: EventIdString,
     pub offer: Offer,
     pub(crate) _private: (),
 }
