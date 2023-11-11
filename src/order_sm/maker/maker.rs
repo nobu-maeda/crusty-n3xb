@@ -228,7 +228,66 @@ impl MakerActor {
         trade_rsp: TradeResponse,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
-        // TODO: Send Trade Response to Interfacer
+        let accepted_offer_event_id = match self.accepted_offer_event_id.clone() {
+            Some(event_id) => event_id,
+            None => {
+                let error = N3xbError::Simple(format!(
+                    "Maker of Order {} expected to already have accepted an Offer",
+                    self.order.trade_uuid
+                ));
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+                return;
+            }
+        };
+
+        let pubkey = match self.offer_envelopes.get(&accepted_offer_event_id) {
+            Some(offer_envelope) => offer_envelope.pubkey.clone(),
+            None => {
+                let error = N3xbError::Simple(format!(
+                    "Maker of Order {} expected to contain accepted Offer {}",
+                    self.order.trade_uuid, accepted_offer_event_id
+                ));
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+                return;
+            }
+        };
+
+        let maker_order_note_id = match self.order_event_id.clone() {
+            Some(event_id) => event_id,
+            None => {
+                let error = N3xbError::Simple(format!(
+                    "Maker of Order {} expected to already have sent Maker Order Note and receive Event ID",
+                    self.order.trade_uuid
+                ));
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+                return;
+            }
+        };
+
+        let trade_uuid = self.order.trade_uuid.clone();
+        let trade_rsp_clone = trade_rsp.clone();
+
+        let result = self
+            .interfacer_handle
+            .send_trade_response(
+                pubkey,
+                Some(accepted_offer_event_id),
+                maker_order_note_id,
+                trade_uuid,
+                trade_rsp_clone,
+            )
+            .await;
+
+        match result {
+            Ok(event_id) => {
+                self.trade_rsp = Some(trade_rsp);
+                self.trade_rsp_event_id = Some(event_id);
+                rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
+            }
+            Err(error) => {
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+            }
+        }
     }
 
     async fn register_notif_tx(
