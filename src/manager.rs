@@ -124,6 +124,8 @@ impl Manager {
         let taker_own = taker_engine.new_handle().await;
         let taker_returned = taker_engine.new_handle().await;
 
+        taker_own.send_taker_offer().await?;
+
         let mut taker_engines = self.taker_engines.write().await;
         taker_engines.insert(trade_uuid, taker_engine);
 

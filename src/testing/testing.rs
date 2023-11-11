@@ -10,6 +10,8 @@ use uuid::Uuid;
 use crate::common::types::*;
 use crate::offer::*;
 use crate::order::*;
+use crate::trade_rsp::TradeResponseBuilder;
+use crate::trade_rsp::TradeResponseStatus;
 
 pub struct SomeTestParams {}
 
@@ -170,6 +172,21 @@ impl SomeTestOfferParams {
     }
 }
 
+pub struct SomeTestTradeRspParams {}
+
+impl SomeTestTradeRspParams {
+    pub fn default_builder() -> TradeResponseBuilder {
+        let mut builder: TradeResponseBuilder = TradeResponseBuilder::new();
+        builder.trade_response(TradeResponseStatus::Accepted);
+
+        let trade_engine_specifics = Box::new(SomeTradeEngineTradeRspSpecifics {
+            test_specific_field: SomeTestParams::engine_specific_str(),
+        });
+        builder.trade_engine_specifics(trade_engine_specifics);
+        builder
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SomeTradeEngineMakerOrderSpecifics {
     pub test_specific_field: String,
@@ -177,6 +194,11 @@ pub struct SomeTradeEngineMakerOrderSpecifics {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SomeTradeEngineTakerOfferSpecifics {
+    pub test_specific_field: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SomeTradeEngineTradeRspSpecifics {
     pub test_specific_field: String,
 }
 
@@ -189,6 +211,13 @@ impl SerdeGenericTrait for SomeTradeEngineMakerOrderSpecifics {
 
 #[typetag::serde(name = "some-trade-engine-taker-offer-specifics")]
 impl SerdeGenericTrait for SomeTradeEngineTakerOfferSpecifics {
+    fn any_ref(&self) -> &dyn Any {
+        self
+    }
+}
+
+#[typetag::serde(name = "some-trade-engine-trade-rsp-specifics")]
+impl SerdeGenericTrait for SomeTradeEngineTradeRspSpecifics {
     fn any_ref(&self) -> &dyn Any {
         self
     }

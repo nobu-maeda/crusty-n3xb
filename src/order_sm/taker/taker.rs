@@ -22,19 +22,17 @@ pub struct Taker {
 
 impl Taker {
     pub(super) async fn new(tx: mpsc::Sender<TakerRequest>) -> Self {
-        let taker = Self { tx };
-        taker.send_taker_offer().await.unwrap();
-        taker
+        Self { tx }
     }
 
-    async fn send_taker_offer(&self) -> Result<(), N3xbError> {
+    pub(crate) async fn send_taker_offer(&self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = TakerRequest::SendTakerOffer { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
 
-    async fn register_trade_notif_tx(
+    pub async fn register_trade_notif_tx(
         &self,
         tx: mpsc::Sender<Result<TradeResponseEnvelope, N3xbError>>,
     ) -> Result<(), N3xbError> {
@@ -44,7 +42,7 @@ impl Taker {
         rsp_rx.await.unwrap()
     }
 
-    async fn unregister_trade_notif_tx(&self) -> Result<(), N3xbError> {
+    pub async fn unregister_trade_notif_tx(&self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = TakerRequest::UnregisterTradeNotifTx { rsp_tx };
         self.tx.send(request).await.unwrap();
@@ -251,10 +249,12 @@ impl TakerActor {
                 "Taker with TradeUUID {} received duplicate TradeResponse message. Previous TradeResponse: {:?}, New TradeResponse: {:?}",
                 self.order_envelope.order.trade_uuid, existing_trade_rsp_envelope, trade_rsp_envelope
             )));
-        } else if trade_rsp_envelope.event_id != self.offer_event_id.clone().unwrap() {
+        } else if trade_rsp_envelope.trade_rsp.offer_event_id
+            != self.offer_event_id.clone().unwrap()
+        {
             notif_result = Err(N3xbError::Simple(format!(
                 "Taker with TradeUUID {} received TradeResponse message with unexpected Offer Event ID. Expected EventId: {:?}, Received EventId: {:?}",
-                self.order_envelope.order.trade_uuid, self.offer_event_id, trade_rsp_envelope.event_id
+                self.order_envelope.order.trade_uuid, self.offer_event_id, trade_rsp_envelope.trade_rsp.offer_event_id
             )));
         } else {
             self.trade_rsp_envelope = Some(trade_rsp_envelope.clone());

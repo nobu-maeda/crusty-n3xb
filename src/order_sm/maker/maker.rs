@@ -236,17 +236,17 @@ impl MakerActor {
         trade_rsp: TradeResponse,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
-        let accepted_offer_event_id = match self.accepted_offer_event_id.clone() {
-            Some(event_id) => event_id,
-            None => {
-                let error = N3xbError::Simple(format!(
-                    "Maker with TradeUUID {} expected to already have accepted an Offer",
-                    self.order.trade_uuid
-                ));
-                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
-                return;
-            }
-        };
+        if let Some(event_id) = self.accepted_offer_event_id.clone() {
+            let error = N3xbError::Simple(format!(
+                "Maker with TradeUUID {} should not have already accepted an Offer. Prev Offer event ID {}, New Offer event ID {}",
+                self.order.trade_uuid, event_id, trade_rsp.offer_event_id
+            ));
+            rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+            return;
+        }
+
+        let accepted_offer_event_id = trade_rsp.offer_event_id.clone();
+        self.accepted_offer_event_id = Some(accepted_offer_event_id.clone());
 
         let pubkey = match self.offer_envelopes.get(&accepted_offer_event_id) {
             Some(offer_envelope) => offer_envelope.pubkey.clone(),

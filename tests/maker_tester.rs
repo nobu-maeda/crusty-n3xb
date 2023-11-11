@@ -1,4 +1,7 @@
-use crusty_n3xb::{common::error::N3xbError, manager::Manager, offer::OfferEnvelope, order::Order};
+use crusty_n3xb::{
+    common::error::N3xbError, manager::Manager, offer::OfferEnvelope, order::Order,
+    testing::SomeTestTradeRspParams,
+};
 use tokio::sync::{mpsc, oneshot};
 
 pub struct MakerTester {
@@ -44,13 +47,13 @@ impl MakerTesterActor {
         let order = self.order.clone();
         let maker = self.manager.make_new_order(order).await.unwrap();
 
-        // Register for Taker Offer Notifs from Maker
+        // Register Maker for Offer notificaitons
         let (notif_tx, mut notif_rx) = mpsc::channel::<Result<OfferEnvelope, N3xbError>>(
             Self::MAKER_TEST_ACTOR_NOTIF_CHANNEL_SIZE,
         );
         maker.register_offer_notif_tx(notif_tx).await.unwrap();
 
-        // Wait for a Taker Offer Notif - This can be made into a loop if wanted, or to wait for a particular offer
+        // Wait for Offer notifications - This can be made into a loop if wanted, or to wait for a particular offer
         let notif_result = notif_rx.recv().await.unwrap();
         let offer_envelope = notif_result.unwrap();
 
@@ -59,13 +62,17 @@ impl MakerTesterActor {
         assert!(offer_envelopes.len() >= 1);
 
         let offer = maker
-            .query_offer(offer_envelope.event_id)
+            .query_offer(offer_envelope.event_id.clone())
             .await
             .unwrap()
             .offer;
         offer.validate_against(&self.order).unwrap();
 
         // Accept Offer
+        let mut trade_rsp_builder = SomeTestTradeRspParams::default_builder();
+        trade_rsp_builder.offer_event_id(offer_envelope.event_id);
+        let trade_rsp = trade_rsp_builder.build().unwrap();
+        maker.accept_offer(trade_rsp).await.unwrap();
 
         // Send Success Completion
         self.cmpl_tx.send(Ok(())).unwrap();

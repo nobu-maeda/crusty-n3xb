@@ -1,7 +1,11 @@
 use crusty_n3xb::{
-    common::error::N3xbError, manager::Manager, order::OrderEnvelope, testing::SomeTestOfferParams,
+    common::error::N3xbError,
+    manager::Manager,
+    order::OrderEnvelope,
+    testing::SomeTestOfferParams,
+    trade_rsp::{TradeResponseEnvelope, TradeResponseStatus},
 };
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
 pub struct TakerTester {
@@ -40,6 +44,8 @@ impl TakerTesterActor {
         }
     }
 
+    const TAKER_TEST_ACTOR_NOTIF_CHANNEL_SIZE: usize = 5;
+
     async fn run(mut self) {
         // Query & poll for Orders
         // * Optionally create ability to subscribe to a certain filter of Orders
@@ -62,7 +68,20 @@ impl TakerTesterActor {
             .await
             .unwrap();
 
-        // Wait for Offer Acceptance Notif
+        // Register Taker for Trade Response notifications
+        let (notif_tx, mut notif_rx) = mpsc::channel::<Result<TradeResponseEnvelope, N3xbError>>(
+            Self::TAKER_TEST_ACTOR_NOTIF_CHANNEL_SIZE,
+        );
+        taker.register_trade_notif_tx(notif_tx).await.unwrap();
+
+        // Wait for Trade Response notifications
+        let notif_result = notif_rx.recv().await.unwrap();
+        let trade_rsp_envelope = notif_result.unwrap();
+
+        assert_eq!(
+            trade_rsp_envelope.trade_rsp.trade_response,
+            TradeResponseStatus::Accepted
+        );
 
         // Send Success Completion
         self.cmpl_tx.send(Ok(())).unwrap();
