@@ -15,7 +15,7 @@ pub(crate) struct PeerEnvelope {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct PeerMessage {
     pub(crate) r#type: String,
-    pub(crate) peer_message_id: Option<String>, // TODO: Is there a more specific type we can use here?
+    pub(crate) responding_to_id: Option<String>, // TODO: Is there a more specific type we can use here?
     pub(crate) maker_order_note_id: String, // TODO: Is there a more specific type we can use here?
     pub(crate) trade_uuid: Uuid,            // TODO: Change to UUID type?
     pub(crate) message_type: SerdeGenericType,

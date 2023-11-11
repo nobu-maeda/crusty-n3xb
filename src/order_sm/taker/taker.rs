@@ -117,6 +117,7 @@ impl TakerActor {
             .interfacer_handle
             .send_taker_offer_message(
                 order_envelope.pubkey,
+                Some(order_envelope.event_id.clone()),
                 order_envelope.event_id,
                 order_envelope.order.trade_uuid,
                 offer,

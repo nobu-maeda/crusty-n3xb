@@ -139,7 +139,7 @@ mod tests {
 
         let peer_message = PeerMessage {
             r#type: "n3xb-peer-message".to_string(),
-            peer_message_id: Option::None,
+            responding_to_id: Option::None,
             maker_order_note_id: "".to_string(),
             trade_uuid,
             message_type: SerdeGenericType::TakerOffer,
@@ -209,7 +209,7 @@ mod tests {
 
         let peer_message = PeerMessage {
             r#type: "n3xb-peer-message".to_string(),
-            peer_message_id: Option::None,
+            responding_to_id: Option::None,
             maker_order_note_id: "".to_string(),
             trade_uuid,
             message_type: SerdeGenericType::TakerOffer,
@@ -275,7 +275,7 @@ mod tests {
 
         let peer_message = PeerMessage {
             r#type: "n3xb-peer-message".to_string(),
-            peer_message_id: Option::None,
+            responding_to_id: Option::None,
             maker_order_note_id: "".to_string(),
             trade_uuid,
             message_type: SerdeGenericType::TakerOffer,

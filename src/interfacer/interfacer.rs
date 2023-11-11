@@ -16,6 +16,7 @@ use crate::offer::Offer;
 use crate::order::{
     MakerObligation, Order, OrderEnvelope, TakerObligation, TradeDetails, TradeParameter,
 };
+use crate::trade_rsp::TradeResponse;
 
 use super::maker_order_note::MakerOrderNote;
 use super::nostr::*;
@@ -31,7 +32,7 @@ impl InterfacerHandle {
         Self { tx }
     }
 
-    pub(crate) async fn get_public_key(&self) -> XOnlyPublicKey {
+    pub(crate) async fn get_pubkey(&self) -> XOnlyPublicKey {
         let (rsp_tx, rsp_rx) = oneshot::channel::<XOnlyPublicKey>();
         let request = InterfacerRequest::GetPublicKey { rsp_tx };
         self.tx.send(request).await.unwrap();
@@ -131,17 +132,40 @@ impl InterfacerHandle {
 
     pub(crate) async fn send_taker_offer_message(
         &self,
-        public_key: XOnlyPublicKey, // Pubkey of destination receipient (Maker)
-        maker_order_note_id: String,
+        pubkey: XOnlyPublicKey, // Pubkey of destination receipient (Maker)
+        responding_to_id: Option<EventIdString>,
+        maker_order_note_id: EventIdString,
         trade_uuid: Uuid,
         offer: Offer,
     ) -> Result<EventIdString, N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<EventIdString, N3xbError>>();
         let request = InterfacerRequest::SendTakerOfferMessage {
-            public_key,
+            pubkey,
+            responding_to_id,
             maker_order_note_id,
             trade_uuid,
             offer,
+            rsp_tx,
+        };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+
+    pub(crate) async fn send_trade_response(
+        &self,
+        pubkey: XOnlyPublicKey,
+        responding_to_id: Option<EventIdString>,
+        maker_order_note_id: EventIdString,
+        trade_uuid: Uuid,
+        trade_rsp: TradeResponse,
+    ) -> Result<EventIdString, N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<EventIdString, N3xbError>>();
+        let request = InterfacerRequest::SendTradeResponse {
+            pubkey,
+            responding_to_id,
+            maker_order_note_id,
+            trade_uuid,
+            trade_rsp,
             rsp_tx,
         };
         self.tx.send(request).await.unwrap();
@@ -243,10 +267,19 @@ pub(super) enum InterfacerRequest {
         rsp_tx: oneshot::Sender<Result<Vec<OrderEnvelope>, N3xbError>>,
     },
     SendTakerOfferMessage {
-        public_key: XOnlyPublicKey, // Pubkey of destination receipient (Maker)
-        maker_order_note_id: String,
+        pubkey: XOnlyPublicKey, // Pubkey of destination receipient (Maker)
+        responding_to_id: Option<EventIdString>,
+        maker_order_note_id: EventIdString,
         trade_uuid: Uuid,
         offer: Offer,
+        rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
+    },
+    SendTradeResponse {
+        pubkey: XOnlyPublicKey, // Pubkey of destination receipient (Taker)
+        responding_to_id: Option<EventIdString>,
+        maker_order_note_id: EventIdString,
+        trade_uuid: Uuid,
+        trade_rsp: TradeResponse,
         rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
     },
 }
@@ -305,7 +338,7 @@ impl InterfacerActor {
 
     async fn handle_request(&mut self, request: InterfacerRequest) {
         match request {
-            InterfacerRequest::GetPublicKey { rsp_tx } => self.get_public_key(rsp_tx),
+            InterfacerRequest::GetPublicKey { rsp_tx } => self.get_pubkey(rsp_tx),
 
             // Relays Management
             InterfacerRequest::AddRelays {
@@ -357,17 +390,39 @@ impl InterfacerActor {
 
             // Send Taker Offer Message
             InterfacerRequest::SendTakerOfferMessage {
-                public_key,
+                pubkey,
+                responding_to_id,
                 maker_order_note_id,
                 trade_uuid,
                 offer,
                 rsp_tx,
             } => {
                 self.send_taker_offer_message(
-                    public_key,
+                    pubkey,
+                    responding_to_id,
                     maker_order_note_id,
                     trade_uuid,
                     offer,
+                    rsp_tx,
+                )
+                .await;
+            }
+
+            // Send Trade Response
+            InterfacerRequest::SendTradeResponse {
+                pubkey,
+                responding_to_id,
+                maker_order_note_id,
+                trade_uuid,
+                trade_rsp,
+                rsp_tx,
+            } => {
+                self.send_trade_response(
+                    pubkey,
+                    responding_to_id,
+                    maker_order_note_id,
+                    trade_uuid,
+                    trade_rsp,
                     rsp_tx,
                 )
                 .await;
@@ -444,9 +499,9 @@ impl InterfacerActor {
 
     // Nostr Client Management
 
-    fn get_public_key(&self, rsp_tx: oneshot::Sender<XOnlyPublicKey>) {
-        let public_key = self.client.keys().public_key();
-        rsp_tx.send(public_key).unwrap(); // Oneshot should not fail
+    fn get_pubkey(&self, rsp_tx: oneshot::Sender<XOnlyPublicKey>) {
+        let pubkey = self.client.keys().public_key();
+        rsp_tx.send(pubkey).unwrap(); // Oneshot should not fail
     }
 
     async fn add_relays(
@@ -799,23 +854,12 @@ impl InterfacerActor {
             .custom(tag_map)
     }
 
-    async fn send_taker_offer_message(
+    async fn send_peer_message(
         &self,
-        public_key: XOnlyPublicKey,
-        maker_order_note_id: String,
-        trade_uuid: Uuid,
-        offer: Offer,
+        pubkey: XOnlyPublicKey,
+        peer_message: PeerMessage,
         rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
     ) {
-        let peer_message = PeerMessage {
-            r#type: "n3xb-peer-message".to_string(),
-            peer_message_id: Option::None,
-            maker_order_note_id,
-            trade_uuid,
-            message_type: SerdeGenericType::TakerOffer,
-            message: Box::new(offer),
-        };
-
         let content_string = match serde_json::to_string(&peer_message) {
             Ok(string) => string,
             Err(error) => {
@@ -824,15 +868,54 @@ impl InterfacerActor {
             }
         };
 
-        let result = self
-            .client
-            .send_direct_msg(public_key, content_string)
-            .await;
+        let result = self.client.send_direct_msg(pubkey, content_string).await;
 
         match result {
             Ok(event_id) => rsp_tx.send(Ok(event_id.to_string())).unwrap(),
             Err(error) => rsp_tx.send(Err(error.into())).unwrap(),
         }
+    }
+
+    async fn send_taker_offer_message(
+        &self,
+        pubkey: XOnlyPublicKey,
+        responding_to_id: Option<EventIdString>,
+        maker_order_note_id: EventIdString,
+        trade_uuid: Uuid,
+        offer: Offer,
+        rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
+    ) {
+        let peer_message = PeerMessage {
+            r#type: "n3xb-peer-message".to_string(),
+            responding_to_id,
+            maker_order_note_id,
+            trade_uuid,
+            message_type: SerdeGenericType::TakerOffer,
+            message: Box::new(offer),
+        };
+
+        self.send_peer_message(pubkey, peer_message, rsp_tx).await;
+    }
+
+    async fn send_trade_response(
+        &self,
+        pubkey: XOnlyPublicKey,
+        responding_to_id: Option<EventIdString>,
+        maker_order_note_id: EventIdString,
+        trade_uuid: Uuid,
+        trade_rsp: TradeResponse,
+        rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
+    ) {
+        let peer_message = PeerMessage {
+            r#type: "n3xb-peer-message".to_string(),
+            responding_to_id,
+            maker_order_note_id,
+            trade_uuid,
+            message_type: SerdeGenericType::TradeResponse,
+            message: Box::new(trade_rsp),
+        };
+
+        self.send_peer_message(pubkey, peer_message, rsp_tx).await;
     }
 }
 
@@ -847,7 +930,7 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn test_get_public_key() {
+    async fn test_get_pubkey() {
         let mut client = Client::new();
         client.expect_keys().returning(|| {
             let secret_key = SomeTestOrderParams::some_secret_key();
@@ -866,8 +949,8 @@ mod tests {
 
         let secret_key = SomeTestOrderParams::some_secret_key();
         let keys = Keys::new(secret_key);
-        let public_key = keys.public_key();
-        assert_eq!(public_key, interfacer_handle.get_public_key().await);
+        let pubkey = keys.public_key();
+        assert_eq!(pubkey, interfacer_handle.get_pubkey().await);
     }
 
     #[tokio::test]

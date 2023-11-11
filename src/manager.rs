@@ -65,7 +65,7 @@ impl Manager {
 
     // Nostr Management
     pub async fn pubkey(&self) -> XOnlyPublicKey {
-        self.interfacer_handle.get_public_key().await
+        self.interfacer_handle.get_pubkey().await
     }
 
     pub async fn add_relays(
