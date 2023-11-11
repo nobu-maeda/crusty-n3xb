@@ -9,8 +9,8 @@ use crate::common::types::*;
 pub struct TradeResponseEnvelope {
     pub pubkey: XOnlyPublicKey,
     pub event_id: EventIdString,
-    pub trade_response: TradeResponse,
-    _private: (),
+    pub trade_rsp: TradeResponse,
+    pub(crate) _private: (),
 }
 
 #[derive(PartialEq, Clone, Debug, Serialize, Deserialize)]
