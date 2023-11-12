@@ -433,39 +433,43 @@ impl InterfacerActor {
     async fn handle_notification(&mut self, notification: RelayPoolNotification) {
         match notification {
             RelayPoolNotification::Event(url, event) => {
-                debug!(
-                    "handle_notification() received notification from url {} - Event",
-                    url.to_string()
-                );
-                self.handle_notification_event(event).await;
+                self.handle_notification_event(url, event).await;
             }
             RelayPoolNotification::Message(url, _) => {
                 trace!(
-                    "handle_notification() received notification from url {} - Message",
+                    "Interfacer w/ pubkey {} handle_notification(), dropping Message from url {}",
+                    self.client.keys().public_key().to_string(),
                     url.to_string()
                 );
             }
             RelayPoolNotification::Shutdown => {
-                info!("handle_notification() received notification - Shutdown");
+                info!(
+                    "Interfacer w/ pubkey {} handle_notification() Shutdown",
+                    self.client.keys().public_key().to_string()
+                );
             }
         };
     }
 
-    async fn handle_notification_event(&mut self, event: Event) {
+    async fn handle_notification_event(&mut self, url: Url, event: Event) {
         if let Kind::EncryptedDirectMessage = event.kind {
-            self.handle_direct_message(event).await;
+            self.handle_direct_message(url, event).await;
         } else {
-            debug!("handle_notification_event() Event kind fallthrough");
+            debug!(
+                "Interfacer w/ pubkey {} handle_notification_event() Event kind Fallthrough",
+                self.client.keys().public_key().to_string()
+            );
         }
     }
 
-    async fn handle_direct_message(&mut self, event: Event) {
+    async fn handle_direct_message(&mut self, url: Url, event: Event) {
         let secret_key = self.client.keys().secret_key().unwrap();
         let content = match decrypt(&secret_key, &event.pubkey, &event.content) {
             Ok(content) => content,
             Err(error) => {
                 error!(
-                    "handle_direct_message() failed to decrypt direct message - {}",
+                    "Interfacer w/ pubkey {} handle_direct_message() failed to decrypt - {}",
+                    self.client.keys().public_key().to_string(),
                     error
                 );
                 return;
@@ -481,15 +485,17 @@ impl InterfacerActor {
                     .err()
                 {
                     error!(
-                        "handle_direct_message() failed in router.handle_peer_message() - {}",
+                        "Interfacer w/ pubkey {} handle_direct_message() failed in router.handle_peer_message() - {}",
+                        self.client.keys().public_key().to_string(),
                         error
                     );
                     return;
-                };
+                }
             }
             Err(error) => {
                 error!(
-                    "handle_direct_message() failed to deserialize content as PeerMessage - {}",
+                    "Interfacer w/ pubkey {} handle_direct_message() failed to deserialize content as PeerMessage - {}",
+                    self.client.keys().public_key().to_string(),
                     error
                 );
                 return;

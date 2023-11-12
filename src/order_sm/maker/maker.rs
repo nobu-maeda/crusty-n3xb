@@ -1,4 +1,4 @@
-use log::error;
+use log::{debug, error};
 use std::collections::HashMap;
 
 use tokio::{
@@ -98,6 +98,7 @@ impl MakerEngine {
     }
 }
 
+#[derive(Debug)]
 pub(super) enum MakerRequest {
     SendMakerOrder {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
@@ -183,6 +184,11 @@ impl MakerActor {
     }
 
     async fn handle_request(&mut self, request: MakerRequest) {
+        debug!(
+            "Maker w/ TradeUUID {} handle_request() of type {:?}",
+            self.order.trade_uuid, request
+        );
+
         match request {
             MakerRequest::SendMakerOrder { rsp_tx } => self.send_maker_order(rsp_tx).await,
             MakerRequest::QueryOffers { rsp_tx } => self.query_offers(rsp_tx).await,
@@ -238,7 +244,7 @@ impl MakerActor {
     ) {
         if let Some(event_id) = self.accepted_offer_event_id.clone() {
             let error = N3xbError::Simple(format!(
-                "Maker with TradeUUID {} should not have already accepted an Offer. Prev Offer event ID {}, New Offer event ID {}",
+                "Maker w/ TradeUUID {} should not have already accepted an Offer. Prev Offer event ID {}, New Offer event ID {}",
                 self.order.trade_uuid, event_id, trade_rsp.offer_event_id
             ));
             rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
@@ -252,7 +258,7 @@ impl MakerActor {
             Some(offer_envelope) => offer_envelope.pubkey.clone(),
             None => {
                 let error = N3xbError::Simple(format!(
-                    "Maker with TradeUUID {} expected to contain accepted Offer {}",
+                    "Maker w/ TradeUUID {} expected to contain accepted Offer {}",
                     self.order.trade_uuid, accepted_offer_event_id
                 ));
                 rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
@@ -264,7 +270,7 @@ impl MakerActor {
             Some(event_id) => event_id,
             None => {
                 let error = N3xbError::Simple(format!(
-                    "Maker with TradeUUID {} expected to already have sent Maker Order Note and receive Event ID",
+                    "Maker w/ TradeUUID {} expected to already have sent Maker Order Note and receive Event ID",
                     self.order.trade_uuid
                 ));
                 rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
@@ -305,7 +311,7 @@ impl MakerActor {
         let mut result = Ok(());
         if self.notif_tx.is_some() {
             let error = N3xbError::Simple(format!(
-                "Maker with TradeUUID {} already have notif_tx registered",
+                "Maker w/ TradeUUID {} already have notif_tx registered",
                 self.order.trade_uuid
             ));
             result = Err(error);
@@ -318,7 +324,7 @@ impl MakerActor {
         let mut result = Ok(());
         if self.notif_tx.is_none() {
             let error = N3xbError::Simple(format!(
-                "Maker with TradeUUID {} expected to already have notif_tx registered",
+                "Maker w/ TradeUUID {} expected to already have notif_tx registered",
                 self.order.trade_uuid
             ));
             result = Err(error);
@@ -328,9 +334,17 @@ impl MakerActor {
     }
 
     async fn handle_peer_message(&mut self, peer_envelope: PeerEnvelope) {
+        debug!(
+            "Maker w/ TradeUUID {} handle_peer_message() from pubkey {}, of event id {}, type {:?}",
+            self.order.trade_uuid,
+            peer_envelope.pubkey.to_string(),
+            peer_envelope.event_id.to_string(),
+            peer_envelope.message_type
+        );
+
         match peer_envelope.message_type {
             SerdeGenericType::TakerOffer => {
-                let offer = peer_envelope.message.downcast_ref::<Offer>().expect(&format!("Maker with TradeUUID {} received peer message of SerdeGenericType::TakerOffer, but failed to downcast message into Offer", self.order.trade_uuid)).to_owned();
+                let offer = peer_envelope.message.downcast_ref::<Offer>().expect(&format!("Maker w/ TradeUUID {} received peer message of SerdeGenericType::TakerOffer, but failed to downcast message into Offer", self.order.trade_uuid)).to_owned();
                 let offer_envelope = OfferEnvelope {
                     pubkey: peer_envelope.pubkey,
                     event_id: peer_envelope.event_id,
@@ -342,7 +356,7 @@ impl MakerActor {
 
             SerdeGenericType::TradeResponse => {
                 error!(
-                    "Maker with TradeUUID {} received unexpected TradeResponse message",
+                    "Maker w/ TradeUUID {} received unexpected TradeResponse message",
                     self.order.trade_uuid
                 );
             }
@@ -361,12 +375,12 @@ impl MakerActor {
             Ok(_) => {
                 if let Some(accepted_offer_event_id) = self.accepted_offer_event_id.clone() {
                     notif_result = Err(N3xbError::Simple(format!(
-                        "Maker with TradeUUID {} received Offer with EventID {} after already accepted Offer with EventID {}",
+                        "Maker w/ TradeUUID {} received Offer with EventID {} after already accepted Offer with EventID {}",
                         self.order.trade_uuid, offer_envelope.event_id, accepted_offer_event_id
                     )));
                 } else if self.offer_envelopes.contains_key(&offer_envelope.event_id) {
                     notif_result = Err(N3xbError::Simple(format!(
-                        "Maker with TradeUUID {} received duplicate Offer with EventID {}",
+                        "Maker w/ TradeUUID {} received duplicate Offer with EventID {}",
                         self.order.trade_uuid, offer_envelope.event_id
                     )));
                 } else {
@@ -385,13 +399,13 @@ impl MakerActor {
         if let Some(tx) = &self.notif_tx {
             if let Some(error) = tx.send(notif_result).await.err() {
                 error!(
-                    "Maker with TradeUUID {} failed in notifying user with handle_taker_offer - {}",
+                    "Maker w/ TradeUUID {} failed in notifying user with handle_taker_offer - {}",
                     self.order.trade_uuid, error
                 );
             }
         } else {
             error!(
-                "Maker with TradeUUID {} do not have Offer notif_tx registered",
+                "Maker w/ TradeUUID {} do not have Offer notif_tx registered",
                 self.order.trade_uuid
             );
         }
