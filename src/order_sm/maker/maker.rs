@@ -1,4 +1,4 @@
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use strum_macros::{Display, IntoStaticStr};
 
@@ -75,10 +75,18 @@ impl Maker {
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
+
+    pub async fn trade_complete(&self) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = MakerRequest::TradeComplete { rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
 }
 
 pub(crate) struct MakerEngine {
     tx: mpsc::Sender<MakerRequest>,
+    pub task_handle: tokio::task::JoinHandle<()>,
 }
 
 impl MakerEngine {
@@ -87,8 +95,8 @@ impl MakerEngine {
     pub(crate) async fn new(interfacer_handle: InterfacerHandle, order: Order) -> Self {
         let (tx, rx) = mpsc::channel::<MakerRequest>(Self::MAKER_REQUEST_CHANNEL_SIZE);
         let mut actor = MakerActor::new(rx, interfacer_handle, order).await;
-        tokio::spawn(async move { actor.run().await });
-        Self { tx }
+        let task_handle = tokio::spawn(async move { actor.run().await });
+        Self { tx, task_handle }
     }
 
     // Interfacer Handle
@@ -119,6 +127,9 @@ pub(super) enum MakerRequest {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     UnregisterOfferNotifTx {
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
+    TradeComplete {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
 }
@@ -173,7 +184,9 @@ impl MakerActor {
         loop {
             select! {
                 Some(request) = self.rx.recv() => {
-                    self.handle_request(request).await;
+                    if self.handle_request(request).await {
+                        break;
+                    }
                 },
                 Some(envelope) = rx.recv() => {
                     self.handle_peer_message(envelope).await;
@@ -181,9 +194,12 @@ impl MakerActor {
                 else => break,
             }
         }
+        info!("Maker w/ TradeUUID {} terminating", trade_uuid);
     }
 
-    async fn handle_request(&mut self, request: MakerRequest) {
+    async fn handle_request(&mut self, request: MakerRequest) -> bool {
+        let mut terminate = false;
+
         debug!(
             "Maker w/ TradeUUID {} handle_request() of type {}",
             self.order.trade_uuid, request
@@ -204,7 +220,12 @@ impl MakerActor {
             MakerRequest::UnregisterOfferNotifTx { rsp_tx } => {
                 self.unregister_notif_tx(rsp_tx).await;
             }
-        }
+            MakerRequest::TradeComplete { rsp_tx } => {
+                self.trade_complete(rsp_tx).await;
+                terminate = true;
+            }
+        };
+        terminate
     }
 
     async fn send_maker_order(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
@@ -331,6 +352,11 @@ impl MakerActor {
         }
         self.notif_tx = None;
         rsp_tx.send(result).unwrap();
+    }
+
+    async fn trade_complete(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+        // TODO: What else to do for Trade Complete?
+        rsp_tx.send(Ok(())).unwrap();
     }
 
     async fn handle_peer_message(&mut self, peer_envelope: PeerEnvelope) {

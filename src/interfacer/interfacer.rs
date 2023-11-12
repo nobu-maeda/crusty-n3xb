@@ -171,10 +171,18 @@ impl InterfacerHandle {
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
+
+    pub(crate) async fn shutdown(&self) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = InterfacerRequest::Shutdown { rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
 }
 
 pub(crate) struct Interfacer {
     tx: mpsc::Sender<InterfacerRequest>,
+    pub task_handle: tokio::task::JoinHandle<()>,
 }
 
 impl Interfacer {
@@ -203,8 +211,8 @@ impl Interfacer {
     ) -> Self {
         let (tx, rx) = mpsc::channel::<InterfacerRequest>(Self::INTEFACER_REQUEST_CHANNEL_SIZE);
         let mut actor = InterfacerActor::new(rx, trade_engine_name, client).await;
-        tokio::spawn(async move { actor.run().await });
-        Self { tx }
+        let task_handle = tokio::spawn(async move { actor.run().await });
+        Self { tx, task_handle }
     }
 
     async fn new_nostr_client(secret_key: SecretKey) -> Client {
@@ -282,6 +290,9 @@ pub(super) enum InterfacerRequest {
         trade_rsp: TradeResponse,
         rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
     },
+    Shutdown {
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
 }
 
 pub(super) struct InterfacerActor {
@@ -323,7 +334,9 @@ impl InterfacerActor {
         loop {
             select! {
                 Some(request) = self.rx.recv() => {
-                    self.handle_request(request).await;
+                    if self.handle_request(request).await {
+                        break;
+                    }
                 },
                 result = event_rx.recv() => {
                     match result {
@@ -334,9 +347,15 @@ impl InterfacerActor {
                 else => break,
             }
         }
+        info!(
+            "Interfacer w/ pubkey {} terminating",
+            self.client.keys().public_key().to_string()
+        );
     }
 
-    async fn handle_request(&mut self, request: InterfacerRequest) {
+    async fn handle_request(&mut self, request: InterfacerRequest) -> bool {
+        let mut terminate = false;
+
         match request {
             InterfacerRequest::GetPublicKey { rsp_tx } => self.get_pubkey(rsp_tx),
 
@@ -427,7 +446,14 @@ impl InterfacerActor {
                 )
                 .await;
             }
+
+            // Shutdown
+            InterfacerRequest::Shutdown { rsp_tx } => {
+                self.shutdown(rsp_tx).await;
+                terminate = true;
+            }
         }
+        terminate
     }
 
     async fn handle_notification(&mut self, notification: RelayPoolNotification) {
@@ -922,6 +948,15 @@ impl InterfacerActor {
         };
 
         self.send_peer_message(pubkey, peer_message, rsp_tx).await;
+    }
+
+    async fn shutdown(&self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+        info!(
+            "Interfacer w/ pubkey {} Shutdown",
+            self.client.keys().public_key().to_string()
+        );
+        // TODO: Any other shutdown logic needed?
+        rsp_tx.send(Ok(())).unwrap();
     }
 }
 

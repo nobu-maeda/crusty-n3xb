@@ -82,6 +82,9 @@ impl TakerTesterActor {
             TradeResponseStatus::Accepted
         );
 
+        taker.trade_complete().await.unwrap();
+        self.manager.shutdown().await.unwrap();
+
         // Send Success Completion
         self.cmpl_tx.send(Ok(())).unwrap();
 

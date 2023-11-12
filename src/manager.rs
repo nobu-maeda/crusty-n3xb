@@ -4,6 +4,7 @@ use std::net::SocketAddr;
 use log::warn;
 use secp256k1::{SecretKey, XOnlyPublicKey};
 use tokio::sync::RwLock;
+use tokio::task::JoinError;
 use uuid::Uuid;
 
 use crate::common::error::N3xbError;
@@ -135,6 +136,22 @@ impl Manager {
     fn load_settings() {
         // TODO: Read all files from relevant directories, scan for settings, and load into memory
         // Settings should be applied later as applicable from the memory location
+    }
+
+    pub async fn shutdown(self) -> Result<(), JoinError> {
+        if let Some(error) = self.interfacer_handle.shutdown().await.err() {
+            warn!("Manager error shutting down Interfacer: {}", error);
+        }
+        self.interfacer.task_handle.await?;
+        let mut maker_engines = self.maker_engines.write().await;
+        for (_uuid, maker_engine) in maker_engines.drain() {
+            maker_engine.task_handle.await?;
+        }
+        let mut taker_engines = self.taker_engines.write().await;
+        for (_uuid, taker_engine) in taker_engines.drain() {
+            taker_engine.task_handle.await?;
+        }
+        Ok(())
     }
 
     // Private Functions

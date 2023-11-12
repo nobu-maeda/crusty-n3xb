@@ -1,4 +1,4 @@
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 
 use strum_macros::{Display, IntoStaticStr};
 use tokio::{
@@ -49,10 +49,18 @@ impl Taker {
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
+
+    pub async fn trade_complete(&self) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = TakerRequest::TradeComplete { rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
 }
 
 pub(crate) struct TakerEngine {
     tx: mpsc::Sender<TakerRequest>,
+    pub task_handle: tokio::task::JoinHandle<()>,
 }
 
 impl TakerEngine {
@@ -65,8 +73,8 @@ impl TakerEngine {
     ) -> Self {
         let (tx, rx) = mpsc::channel::<TakerRequest>(Self::TAKER_REQUEST_CHANNEL_SIZE);
         let mut actor = TakerActor::new(rx, interfacer_handle, order_envelope, offer).await;
-        tokio::spawn(async move { actor.run().await });
-        Self { tx }
+        let task_handle = tokio::spawn(async move { actor.run().await });
+        Self { tx, task_handle }
     }
 
     // Interfacer Handle
@@ -86,6 +94,9 @@ pub(super) enum TakerRequest {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     UnregisterTradeNotifTx {
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
+    TradeComplete {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
 }
@@ -137,7 +148,9 @@ impl TakerActor {
         loop {
             select! {
                 Some(request) = self.rx.recv() => {
-                    self.handle_request(request).await;
+                    if self.handle_request(request).await {
+                        break;
+                    }
                 },
                 Some(envelope) = rx.recv() => {
                     self.handle_peer_message(envelope).await;
@@ -146,9 +159,11 @@ impl TakerActor {
 
             }
         }
+        info!("Taker w/ TradeUUID {} terminating", trade_uuid)
     }
 
-    async fn handle_request(&mut self, request: TakerRequest) {
+    async fn handle_request(&mut self, request: TakerRequest) -> bool {
+        let mut terminate = false;
         debug!(
             "Taker w/ TradeUUID {} handle_request() of type {}",
             self.order_envelope.order.trade_uuid, request
@@ -162,7 +177,12 @@ impl TakerActor {
             TakerRequest::UnregisterTradeNotifTx { rsp_tx } => {
                 self.unregister_trade_notif_tx(rsp_tx).await
             }
+            TakerRequest::TradeComplete { rsp_tx } => {
+                self.trade_complete(rsp_tx).await;
+                terminate = true;
+            }
         }
+        terminate
     }
 
     async fn send_taker_offer(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
@@ -219,6 +239,11 @@ impl TakerActor {
         }
         self.notif_tx = None;
         rsp_tx.send(result).unwrap();
+    }
+
+    async fn trade_complete(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+        // TODO: What else to do for Trade Complete?
+        rsp_tx.send(Ok(())).unwrap();
     }
 
     async fn handle_peer_message(&mut self, peer_envelope: PeerEnvelope) {

@@ -77,6 +77,9 @@ impl MakerTesterActor {
         let trade_rsp = trade_rsp_builder.build().unwrap();
         maker.accept_offer(trade_rsp).await.unwrap();
 
+        maker.trade_complete().await.unwrap();
+        self.manager.shutdown().await.unwrap();
+
         // Send Success Completion
         self.cmpl_tx.send(Ok(())).unwrap();
         // Thread Ends
