@@ -1,5 +1,6 @@
-use log::{debug, error};
+use log::{debug, error, warn};
 
+use strum_macros::{Display, IntoStaticStr};
 use tokio::{
     select,
     sync::{mpsc, oneshot},
@@ -25,7 +26,7 @@ impl Taker {
         Self { tx }
     }
 
-    pub(crate) async fn send_taker_offer(&self) -> Result<(), N3xbError> {
+    pub async fn take_order(&self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = TakerRequest::SendTakerOffer { rsp_tx };
         self.tx.send(request).await.unwrap();
@@ -75,7 +76,7 @@ impl TakerEngine {
     }
 }
 
-#[derive(Debug)]
+#[derive(Display, IntoStaticStr)]
 pub(super) enum TakerRequest {
     SendTakerOffer {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
@@ -149,7 +150,7 @@ impl TakerActor {
 
     async fn handle_request(&mut self, request: TakerRequest) {
         debug!(
-            "Taker w/ TradeUUID {} handle_request() of type {:?}",
+            "Taker w/ TradeUUID {} handle_request() of type {}",
             self.order_envelope.order.trade_uuid, request
         );
 
@@ -283,7 +284,7 @@ impl TakerActor {
                 );
             }
         } else {
-            error!(
+            warn!(
                 "Taker w/ TradeUUID {} do not have Offer notif_tx registered",
                 self.order_envelope.order.trade_uuid
             );

@@ -60,19 +60,18 @@ impl TakerTesterActor {
             }
         };
 
-        // Take Order with Offer -> creates Taker
+        // Create and setup a Taker for an Order with a new Offer
         let offer = SomeTestOfferParams::default_builder().build().unwrap();
-        let taker = self
-            .manager
-            .take_order(order_envelope, offer)
-            .await
-            .unwrap();
+        let taker = self.manager.new_taker(order_envelope, offer).await.unwrap();
 
         // Register Taker for Trade Response notifications
         let (notif_tx, mut notif_rx) = mpsc::channel::<Result<TradeResponseEnvelope, N3xbError>>(
             Self::TAKER_TEST_ACTOR_NOTIF_CHANNEL_SIZE,
         );
         taker.register_trade_notif_tx(notif_tx).await.unwrap();
+
+        // Take Order with configured Offer
+        taker.take_order().await.unwrap();
 
         // Wait for Trade Response notifications
         let notif_result = notif_rx.recv().await.unwrap();

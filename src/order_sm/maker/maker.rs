@@ -1,5 +1,6 @@
-use log::{debug, error};
+use log::{debug, error, warn};
 use std::collections::HashMap;
+use strum_macros::{Display, IntoStaticStr};
 
 use tokio::{
     select,
@@ -24,11 +25,10 @@ pub struct Maker {
 impl Maker {
     pub(super) async fn new(tx: mpsc::Sender<MakerRequest>) -> Self {
         let maker = Self { tx };
-        maker.make_new_order().await.unwrap();
         maker
     }
 
-    pub async fn make_new_order(&self) -> Result<(), N3xbError> {
+    pub async fn post_new_order(&self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = MakerRequest::SendMakerOrder { rsp_tx };
         self.tx.send(request).await.unwrap();
@@ -98,7 +98,7 @@ impl MakerEngine {
     }
 }
 
-#[derive(Debug)]
+#[derive(Display, IntoStaticStr)]
 pub(super) enum MakerRequest {
     SendMakerOrder {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
@@ -185,7 +185,7 @@ impl MakerActor {
 
     async fn handle_request(&mut self, request: MakerRequest) {
         debug!(
-            "Maker w/ TradeUUID {} handle_request() of type {:?}",
+            "Maker w/ TradeUUID {} handle_request() of type {}",
             self.order.trade_uuid, request
         );
 
@@ -404,7 +404,7 @@ impl MakerActor {
                 );
             }
         } else {
-            error!(
+            warn!(
                 "Maker w/ TradeUUID {} do not have Offer notif_tx registered",
                 self.order.trade_uuid
             );

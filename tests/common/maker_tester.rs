@@ -43,15 +43,18 @@ impl MakerTesterActor {
     const MAKER_TEST_ACTOR_NOTIF_CHANNEL_SIZE: usize = 5;
 
     async fn run(self) {
-        // The whole thing kicks off by sending a Maker Order
+        // Create and setup a Maker for a new Order
         let order = self.order.clone();
-        let maker = self.manager.make_new_order(order).await.unwrap();
+        let maker = self.manager.new_maker(order).await.unwrap();
 
         // Register Maker for Offer notificaitons
         let (notif_tx, mut notif_rx) = mpsc::channel::<Result<OfferEnvelope, N3xbError>>(
             Self::MAKER_TEST_ACTOR_NOTIF_CHANNEL_SIZE,
         );
         maker.register_offer_notif_tx(notif_tx).await.unwrap();
+
+        // The whole thing kicks off by sending a Maker Order Note
+        maker.post_new_order().await.unwrap();
 
         // Wait for Offer notifications - This can be made into a loop if wanted, or to wait for a particular offer
         let notif_result = notif_rx.recv().await.unwrap();

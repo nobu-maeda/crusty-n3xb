@@ -78,8 +78,7 @@ impl Manager {
     }
 
     // Order Management
-
-    pub async fn make_new_order(&self, order: Order) -> Result<Maker, N3xbError> {
+    pub async fn new_maker(&self, order: Order) -> Result<Maker, N3xbError> {
         let trade_uuid = order.trade_uuid;
         let maker_engine = MakerEngine::new(self.interfacer.new_handle(), order).await;
         let maker_own = maker_engine.new_handle().await;
@@ -111,7 +110,7 @@ impl Manager {
         Ok(valid_order_envelopes)
     }
 
-    pub async fn take_order(
+    pub async fn new_taker(
         &self,
         order_envelope: OrderEnvelope,
         offer: Offer,
@@ -123,8 +122,6 @@ impl Manager {
             TakerEngine::new(self.interfacer.new_handle(), order_envelope, offer).await;
         let taker_own = taker_engine.new_handle().await;
         let taker_returned = taker_engine.new_handle().await;
-
-        taker_own.send_taker_offer().await?;
 
         let mut taker_engines = self.taker_engines.write().await;
         taker_engines.insert(trade_uuid, taker_engine);
