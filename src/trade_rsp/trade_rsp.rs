@@ -20,7 +20,7 @@ pub enum TradeResponseStatus {
     NotAvailable,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub enum TradeRejectReason {
     Pending,
     InvalidMakerCurrency,

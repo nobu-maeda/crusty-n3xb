@@ -1,6 +1,9 @@
 use crusty_n3xb::{
-    common::error::N3xbError, manager::Manager, offer::OfferEnvelope, order::Order,
-    testing::SomeTestTradeRspParams,
+    common::error::N3xbError,
+    manager::Manager,
+    offer::OfferEnvelope,
+    order::Order,
+    testing::{SomeTestOfferParams, SomeTestTradeRspParams},
 };
 use tokio::sync::{mpsc, oneshot};
 
@@ -70,6 +73,11 @@ impl MakerTesterActor {
             .unwrap()
             .offer;
         offer.validate_against(&self.order).unwrap();
+
+        SomeTestOfferParams::check(
+            &offer,
+            &SomeTestOfferParams::default_builder().build().unwrap(),
+        );
 
         // Accept Offer
         let mut trade_rsp_builder = SomeTestTradeRspParams::default_builder();

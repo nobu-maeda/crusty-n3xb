@@ -2,7 +2,7 @@ use crusty_n3xb::{
     common::error::N3xbError,
     manager::Manager,
     order::OrderEnvelope,
-    testing::SomeTestOfferParams,
+    testing::{SomeTestOfferParams, SomeTestOrderParams, SomeTestTradeRspParams},
     trade_rsp::{TradeResponseEnvelope, TradeResponseStatus},
 };
 use tokio::sync::{mpsc, oneshot};
@@ -59,6 +59,10 @@ impl TakerTesterActor {
                 break order_envelopes.first().unwrap().to_owned();
             }
         };
+        SomeTestOrderParams::check(
+            &order_envelope.order,
+            &SomeTestOrderParams::default_builder().build().unwrap(),
+        );
 
         // Create and setup a Taker for an Order with a new Offer
         let offer = SomeTestOfferParams::default_builder().build().unwrap();
@@ -76,6 +80,12 @@ impl TakerTesterActor {
         // Wait for Trade Response notifications
         let notif_result = notif_rx.recv().await.unwrap();
         let trade_rsp_envelope = notif_result.unwrap();
+
+        let mut expected_trade_rsp_builder = SomeTestTradeRspParams::default_builder();
+        expected_trade_rsp_builder.offer_event_id("".to_string());
+
+        let expected_trade_rsp = expected_trade_rsp_builder.build().unwrap();
+        SomeTestTradeRspParams::check(&trade_rsp_envelope.trade_rsp, &expected_trade_rsp);
 
         assert_eq!(
             trade_rsp_envelope.trade_rsp.trade_response,

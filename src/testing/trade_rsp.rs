@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     common::types::SerdeGenericTrait,
-    trade_rsp::{TradeResponseBuilder, TradeResponseStatus},
+    trade_rsp::{TradeResponse, TradeResponseBuilder, TradeResponseStatus},
 };
 
 use super::SomeTestParams;
@@ -21,6 +21,27 @@ impl SomeTestTradeRspParams {
         });
         builder.trade_engine_specifics(trade_engine_specifics);
         builder
+    }
+
+    pub fn check(trade_rsp: &TradeResponse, expected: &TradeResponse) {
+        assert_eq!(trade_rsp.trade_response, expected.trade_response);
+        for i in 0..trade_rsp.reject_reason.len() {
+            assert_eq!(trade_rsp.reject_reason[i], expected.reject_reason[i]);
+        }
+        let test_trade_engine_specifics = trade_rsp
+            .trade_engine_specifics
+            .any_ref()
+            .downcast_ref::<SomeTradeEngineTradeRspSpecifics>()
+            .unwrap();
+        let expected_test_trade_engine_specifics = expected
+            .trade_engine_specifics
+            .any_ref()
+            .downcast_ref::<SomeTradeEngineTradeRspSpecifics>()
+            .unwrap();
+        assert_eq!(
+            test_trade_engine_specifics.test_specific_field,
+            expected_test_trade_engine_specifics.test_specific_field
+        );
     }
 }
 

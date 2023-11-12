@@ -117,6 +117,69 @@ impl SomeTestOrderParams {
 
         builder
     }
+
+    pub fn check(order: &Order, expected: &Order) {
+        assert_eq!(order.trade_uuid, expected.trade_uuid);
+        assert_eq!(
+            order.maker_obligation.kinds,
+            expected.maker_obligation.kinds
+        );
+        assert_eq!(
+            order.maker_obligation.content.amount,
+            expected.maker_obligation.content.amount
+        );
+        assert_eq!(
+            order.maker_obligation.content.amount_min,
+            expected.maker_obligation.content.amount_min
+        );
+        assert_eq!(
+            order.taker_obligation.kinds,
+            expected.taker_obligation.kinds
+        );
+        assert_eq!(
+            order.taker_obligation.content.limit_rate,
+            expected.taker_obligation.content.limit_rate
+        );
+        assert_eq!(
+            order.taker_obligation.content.market_offset_pct,
+            expected.taker_obligation.content.market_offset_pct
+        );
+        assert_eq!(
+            order.taker_obligation.content.market_oracles,
+            expected.taker_obligation.content.market_oracles
+        );
+        assert_eq!(
+            order.trade_details.parameters,
+            expected.trade_details.parameters
+        );
+        assert_eq!(
+            order.trade_details.content.maker_bond_pct,
+            expected.trade_details.content.maker_bond_pct
+        );
+        assert_eq!(
+            order.trade_details.content.taker_bond_pct,
+            expected.trade_details.content.taker_bond_pct
+        );
+        assert_eq!(
+            order.trade_details.content.trade_timeout,
+            expected.trade_details.content.trade_timeout
+        );
+        let test_trade_engine_specifics = order
+            .trade_engine_specifics
+            .any_ref()
+            .downcast_ref::<SomeTradeEngineMakerOrderSpecifics>()
+            .unwrap();
+        let expected_trade_engine_specifics = expected
+            .trade_engine_specifics
+            .any_ref()
+            .downcast_ref::<SomeTradeEngineMakerOrderSpecifics>()
+            .unwrap();
+        assert_eq!(
+            test_trade_engine_specifics.test_specific_field,
+            expected_trade_engine_specifics.test_specific_field
+        );
+        assert_eq!(order.pow_difficulty, expected.pow_difficulty);
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
