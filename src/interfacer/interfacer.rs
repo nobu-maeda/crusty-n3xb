@@ -827,6 +827,7 @@ impl InterfacerActor {
         };
         Ok(OrderEnvelope {
             pubkey: event.pubkey,
+            url: Url::parse("https://github.com/nostr-protocol/").unwrap(), // TODO: This is a placeholder. Nostr-sdk does not yet return the url fo the relay on event query
             event_id: event.id.to_string(),
             order: order,
             _private: (),

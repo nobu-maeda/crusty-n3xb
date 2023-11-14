@@ -1,5 +1,6 @@
 use secp256k1::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};
+use url::Url;
 use uuid::Uuid;
 
 use super::{obligation::*, trade_details::*};
@@ -11,6 +12,7 @@ use crate::common::{
 #[derive(Clone, Debug)]
 pub struct OrderEnvelope {
     pub pubkey: XOnlyPublicKey,
+    pub url: Url,
     pub event_id: EventIdString,
     pub order: Order,
     pub(crate) _private: (),
