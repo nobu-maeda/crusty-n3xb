@@ -1,7 +1,7 @@
+use log::{debug, warn};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
-use log::warn;
 use secp256k1::{SecretKey, XOnlyPublicKey};
 use tokio::sync::RwLock;
 use tokio::task::JoinError;
@@ -74,6 +74,11 @@ impl Manager {
         relays: Vec<(String, Option<SocketAddr>)>,
         connect: bool,
     ) -> Result<(), N3xbError> {
+        debug!(
+            "Manager w/ pubkey {} adding relays {:?}",
+            self.pubkey().await,
+            relays
+        );
         self.interfacer_handle.add_relays(relays, connect).await?;
         Ok(())
     }
@@ -84,6 +89,12 @@ impl Manager {
         let maker_engine = MakerEngine::new(self.interfacer.new_handle(), order).await;
         let maker_own = maker_engine.new_handle().await;
         let maker_returned = maker_engine.new_handle().await;
+
+        debug!(
+            "Manager w/ pubkey {} adding Maker w/ TradeUUID {}",
+            self.pubkey().await,
+            trade_uuid
+        );
 
         let mut maker_engines = self.maker_engines.write().await;
         maker_engines.insert(trade_uuid, maker_engine);
@@ -103,6 +114,13 @@ impl Manager {
             .filter(|order_envelope| order_envelope.order.validate().is_ok())
             .collect();
         let valid_length = valid_order_envelopes.len();
+
+        debug!(
+            "Manager w/ pubkey {} queried {} orders and found {} valid orders",
+            self.pubkey().await,
+            queried_length,
+            valid_length
+        );
 
         if valid_length < queried_length {
             let filtered_orders = queried_length - valid_length;
@@ -124,6 +142,12 @@ impl Manager {
         let taker_own = taker_engine.new_handle().await;
         let taker_returned = taker_engine.new_handle().await;
 
+        debug!(
+            "Manager w/ pubkey {} adding Taker w/ TradeUUID {}",
+            self.pubkey().await,
+            trade_uuid
+        );
+
         let mut taker_engines = self.taker_engines.write().await;
         taker_engines.insert(trade_uuid, taker_engine);
 
@@ -139,6 +163,8 @@ impl Manager {
     }
 
     pub async fn shutdown(self) -> Result<(), JoinError> {
+        debug!("Manager w/ pubkey {} shutting down", self.pubkey().await);
+
         if let Some(error) = self.interfacer_handle.shutdown().await.err() {
             warn!("Manager error shutting down Interfacer: {}", error);
         }
