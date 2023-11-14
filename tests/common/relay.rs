@@ -1,8 +1,4 @@
-use anyhow::{anyhow, Result};
-use nostr_rs_relay::config;
-use nostr_rs_relay::server::start_server;
-//use http::{Request, Response};
-use hyper::{Client, StatusCode, Uri};
+use log::{debug, info};
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::mpsc as syncmpsc;
@@ -10,7 +6,11 @@ use std::sync::mpsc::{Receiver as MpscReceiver, Sender as MpscSender};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
-use tracing::{debug, info};
+
+use anyhow::{anyhow, Result};
+use hyper::{Client, StatusCode, Uri};
+use nostr_rs_relay::config;
+use nostr_rs_relay::server::start_server;
 
 pub struct Relay {
     pub port: u16,
@@ -22,8 +22,6 @@ impl Relay {
     const PORT_COUNTER: AtomicU16 = AtomicU16::new(4030);
 
     pub fn start() -> Self {
-        // setup tracing
-        let _trace_sub = tracing_subscriber::fmt::try_init();
         debug!("Starting a new relay");
         // replace default settings
         let mut settings = config::Settings::default();

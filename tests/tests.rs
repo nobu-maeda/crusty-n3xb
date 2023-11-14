@@ -10,12 +10,10 @@ mod integration_tests {
     use super::common::taker_simple_tester::TakerSimpleTester;
 
     #[tokio::test]
-    async fn test_serialized_test_cases() {
-        test_simple_full_flow().await;
-        test_triple_maker_taker().await;
-    }
-
     async fn test_simple_full_flow() {
+        // setup tracing
+        let _trace_sub = tracing_subscriber::fmt::try_init();
+
         let relay = Relay::start();
         relay.wait_for_healthy_relay().await.unwrap();
 
@@ -41,6 +39,4 @@ mod integration_tests {
 
         relay.shutdown().unwrap();
     }
-
-    async fn test_triple_maker_taker() {}
 }
