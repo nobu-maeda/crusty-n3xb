@@ -9,13 +9,13 @@ use tokio::{
 
 use crate::{
     common::{
-        error::N3xbError,
+        error::{N3xbError, OfferInvalidReason},
         types::{EventIdString, SerdeGenericType},
     },
     interfacer::{InterfacerHandle, PeerEnvelope},
     offer::{Offer, OfferEnvelope},
     order::Order,
-    trade_rsp::TradeResponse,
+    trade_rsp::{TradeResponse, TradeResponseBuilder, TradeResponseStatus},
 };
 
 pub struct Maker {
@@ -144,6 +144,7 @@ struct MakerActor {
     trade_rsp: Option<TradeResponse>,
     trade_rsp_event_id: Option<EventIdString>,
     notif_tx: Option<mpsc::Sender<Result<OfferEnvelope, N3xbError>>>,
+    reject_invalid_offers_silently: bool,
 }
 
 impl MakerActor {
@@ -162,6 +163,7 @@ impl MakerActor {
             trade_rsp: None,
             trade_rsp_event_id: None,
             notif_tx: None,
+            reject_invalid_offers_silently: true,
         }
     }
 
@@ -396,28 +398,34 @@ impl MakerActor {
     async fn handle_taker_offer(&mut self, offer_envelope: OfferEnvelope) {
         let mut notif_result: Result<OfferEnvelope, N3xbError> = Ok(offer_envelope.clone());
 
-        let valid = offer_envelope.offer.validate_against(&self.order);
-        match valid {
-            Ok(_) => {
-                if let Some(accepted_offer_event_id) = self.accepted_offer_event_id.clone() {
-                    notif_result = Err(N3xbError::Simple(format!(
-                        "Maker w/ TradeUUID {} received Offer with EventID {} after already accepted Offer with EventID {}",
-                        self.order.trade_uuid, offer_envelope.event_id, accepted_offer_event_id
-                    )));
-                } else if self.offer_envelopes.contains_key(&offer_envelope.event_id) {
-                    notif_result = Err(N3xbError::Simple(format!(
-                        "Maker w/ TradeUUID {} received duplicate Offer with EventID {}",
-                        self.order.trade_uuid, offer_envelope.event_id
-                    )));
-                } else {
-                    self.offer_envelopes
-                        .insert(offer_envelope.event_id.clone(), offer_envelope);
-                }
-            }
+        let reason = if self.accepted_offer_event_id.is_some() {
+            Some(OfferInvalidReason::Pending)
+        } else if self.offer_envelopes.contains_key(&offer_envelope.event_id) {
+            Some(OfferInvalidReason::DuplicateOffer)
+        } else if let Some(reason) = offer_envelope.offer.validate_against(&self.order).err() {
+            Some(reason)
+        } else {
+            self.offer_envelopes
+                .insert(offer_envelope.event_id.clone(), offer_envelope.clone());
+            None
+        };
 
-            Err(_error) => {
-                // TODO: Reject offer by sending Taker a Trade Response message
-                // Optionally notify user of invalid Offer received
+        let offer_envelope_clone = offer_envelope.clone();
+
+        if let Some(reason) = reason {
+            notif_result = Err(N3xbError::InvalidOffer(reason.clone()));
+            if let Some(reject_err) = self
+                .reject_taker_offer(offer_envelope_clone, reason)
+                .await
+                .err()
+            {
+                error!(
+                    "Maker w/ TradeUUID {} rejected Offer with Event ID {} but with error - {}",
+                    self.order.trade_uuid, offer_envelope.event_id, reject_err
+                )
+            }
+            if self.reject_invalid_offers_silently {
+                return;
             }
         }
 
@@ -435,5 +443,45 @@ impl MakerActor {
                 self.order.trade_uuid
             );
         }
+    }
+
+    async fn reject_taker_offer(
+        &mut self,
+        offer_envelope: OfferEnvelope,
+        reason: OfferInvalidReason,
+    ) -> Result<(), N3xbError> {
+        let mut reject_result: Result<(), N3xbError> = Ok(());
+
+        let pubkey = offer_envelope.pubkey;
+        let offer_event_id = offer_envelope.event_id.clone();
+        let maker_order_note_id = match self.order_event_id.clone() {
+            Some(event_id) => event_id,
+            None => {
+                reject_result = Err(N3xbError::Simple(format!(
+                    "Maker w/ TradeUUID {} expected to already have sent Maker Order Note and receive Event ID",
+                    self.order.trade_uuid
+                )));
+                "".to_string()
+            }
+        };
+
+        let trade_rsp = TradeResponseBuilder::new()
+            .offer_event_id(offer_event_id)
+            .trade_response(TradeResponseStatus::Rejected)
+            .reject_reason(reason.clone())
+            .build()
+            .unwrap();
+
+        self.interfacer_handle
+            .send_trade_response(
+                pubkey,
+                Some(offer_envelope.event_id.clone()),
+                maker_order_note_id,
+                self.order.trade_uuid.clone(),
+                trade_rsp,
+            )
+            .await?;
+
+        reject_result
     }
 }

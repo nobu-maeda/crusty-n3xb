@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::{any::Any, fmt::Debug};
 
 use crate::{
-    common::{error::N3xbError, types::*},
+    common::{error::OfferInvalidReason, types::*},
     order::Order,
 };
 
@@ -42,19 +42,16 @@ impl SerdeGenericTrait for Offer {
 }
 
 impl Offer {
-    pub fn validate_against(&self, order: &Order) -> Result<(), N3xbError> {
+    pub fn validate_against(&self, order: &Order) -> Result<(), OfferInvalidReason> {
         self.validate_maker_obligation_against(order)?;
         self.validate_taker_obligation_against(order)?;
 
         // Check Taker suggested PoW difficulty is higher than in initial Maker Order
         if let Some(pow_difficulty) = self.pow_difficulty {
             if pow_difficulty < order.pow_difficulty {
-                return Err(N3xbError::Simple(format!(
-                    "Taker Offer suggested lower PoW difficulty than specified in initial Order"
-                )));
+                return Err(OfferInvalidReason::PowTooHigh);
             }
         }
-
         // TODO: How to validate trade engine specifics? Depend on the Trade Engine to do so after it gets notified?
         Ok(())
     }
@@ -75,30 +72,23 @@ impl Offer {
         };
     }
 
-    fn validate_maker_obligation_against(&self, order: &Order) -> Result<(), N3xbError> {
+    fn validate_maker_obligation_against(&self, order: &Order) -> Result<(), OfferInvalidReason> {
         if !order
             .maker_obligation
             .kinds
             .contains(&self.maker_obligation.kind)
         {
-            return Err(N3xbError::Simple(format!(
-                "Offer Maker Obligation Kind {:?} not found in initial Order",
-                self.maker_obligation.kind
-            )));
+            return Err(OfferInvalidReason::MakerObligationKindInvalid);
         }
 
         if let Some(amount_min) = order.maker_obligation.content.amount_min {
             if self.maker_obligation.amount < amount_min
                 || self.maker_obligation.amount > order.maker_obligation.content.amount
             {
-                return Err(N3xbError::Simple(format!(
-                    "Offer Maker Obligation amount not within bounds specificed in initial Order"
-                )));
+                return Err(OfferInvalidReason::MakerObligationAmountInvalid);
             }
         } else if self.maker_obligation.amount != order.maker_obligation.content.amount {
-            return Err(N3xbError::Simple(format!(
-                "Offer Maker Obligation amount does not match amount specified in initial Order"
-            )));
+            return Err(OfferInvalidReason::MakerObligationAmountInvalid);
         }
 
         if let Some(maker_bond_pct) = order.trade_details.content.maker_bond_pct {
@@ -112,28 +102,24 @@ impl Offer {
                     offer_bond_amount as f64,
                     0.001,
                 ) {
-                    return Err(N3xbError::Simple(format!("Offer Maker Obligation bond amount does not match percentage specified in initial Order")));
+                    return Err(OfferInvalidReason::MakerBondInvalid);
                 }
             } else {
-                return Err(N3xbError::Simple(format!("Offer Maker Obligation does not have bond amount specified as required in the initial Order")));
+                return Err(OfferInvalidReason::MakerBondInvalid);
             }
         } else if self.maker_obligation.bond_amount != None {
-            return Err(N3xbError::Simple(format!("Offer Maker Obligation should not have bond amount as its not specified in initial Order")));
+            return Err(OfferInvalidReason::MakerBondInvalid);
         }
-
         Ok(())
     }
 
-    fn validate_taker_obligation_against(&self, order: &Order) -> Result<(), N3xbError> {
+    fn validate_taker_obligation_against(&self, order: &Order) -> Result<(), OfferInvalidReason> {
         if !order
             .taker_obligation
             .kinds
             .contains(&self.taker_obligation.kind)
         {
-            return Err(N3xbError::Simple(format!(
-                "Offer Taker Obligation Kind {:?} not found in initial Order",
-                self.taker_obligation.kind
-            )));
+            return Err(OfferInvalidReason::TakerObligationKindInvalid);
         }
 
         let maker_amount = self.maker_obligation.amount as f64; // This is validated in Maker validation. So we take it as it is
@@ -142,16 +128,12 @@ impl Offer {
             let expected_taker_amount = maker_amount * limit_rate;
             let taker_amount = self.taker_obligation.amount as f64;
             if !Self::f64_amount_within_pct_of(expected_taker_amount, taker_amount, 0.001) {
-                return Err(N3xbError::Simple(format!(
-                    "Offer Taker Obligation amount not as expected"
-                )));
+                return Err(OfferInvalidReason::TakerObligationAmountInvalid);
             }
         }
 
         if self.market_oracle_used.is_some() {
-            return Err(N3xbError::Simple(format!(
-                "Market & Oracle based rate determination not yet supported"
-            )));
+            return Err(OfferInvalidReason::MarketOracleInvalid);
         }
 
         if let Some(taker_bond_pct) = order.trade_details.content.taker_bond_pct {
@@ -165,15 +147,14 @@ impl Offer {
                     offer_bond_amount as f64,
                     0.001,
                 ) {
-                    return Err(N3xbError::Simple(format!("Offer Taker Obligation bond amount does not match percentage specified in initial Order")));
+                    return Err(OfferInvalidReason::TakerBondInvalid);
                 }
             } else {
-                return Err(N3xbError::Simple(format!("Offer Taker Obligation does not have bond amount specified as required in the initial Order")));
+                return Err(OfferInvalidReason::TakerBondInvalid);
             }
         } else if self.taker_obligation.bond_amount != None {
-            return Err(N3xbError::Simple(format!("Offer Taker Obligation should not have bond amount as its not specified in initial Order")));
+            return Err(OfferInvalidReason::TakerBondInvalid);
         }
-
         Ok(())
     }
 }

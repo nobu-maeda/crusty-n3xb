@@ -1,10 +1,14 @@
 use std::{error::Error, fmt};
 
+use serde::{Deserialize, Serialize};
+use strum_macros::{Display, IntoStaticStr};
+
 pub type BoxedError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 #[derive(Debug)]
 pub enum N3xbError {
     Simple(String),
+    InvalidOffer(OfferInvalidReason),
     TagParsing(String),
     StrumParsing(strum::ParseError),
     CurrencyParsing(iso_currency::ParseCurrencyError),
@@ -20,6 +24,9 @@ impl fmt::Display for N3xbError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let error_string = match self {
             N3xbError::Simple(msg) => format!("n3xB-Error | Other - {}", msg),
+            N3xbError::InvalidOffer(reason) => {
+                format!("n3xB-Error | InvalidOffer - {}", reason)
+            }
             N3xbError::TagParsing(tag) => {
                 format!("n3xB-Error | TagParsing - Cannot parse tag {}", tag)
             }
@@ -79,5 +86,71 @@ impl From<serde_json::Error> for N3xbError {
 impl<T> From<tokio::sync::mpsc::error::SendError<T>> for N3xbError {
     fn from(e: tokio::sync::mpsc::error::SendError<T>) -> N3xbError {
         N3xbError::MpscSend(e.to_string())
+    }
+}
+
+impl From<OfferInvalidReason> for N3xbError {
+    fn from(e: OfferInvalidReason) -> N3xbError {
+        N3xbError::InvalidOffer(e)
+    }
+}
+
+#[derive(Clone, Display, IntoStaticStr, PartialEq, Serialize, Deserialize)]
+pub enum OfferInvalidReason {
+    Pending,
+    DuplicateOffer,
+    MakerObligationKindInvalid,
+    MakerObligationAmountInvalid,
+    MakerBondInvalid,
+    TakerObligationKindInvalid,
+    TakerObligationAmountInvalid,
+    TakerBondInvalid,
+    ExchangeRateInvalid,
+    MarketOracleInvalid,
+    TradeEngineSpecific,
+    PowTooHigh,
+}
+
+impl fmt::Debug for OfferInvalidReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OfferInvalidReason::Pending => write!(f, "Order is pending another Taker"),
+            OfferInvalidReason::DuplicateOffer => write!(f, "Offer already previously received"),
+            OfferInvalidReason::MakerObligationKindInvalid => write!(
+                f,
+                " Maker obligation kind is invalid or not in acceptable set"
+            ),
+            OfferInvalidReason::MakerObligationAmountInvalid => write!(
+                f,
+                "Maker obligation amount is invalid or not in acceptable range"
+            ),
+            OfferInvalidReason::MakerBondInvalid => {
+                write!(f, "Maker bond is invalid or not in acceptable range")
+            }
+            OfferInvalidReason::TakerObligationKindInvalid => write!(
+                f,
+                "Taker obligation kind is invalid or not in acceptable set"
+            ),
+            OfferInvalidReason::TakerObligationAmountInvalid => write!(
+                f,
+                "Taker obligation amount is invalid or not in acceptable range"
+            ),
+            OfferInvalidReason::TakerBondInvalid => {
+                write!(f, "Taker bond is invalid or not in acceptable range")
+            }
+            OfferInvalidReason::ExchangeRateInvalid => {
+                write!(f, "Exchange rate specified is invalid")
+            }
+            OfferInvalidReason::MarketOracleInvalid => write!(
+                f,
+                "Market oracle specified is invalid or not in acceptable set"
+            ),
+            OfferInvalidReason::TradeEngineSpecific => {
+                write!(f, "Reason provided in trade_engine_specifics JSON")
+            }
+            OfferInvalidReason::PowTooHigh => {
+                write!(f, "The Taker desired minimum PoW is too high for the Maker")
+            }
+        }
     }
 }

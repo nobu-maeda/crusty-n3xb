@@ -1,14 +1,14 @@
 use crate::common::{
-    error::N3xbError,
+    error::{N3xbError, OfferInvalidReason},
     types::{EventIdString, SerdeGenericTrait},
 };
 
-use super::{TradeRejectReason, TradeResponse, TradeResponseStatus};
+use super::{TradeResponse, TradeResponseStatus};
 
 pub struct TradeResponseBuilder {
     offer_event_id: Option<EventIdString>,
     trade_response: Option<TradeResponseStatus>,
-    reject_reason: Vec<TradeRejectReason>,
+    reject_reason: Vec<OfferInvalidReason>,
     trade_engine_specifics: Option<Box<dyn SerdeGenericTrait>>,
 }
 
@@ -32,7 +32,7 @@ impl TradeResponseBuilder {
         self
     }
 
-    pub fn reject_reason(&mut self, reject_reason: impl Into<TradeRejectReason>) -> &mut Self {
+    pub fn reject_reason(&mut self, reject_reason: impl Into<OfferInvalidReason>) -> &mut Self {
         self.reject_reason.push(reject_reason.into());
         self
     }

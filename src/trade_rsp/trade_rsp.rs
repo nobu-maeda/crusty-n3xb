@@ -3,7 +3,7 @@ use std::{any::Any, fmt::Debug};
 use secp256k1::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};
 
-use crate::common::types::*;
+use crate::common::{error::OfferInvalidReason, types::*};
 
 #[derive(Clone, Debug)]
 pub struct TradeResponseEnvelope {
@@ -20,27 +20,11 @@ pub enum TradeResponseStatus {
     NotAvailable,
 }
 
-#[derive(PartialEq, Clone, Debug, Serialize, Deserialize)]
-pub enum TradeRejectReason {
-    Pending,
-    InvalidMakerCurrency,
-    InvalidMakerSettlemment,
-    InvalidTakerCurrency,
-    InvalidTakerSettlement,
-    InvalidMarketOracle,
-    MakerAmountOutOfRange,
-    ExchangeRateOutOfRange,
-    MakerBondOutOfRange,
-    TakerBondOutOfRange,
-    TradeEngineSpecific,
-    PowTooHigh,
-}
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TradeResponse {
     pub offer_event_id: EventIdString,
     pub trade_response: TradeResponseStatus,
-    pub reject_reason: Vec<TradeRejectReason>,
+    pub reject_reason: Vec<OfferInvalidReason>,
     pub trade_engine_specifics: Box<dyn SerdeGenericTrait>,
 }
 
