@@ -5,12 +5,17 @@ mod integration_tests {
     use crusty_n3xb::manager::Manager;
     use crusty_n3xb::testing::*;
 
-    use super::common::maker_tester::MakerTester;
+    use super::common::maker_simple_tester::MakerSimpleTester;
     use super::common::relay::Relay;
-    use super::common::taker_tester::TakerTester;
+    use super::common::taker_simple_tester::TakerSimpleTester;
 
     #[tokio::test]
-    async fn test_dual_thread_full_flow() {
+    async fn test_serialized_test_cases() {
+        test_simple_full_flow().await;
+        test_triple_maker_taker().await;
+    }
+
+    async fn test_simple_full_flow() {
         let relay = Relay::start();
         relay.wait_for_healthy_relay().await.unwrap();
 
@@ -28,12 +33,14 @@ mod integration_tests {
         let order = SomeTestOrderParams::default_builder().build().unwrap();
         let trade_uuid = order.trade_uuid.clone();
 
-        let maker_tester = MakerTester::start(maker_manager, order).await;
-        let taker_tester = TakerTester::start(taker_manager, trade_uuid).await;
+        let maker_tester = MakerSimpleTester::start(maker_manager, order).await;
+        let taker_tester = TakerSimpleTester::start(taker_manager, trade_uuid).await;
 
         maker_tester.wait_for_completion().await.unwrap();
         taker_tester.wait_for_completion().await.unwrap();
 
         relay.shutdown().unwrap();
     }
+
+    async fn test_triple_maker_taker() {}
 }

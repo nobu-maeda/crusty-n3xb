@@ -488,7 +488,7 @@ impl InterfacerActor {
         }
     }
 
-    async fn handle_direct_message(&mut self, url: Url, event: Event) {
+    async fn handle_direct_message(&mut self, _url: Url, event: Event) {
         let secret_key = self.client.keys().secret_key().unwrap();
         let content = match decrypt(&secret_key, &event.pubkey, &event.content) {
             Ok(content) => content,

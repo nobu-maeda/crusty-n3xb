@@ -8,14 +8,14 @@ use crusty_n3xb::{
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
-pub struct TakerTester {
+pub struct TakerSimpleTester {
     cmpl_rx: oneshot::Receiver<Result<(), N3xbError>>,
 }
 
-impl TakerTester {
+impl TakerSimpleTester {
     pub async fn start(manager: Manager, trade_uuid: Uuid) -> Self {
         let (cmpl_tx, cmpl_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let actor = TakerTesterActor::new(cmpl_tx, manager, trade_uuid).await;
+        let actor = TakerSimpleTesterActor::new(cmpl_tx, manager, trade_uuid).await;
         tokio::spawn(async move { actor.run().await });
         Self { cmpl_rx }
     }
@@ -25,13 +25,13 @@ impl TakerTester {
     }
 }
 
-struct TakerTesterActor {
+struct TakerSimpleTesterActor {
     cmpl_tx: oneshot::Sender<Result<(), N3xbError>>,
     manager: Manager,
     trade_uuid: Uuid,
 }
 
-impl TakerTesterActor {
+impl TakerSimpleTesterActor {
     async fn new(
         cmpl_tx: oneshot::Sender<Result<(), N3xbError>>,
         manager: Manager,

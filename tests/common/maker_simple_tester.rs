@@ -7,14 +7,14 @@ use crusty_n3xb::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub struct MakerTester {
+pub struct MakerSimpleTester {
     cmpl_rx: oneshot::Receiver<Result<(), N3xbError>>,
 }
 
-impl MakerTester {
+impl MakerSimpleTester {
     pub async fn start(manager: Manager, order: Order) -> Self {
         let (cmpl_tx, cmpl_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let actor = MakerTesterActor::new(cmpl_tx, manager, order).await;
+        let actor = MakerSimpleTesterActor::new(cmpl_tx, manager, order).await;
         tokio::spawn(async move { actor.run().await });
         Self { cmpl_rx }
     }
@@ -24,13 +24,13 @@ impl MakerTester {
     }
 }
 
-struct MakerTesterActor {
+struct MakerSimpleTesterActor {
     cmpl_tx: oneshot::Sender<Result<(), N3xbError>>,
     manager: Manager,
     order: Order,
 }
 
-impl MakerTesterActor {
+impl MakerSimpleTesterActor {
     async fn new(
         cmpl_tx: oneshot::Sender<Result<(), N3xbError>>,
         manager: Manager,
