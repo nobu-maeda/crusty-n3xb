@@ -320,7 +320,7 @@ impl InterfacerActor {
 
     // Event Loop Main
 
-    async fn run(&mut self) {
+    async fn run(mut self) {
         // Nostr client initializaiton
         let pubkey = self.client.keys().public_key();
         self.client
@@ -347,10 +347,9 @@ impl InterfacerActor {
                 else => break,
             }
         }
-        info!(
-            "Interfacer w/ pubkey {} terminating",
-            self.client.keys().public_key().to_string()
-        );
+
+        info!("Interfacer w/ pubkey {} terminating", pubkey.to_string());
+        self.client.shutdown().await.unwrap();
     }
 
     async fn handle_request(&mut self, request: InterfacerRequest) -> bool {

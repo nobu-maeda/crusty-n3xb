@@ -47,6 +47,7 @@ mock! {
         pub async fn send_direct_msg<S>(&self, receiver: XOnlyPublicKey, msg: S) -> Result<EventId, Error> where S: Into<String> + 'static;
         pub fn notifications(&self) -> Receiver<RelayPoolNotification>;
         pub async fn subscribe(&self, filters: Vec<Filter>);
+        pub async fn shutdown(self) -> Result<(), Error>;
     }
 }
 
