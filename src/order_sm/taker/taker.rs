@@ -64,7 +64,7 @@ pub(crate) struct Taker {
 }
 
 impl Taker {
-    const TAKER_REQUEST_CHANNEL_SIZE: usize = 2;
+    const TAKER_REQUEST_CHANNEL_SIZE: usize = 10;
 
     pub(crate) async fn new(
         communicator_accessor: CommunicatorAccess,
@@ -162,6 +162,8 @@ impl TakerActor {
         info!("Taker w/ TradeUUID {} terminating", trade_uuid)
     }
 
+    // Top-down Requests Handling
+
     async fn handle_request(&mut self, request: TakerRequest) -> bool {
         let mut terminate = false;
         debug!(
@@ -246,6 +248,8 @@ impl TakerActor {
         rsp_tx.send(Ok(())).unwrap();
     }
 
+    // Bottom-up Peer Message Handling
+
     async fn handle_peer_message(&mut self, peer_envelope: PeerEnvelope) {
         debug!(
             "Taker w/ TradeUUID {} handle_peer_message() from pubkey {}, of event id {}, type {:?}",
@@ -315,4 +319,24 @@ impl TakerActor {
             );
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    // TODO: A lot to mock. Postponing this
+
+    // #[tokio::test]
+    // async fn test_handle_trade_response_notif() {
+    //     todo!();
+    // }
+
+    // #[tokio::test]
+    // async fn test_handle_trade_response_duplicated() {
+    //     todo!();
+    // }
+
+    // #[tokio::test]
+    // async fn test_handle_trade_response_offer_id_mismatch() {
+    //     todo!();
+    // }
 }

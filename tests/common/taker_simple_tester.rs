@@ -2,7 +2,10 @@ use crusty_n3xb::{
     common::error::N3xbError,
     manager::Manager,
     order::OrderEnvelope,
-    testing::{SomeTestOfferParams, SomeTestOrderParams, SomeTestTradeRspParams},
+    testing::{
+        SomeTestOfferParams, SomeTestOrderParams, SomeTestTradeRspParams,
+        TESTING_DEFAULT_CHANNEL_SIZE,
+    },
     trade_rsp::{TradeResponseEnvelope, TradeResponseStatus},
 };
 use tokio::sync::{mpsc, oneshot};
@@ -44,8 +47,6 @@ impl TakerSimpleTesterActor {
         }
     }
 
-    const TAKER_TEST_ACTOR_NOTIF_CHANNEL_SIZE: usize = 5;
-
     async fn run(mut self) {
         // Query & poll for Orders
         // * Optionally create ability to subscribe to a certain filter of Orders
@@ -69,9 +70,8 @@ impl TakerSimpleTesterActor {
         let taker = self.manager.new_taker(order_envelope, offer).await.unwrap();
 
         // Register Taker for Trade Response notifications
-        let (notif_tx, mut notif_rx) = mpsc::channel::<Result<TradeResponseEnvelope, N3xbError>>(
-            Self::TAKER_TEST_ACTOR_NOTIF_CHANNEL_SIZE,
-        );
+        let (notif_tx, mut notif_rx) =
+            mpsc::channel::<Result<TradeResponseEnvelope, N3xbError>>(TESTING_DEFAULT_CHANNEL_SIZE);
         taker.register_trade_notif_tx(notif_tx).await.unwrap();
 
         // Take Order with configured Offer

@@ -3,7 +3,7 @@ use crusty_n3xb::{
     manager::Manager,
     offer::OfferEnvelope,
     order::Order,
-    testing::{SomeTestOfferParams, SomeTestTradeRspParams},
+    testing::{SomeTestOfferParams, SomeTestTradeRspParams, TESTING_DEFAULT_CHANNEL_SIZE},
 };
 use tokio::sync::{mpsc, oneshot};
 
@@ -43,17 +43,14 @@ impl MakerSimpleTesterActor {
         }
     }
 
-    const MAKER_TEST_ACTOR_NOTIF_CHANNEL_SIZE: usize = 5;
-
     async fn run(self) {
         // Create and setup a Maker for a new Order
         let order = self.order.clone();
         let maker = self.manager.new_maker(order).await.unwrap();
 
         // Register Maker for Offer notificaitons
-        let (notif_tx, mut notif_rx) = mpsc::channel::<Result<OfferEnvelope, N3xbError>>(
-            Self::MAKER_TEST_ACTOR_NOTIF_CHANNEL_SIZE,
-        );
+        let (notif_tx, mut notif_rx) =
+            mpsc::channel::<Result<OfferEnvelope, N3xbError>>(TESTING_DEFAULT_CHANNEL_SIZE);
         maker.register_offer_notif_tx(notif_tx).await.unwrap();
 
         // The whole thing kicks off by sending a Maker Order Note

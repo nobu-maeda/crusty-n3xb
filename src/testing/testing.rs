@@ -9,3 +9,5 @@ impl SomeTestParams {
         "some-test-specific-info".to_string()
     }
 }
+
+pub const TESTING_DEFAULT_CHANNEL_SIZE: usize = 5;

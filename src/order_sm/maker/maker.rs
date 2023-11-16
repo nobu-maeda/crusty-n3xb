@@ -90,7 +90,7 @@ pub(crate) struct Maker {
 }
 
 impl Maker {
-    const MAKER_REQUEST_CHANNEL_SIZE: usize = 2;
+    const MAKER_REQUEST_CHANNEL_SIZE: usize = 10;
 
     pub(crate) async fn new(communicator_accessor: CommunicatorAccess, order: Order) -> Self {
         let (tx, rx) = mpsc::channel::<MakerRequest>(Self::MAKER_REQUEST_CHANNEL_SIZE);
@@ -199,6 +199,8 @@ impl MakerActor {
         info!("Maker w/ TradeUUID {} terminating", trade_uuid);
     }
 
+    // Top-down Request Handling
+
     async fn handle_request(&mut self, request: MakerRequest) -> bool {
         let mut terminate = false;
 
@@ -284,7 +286,7 @@ impl MakerActor {
             Some(offer_envelope) => offer_envelope.pubkey.clone(),
             None => {
                 let error = N3xbError::Simple(format!(
-                    "Maker w/ TradeUUID {} expected to contain accepted Offer {}",
+                    "Maker w/ TradeUUID {} expected, but does not contain accepted Offer {}",
                     self.order.trade_uuid, accepted_offer_event_id
                 ));
                 rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
@@ -363,6 +365,8 @@ impl MakerActor {
         // TODO: What else to do for Trade Complete?
         rsp_tx.send(Ok(())).unwrap();
     }
+
+    // Bottom-up Peer Message Handling
 
     async fn handle_peer_message(&mut self, peer_envelope: PeerEnvelope) {
         debug!(
@@ -487,4 +491,49 @@ impl MakerActor {
 
         reject_result
     }
+}
+
+#[cfg(test)]
+mod tests {
+    // TODO: A lot to mock. Postponing this
+
+    // #[tokio::test]
+    // async fn test_accept_offer_send_trade_response() {
+    //     todo!();
+    // }
+
+    // #[tokio::test]
+    // async fn test_accept_offer_already_accepted() {
+    //     todo!();
+    // }
+
+    // #[tokio::test]
+    // async fn test_accept_offer_does_not_exist() {
+    //     todo!();
+    // }
+
+    // #[tokio::test]
+    // async fn test_accept_offer_no_order_event_id() {
+    //     todo!();
+    // }
+
+    // #[tokio::test]
+    // async fn test_handle_taker_offer_notify() {
+    //     todo!();
+    // }
+
+    // #[tokio::test]
+    // async fn test_handle_taker_offer_already_accepted() {
+    //     todo!();
+    // }
+
+    // #[tokio::test]
+    // async fn test_handle_taker_offer_invalid_against_order() {
+    //     todo!();
+    // }
+
+    // #[tokio::test]
+    // async fn test_handle_taker_offer_invalid_silently() {
+    //     todo!();
+    // }
 }
