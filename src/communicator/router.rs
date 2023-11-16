@@ -117,7 +117,7 @@ mod tests {
     use super::*;
     use crate::{
         common::types::SerdeGenericType,
-        interfacer::peer_messaging::PeerEnvelope,
+        communicator::peer_messaging::PeerEnvelope,
         offer::Offer,
         testing::{SomeTestOfferParams, SomeTestOrderParams},
     };

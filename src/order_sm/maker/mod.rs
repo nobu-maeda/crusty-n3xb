@@ -1,4 +1,4 @@
 mod maker;
 
-pub use maker::Maker;
-pub(crate) use maker::MakerEngine;
+pub(crate) use maker::Maker;
+pub use maker::MakerAccess;

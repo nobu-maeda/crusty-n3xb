@@ -8,22 +8,22 @@ use tokio::task::JoinError;
 use uuid::Uuid;
 
 use crate::common::error::N3xbError;
-use crate::interfacer::{Interfacer, InterfacerHandle};
+use crate::communicator::{Communicator, CommunicatorAccess};
 use crate::offer::Offer;
 use crate::order::{Order, OrderEnvelope};
-use crate::order_sm::maker::{Maker, MakerEngine};
-use crate::order_sm::taker::{Taker, TakerEngine};
+use crate::order_sm::maker::{Maker, MakerAccess};
+use crate::order_sm::taker::{Taker, TakerAccess};
 
 // At the moment we only support a single Trade Engine at a time.
 // Might need to change to a dyn Trait if mulitple is to be supported at a time
 pub struct Manager {
     trade_engine_name: String,
-    interfacer: Interfacer,
-    interfacer_handle: InterfacerHandle,
-    maker_engines: RwLock<HashMap<Uuid, MakerEngine>>,
-    taker_engines: RwLock<HashMap<Uuid, TakerEngine>>,
+    communicator: Communicator,
+    communicator_accessor: CommunicatorAccess,
     makers: RwLock<HashMap<Uuid, Maker>>,
     takers: RwLock<HashMap<Uuid, Taker>>,
+    maker_accessors: RwLock<HashMap<Uuid, MakerAccess>>,
+    taker_accessors: RwLock<HashMap<Uuid, TakerAccess>>,
 }
 
 impl Manager {
@@ -35,38 +35,38 @@ impl Manager {
     // TODO: Should also take in custom path for n3xB file locations
 
     pub async fn new(trade_engine_name: impl AsRef<str>) -> Manager {
-        let interfacer = Interfacer::new(trade_engine_name.as_ref()).await;
-        let interfacer_handle = interfacer.new_handle();
+        let communicator = Communicator::new(trade_engine_name.as_ref()).await;
+        let communicator_accessor = communicator.new_accessor();
 
         Manager {
             trade_engine_name: trade_engine_name.as_ref().to_string(),
-            interfacer,
-            interfacer_handle,
-            maker_engines: RwLock::new(HashMap::new()),
-            taker_engines: RwLock::new(HashMap::new()),
+            communicator,
+            communicator_accessor,
             makers: RwLock::new(HashMap::new()),
             takers: RwLock::new(HashMap::new()),
+            maker_accessors: RwLock::new(HashMap::new()),
+            taker_accessors: RwLock::new(HashMap::new()),
         }
     }
 
     pub async fn new_with_keys(key: SecretKey, trade_engine_name: impl AsRef<str>) -> Manager {
-        let interfacer = Interfacer::new_with_key(key, trade_engine_name.as_ref()).await;
-        let interfacer_handle = interfacer.new_handle();
+        let communicator = Communicator::new_with_key(key, trade_engine_name.as_ref()).await;
+        let communicator_accessor = communicator.new_accessor();
 
         Manager {
             trade_engine_name: trade_engine_name.as_ref().to_string(),
-            interfacer,
-            interfacer_handle,
-            maker_engines: RwLock::new(HashMap::new()),
-            taker_engines: RwLock::new(HashMap::new()),
+            communicator,
+            communicator_accessor,
             makers: RwLock::new(HashMap::new()),
             takers: RwLock::new(HashMap::new()),
+            maker_accessors: RwLock::new(HashMap::new()),
+            taker_accessors: RwLock::new(HashMap::new()),
         }
     }
 
     // Nostr Management
     pub async fn pubkey(&self) -> XOnlyPublicKey {
-        self.interfacer_handle.get_pubkey().await
+        self.communicator_accessor.get_pubkey().await
     }
 
     pub async fn add_relays(
@@ -79,16 +79,18 @@ impl Manager {
             self.pubkey().await,
             relays
         );
-        self.interfacer_handle.add_relays(relays, connect).await?;
+        self.communicator_accessor
+            .add_relays(relays, connect)
+            .await?;
         Ok(())
     }
 
     // Order Management
-    pub async fn new_maker(&self, order: Order) -> Result<Maker, N3xbError> {
+    pub async fn new_maker(&self, order: Order) -> Result<MakerAccess, N3xbError> {
         let trade_uuid = order.trade_uuid;
-        let maker_engine = MakerEngine::new(self.interfacer.new_handle(), order).await;
-        let maker_own = maker_engine.new_handle().await;
-        let maker_returned = maker_engine.new_handle().await;
+        let maker = Maker::new(self.communicator.new_accessor(), order).await;
+        let maker_my_accessor = maker.new_accessor().await;
+        let maker_returned_accessor = maker.new_accessor().await;
 
         debug!(
             "Manager w/ pubkey {} adding Maker w/ TradeUUID {}",
@@ -96,17 +98,17 @@ impl Manager {
             trade_uuid
         );
 
-        let mut maker_engines = self.maker_engines.write().await;
-        maker_engines.insert(trade_uuid, maker_engine);
-
         let mut makers = self.makers.write().await;
-        makers.insert(trade_uuid, maker_own);
+        makers.insert(trade_uuid, maker);
 
-        Ok(maker_returned)
+        let mut maker_accessors = self.maker_accessors.write().await;
+        maker_accessors.insert(trade_uuid, maker_my_accessor);
+
+        Ok(maker_returned_accessor)
     }
 
     pub async fn query_orders(&mut self) -> Result<Vec<OrderEnvelope>, N3xbError> {
-        let mut order_envelopes = self.interfacer_handle.query_orders().await?;
+        let mut order_envelopes = self.communicator_accessor.query_orders().await?;
         let queried_length = order_envelopes.len();
 
         let valid_order_envelopes: Vec<OrderEnvelope> = order_envelopes
@@ -133,14 +135,13 @@ impl Manager {
         &self,
         order_envelope: OrderEnvelope,
         offer: Offer,
-    ) -> Result<Taker, N3xbError> {
+    ) -> Result<TakerAccess, N3xbError> {
         offer.validate_against(&order_envelope.order)?;
 
         let trade_uuid = order_envelope.order.trade_uuid;
-        let taker_engine =
-            TakerEngine::new(self.interfacer.new_handle(), order_envelope, offer).await;
-        let taker_own = taker_engine.new_handle().await;
-        let taker_returned = taker_engine.new_handle().await;
+        let taker = Taker::new(self.communicator.new_accessor(), order_envelope, offer).await;
+        let taker_my_accessor = taker.new_accessor().await;
+        let taker_returned_accessor = taker.new_accessor().await;
 
         debug!(
             "Manager w/ pubkey {} adding Taker w/ TradeUUID {}",
@@ -148,13 +149,13 @@ impl Manager {
             trade_uuid
         );
 
-        let mut taker_engines = self.taker_engines.write().await;
-        taker_engines.insert(trade_uuid, taker_engine);
-
         let mut takers = self.takers.write().await;
-        takers.insert(trade_uuid, taker_own);
+        takers.insert(trade_uuid, taker);
 
-        Ok(taker_returned)
+        let mut taker_accessors = self.taker_accessors.write().await;
+        taker_accessors.insert(trade_uuid, taker_my_accessor);
+
+        Ok(taker_returned_accessor)
     }
 
     fn load_settings() {
@@ -165,17 +166,17 @@ impl Manager {
     pub async fn shutdown(self) -> Result<(), JoinError> {
         debug!("Manager w/ pubkey {} shutting down", self.pubkey().await);
 
-        if let Some(error) = self.interfacer_handle.shutdown().await.err() {
-            warn!("Manager error shutting down Interfacer: {}", error);
+        if let Some(error) = self.communicator_accessor.shutdown().await.err() {
+            warn!("Manager error shutting down Communicator: {}", error);
         }
-        self.interfacer.task_handle.await?;
-        let mut maker_engines = self.maker_engines.write().await;
-        for (_uuid, maker_engine) in maker_engines.drain() {
-            maker_engine.task_handle.await?;
+        self.communicator.task_handle.await?;
+        let mut makers = self.makers.write().await;
+        for (_uuid, maker) in makers.drain() {
+            maker.task_handle.await?;
         }
-        let mut taker_engines = self.taker_engines.write().await;
-        for (_uuid, taker_engine) in taker_engines.drain() {
-            taker_engine.task_handle.await?;
+        let mut takers = self.takers.write().await;
+        for (_uuid, taker) in takers.drain() {
+            taker.task_handle.await?;
         }
         Ok(())
     }

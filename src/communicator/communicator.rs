@@ -23,18 +23,18 @@ use super::nostr::*;
 use super::peer_messaging::{PeerEnvelope, PeerMessage};
 use super::router::Router;
 
-pub(crate) struct InterfacerHandle {
-    tx: mpsc::Sender<InterfacerRequest>,
+pub(crate) struct CommunicatorAccess {
+    tx: mpsc::Sender<CommunicatorRequest>,
 }
 
-impl InterfacerHandle {
-    pub(super) fn new(tx: mpsc::Sender<InterfacerRequest>) -> Self {
+impl CommunicatorAccess {
+    pub(super) fn new(tx: mpsc::Sender<CommunicatorRequest>) -> Self {
         Self { tx }
     }
 
     pub(crate) async fn get_pubkey(&self) -> XOnlyPublicKey {
         let (rsp_tx, rsp_rx) = oneshot::channel::<XOnlyPublicKey>();
-        let request = InterfacerRequest::GetPublicKey { rsp_tx };
+        let request = CommunicatorRequest::GetPublicKey { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -45,7 +45,7 @@ impl InterfacerHandle {
         connect: bool,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = InterfacerRequest::AddRelays {
+        let request = CommunicatorRequest::AddRelays {
             relays,
             connect,
             rsp_tx,
@@ -56,7 +56,7 @@ impl InterfacerHandle {
 
     pub(crate) async fn remove_relay(&self, relay: impl Into<String>) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = InterfacerRequest::RemoveRelay {
+        let request = CommunicatorRequest::RemoveRelay {
             relay: relay.into(),
             rsp_tx,
         };
@@ -66,7 +66,7 @@ impl InterfacerHandle {
 
     pub(crate) async fn get_relays(&self) -> Vec<Url> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Vec<Url>>();
-        let request = InterfacerRequest::GetRelays { rsp_tx };
+        let request = CommunicatorRequest::GetRelays { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -77,7 +77,7 @@ impl InterfacerHandle {
         tx: mpsc::Sender<PeerEnvelope>,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = InterfacerRequest::RegisterTradeTx {
+        let request = CommunicatorRequest::RegisterTradeTx {
             trade_uuid,
             tx,
             rsp_tx,
@@ -91,7 +91,7 @@ impl InterfacerHandle {
         trade_uuid: Uuid,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = InterfacerRequest::UnregisterTradeTx { trade_uuid, rsp_tx };
+        let request = CommunicatorRequest::UnregisterTradeTx { trade_uuid, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -101,14 +101,14 @@ impl InterfacerHandle {
         tx: mpsc::Sender<PeerEnvelope>,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = InterfacerRequest::RegisterFallbackTx { tx, rsp_tx };
+        let request = CommunicatorRequest::RegisterFallbackTx { tx, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
 
     pub(crate) async fn unregister_peer_message_fallback_tx(&mut self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = InterfacerRequest::UnregisterFallbackTx { rsp_tx };
+        let request = CommunicatorRequest::UnregisterFallbackTx { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -118,14 +118,14 @@ impl InterfacerHandle {
         order: Order,
     ) -> Result<EventIdString, N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<EventIdString, N3xbError>>();
-        let request = InterfacerRequest::SendMakerOrderNote { order, rsp_tx };
+        let request = CommunicatorRequest::SendMakerOrderNote { order, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
 
     pub(crate) async fn query_orders(&self) -> Result<Vec<OrderEnvelope>, N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<Vec<OrderEnvelope>, N3xbError>>();
-        let request = InterfacerRequest::QueryOrders { rsp_tx };
+        let request = CommunicatorRequest::QueryOrders { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -139,7 +139,7 @@ impl InterfacerHandle {
         offer: Offer,
     ) -> Result<EventIdString, N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<EventIdString, N3xbError>>();
-        let request = InterfacerRequest::SendTakerOfferMessage {
+        let request = CommunicatorRequest::SendTakerOfferMessage {
             pubkey,
             responding_to_id,
             maker_order_note_id,
@@ -160,7 +160,7 @@ impl InterfacerHandle {
         trade_rsp: TradeResponse,
     ) -> Result<EventIdString, N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<EventIdString, N3xbError>>();
-        let request = InterfacerRequest::SendTradeResponse {
+        let request = CommunicatorRequest::SendTradeResponse {
             pubkey,
             responding_to_id,
             maker_order_note_id,
@@ -174,18 +174,18 @@ impl InterfacerHandle {
 
     pub(crate) async fn shutdown(&self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = InterfacerRequest::Shutdown { rsp_tx };
+        let request = CommunicatorRequest::Shutdown { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
 }
 
-pub(crate) struct Interfacer {
-    tx: mpsc::Sender<InterfacerRequest>,
+pub(crate) struct Communicator {
+    tx: mpsc::Sender<CommunicatorRequest>,
     pub task_handle: tokio::task::JoinHandle<()>,
 }
 
-impl Interfacer {
+impl Communicator {
     const INTEFACER_REQUEST_CHANNEL_SIZE: usize = 100;
     const NOSTR_EVENT_DEFAULT_POW_DIFFICULTY: u8 = 8;
 
@@ -209,8 +209,8 @@ impl Interfacer {
         client: Client,
         trade_engine_name: impl Into<String>,
     ) -> Self {
-        let (tx, rx) = mpsc::channel::<InterfacerRequest>(Self::INTEFACER_REQUEST_CHANNEL_SIZE);
-        let mut actor = InterfacerActor::new(rx, trade_engine_name, client).await;
+        let (tx, rx) = mpsc::channel::<CommunicatorRequest>(Self::INTEFACER_REQUEST_CHANNEL_SIZE);
+        let mut actor = CommunicatorActor::new(rx, trade_engine_name, client).await;
         let task_handle = tokio::spawn(async move { actor.run().await });
         Self { tx, task_handle }
     }
@@ -227,14 +227,14 @@ impl Interfacer {
         client
     }
 
-    // Interfacer Handle
+    // Communicator Handle
 
-    pub(crate) fn new_handle(&self) -> InterfacerHandle {
-        InterfacerHandle::new(self.tx.clone())
+    pub(crate) fn new_accessor(&self) -> CommunicatorAccess {
+        CommunicatorAccess::new(self.tx.clone())
     }
 }
 
-pub(super) enum InterfacerRequest {
+pub(super) enum CommunicatorRequest {
     // Requests & Arguments
     GetPublicKey {
         rsp_tx: oneshot::Sender<XOnlyPublicKey>,
@@ -295,22 +295,22 @@ pub(super) enum InterfacerRequest {
     },
 }
 
-pub(super) struct InterfacerActor {
-    rx: mpsc::Receiver<InterfacerRequest>,
+pub(super) struct CommunicatorActor {
+    rx: mpsc::Receiver<CommunicatorRequest>,
     trade_engine_name: String,
     client: Client,
     router: Router,
 }
 
-impl InterfacerActor {
+impl CommunicatorActor {
     const MAKER_ORDER_NOTE_KIND: Kind = Kind::ParameterizedReplaceable(30078);
 
     pub(super) async fn new(
-        rx: mpsc::Receiver<InterfacerRequest>,
+        rx: mpsc::Receiver<CommunicatorRequest>,
         trade_engine_name: impl Into<String>,
         client: Client,
     ) -> Self {
-        InterfacerActor {
+        CommunicatorActor {
             rx,
             trade_engine_name: trade_engine_name.into(),
             client,
@@ -341,40 +341,40 @@ impl InterfacerActor {
                 result = event_rx.recv() => {
                     match result {
                         Ok(notification) => self.handle_notification(notification).await,
-                        Err(error) => error!("Interfacer event RX receive error - {}", error),
+                        Err(error) => error!("Communicator event RX receive error - {}", error),
                     }
                 },
                 else => break,
             }
         }
 
-        info!("Interfacer w/ pubkey {} terminating", pubkey.to_string());
+        info!("Communicator w/ pubkey {} terminating", pubkey.to_string());
         self.client.shutdown().await.unwrap();
     }
 
-    async fn handle_request(&mut self, request: InterfacerRequest) -> bool {
+    async fn handle_request(&mut self, request: CommunicatorRequest) -> bool {
         let mut terminate = false;
 
         match request {
-            InterfacerRequest::GetPublicKey { rsp_tx } => self.get_pubkey(rsp_tx),
+            CommunicatorRequest::GetPublicKey { rsp_tx } => self.get_pubkey(rsp_tx),
 
             // Relays Management
-            InterfacerRequest::AddRelays {
+            CommunicatorRequest::AddRelays {
                 relays,
                 connect,
                 rsp_tx,
             } => self.add_relays(relays, connect, rsp_tx).await,
 
-            InterfacerRequest::RemoveRelay { relay, rsp_tx } => {
+            CommunicatorRequest::RemoveRelay { relay, rsp_tx } => {
                 self.remove_relay(relay, rsp_tx).await
             }
 
-            InterfacerRequest::GetRelays { rsp_tx } => self.get_relays(rsp_tx).await,
+            CommunicatorRequest::GetRelays { rsp_tx } => self.get_relays(rsp_tx).await,
 
             // Change subscription filters
 
             // Router management
-            InterfacerRequest::RegisterTradeTx {
+            CommunicatorRequest::RegisterTradeTx {
                 trade_uuid,
                 tx,
                 rsp_tx,
@@ -383,31 +383,31 @@ impl InterfacerActor {
                 rsp_tx.send(result).unwrap(); // oneshot should never fail
             }
 
-            InterfacerRequest::UnregisterTradeTx { trade_uuid, rsp_tx } => {
+            CommunicatorRequest::UnregisterTradeTx { trade_uuid, rsp_tx } => {
                 let result = self.router.unregister_peer_message_tx(trade_uuid);
                 rsp_tx.send(result).unwrap(); // oneshot should never fail
             }
 
-            InterfacerRequest::RegisterFallbackTx { tx, rsp_tx } => {
+            CommunicatorRequest::RegisterFallbackTx { tx, rsp_tx } => {
                 let result = self.router.register_peer_message_fallback_tx(tx);
                 rsp_tx.send(result).unwrap(); // oneshot should never fail
             }
 
-            InterfacerRequest::UnregisterFallbackTx { rsp_tx } => {
+            CommunicatorRequest::UnregisterFallbackTx { rsp_tx } => {
                 let result = self.router.unregister_peer_message_fallback_tx();
                 rsp_tx.send(result).unwrap(); // oneshot should never fail
             }
 
             // Send Maker Order Notes
-            InterfacerRequest::SendMakerOrderNote { order, rsp_tx } => {
+            CommunicatorRequest::SendMakerOrderNote { order, rsp_tx } => {
                 self.send_maker_order_note(order, rsp_tx).await
             }
 
             // Query Order Notes
-            InterfacerRequest::QueryOrders { rsp_tx } => self.query_orders(rsp_tx).await,
+            CommunicatorRequest::QueryOrders { rsp_tx } => self.query_orders(rsp_tx).await,
 
             // Send Taker Offer Message
-            InterfacerRequest::SendTakerOfferMessage {
+            CommunicatorRequest::SendTakerOfferMessage {
                 pubkey,
                 responding_to_id,
                 maker_order_note_id,
@@ -427,7 +427,7 @@ impl InterfacerActor {
             }
 
             // Send Trade Response
-            InterfacerRequest::SendTradeResponse {
+            CommunicatorRequest::SendTradeResponse {
                 pubkey,
                 responding_to_id,
                 maker_order_note_id,
@@ -447,7 +447,7 @@ impl InterfacerActor {
             }
 
             // Shutdown
-            InterfacerRequest::Shutdown { rsp_tx } => {
+            CommunicatorRequest::Shutdown { rsp_tx } => {
                 self.shutdown(rsp_tx).await;
                 terminate = true;
             }
@@ -462,14 +462,14 @@ impl InterfacerActor {
             }
             RelayPoolNotification::Message(url, _) => {
                 trace!(
-                    "Interfacer w/ pubkey {} handle_notification(), dropping Message from url {}",
+                    "Communicator w/ pubkey {} handle_notification(), dropping Message from url {}",
                     self.client.keys().public_key().to_string(),
                     url.to_string()
                 );
             }
             RelayPoolNotification::Shutdown => {
                 info!(
-                    "Interfacer w/ pubkey {} handle_notification() Shutdown",
+                    "Communicator w/ pubkey {} handle_notification() Shutdown",
                     self.client.keys().public_key().to_string()
                 );
             }
@@ -481,7 +481,7 @@ impl InterfacerActor {
             self.handle_direct_message(url, event).await;
         } else {
             debug!(
-                "Interfacer w/ pubkey {} handle_notification_event() Event kind Fallthrough",
+                "Communicator w/ pubkey {} handle_notification_event() Event kind Fallthrough",
                 self.client.keys().public_key().to_string()
             );
         }
@@ -493,7 +493,7 @@ impl InterfacerActor {
             Ok(content) => content,
             Err(error) => {
                 error!(
-                    "Interfacer w/ pubkey {} handle_direct_message() failed to decrypt - {}",
+                    "Communicator w/ pubkey {} handle_direct_message() failed to decrypt - {}",
                     self.client.keys().public_key().to_string(),
                     error
                 );
@@ -510,7 +510,7 @@ impl InterfacerActor {
                     .err()
                 {
                     error!(
-                        "Interfacer w/ pubkey {} handle_direct_message() failed in router.handle_peer_message() - {}",
+                        "Communicator w/ pubkey {} handle_direct_message() failed in router.handle_peer_message() - {}",
                         self.client.keys().public_key().to_string(),
                         error
                     );
@@ -519,7 +519,7 @@ impl InterfacerActor {
             }
             Err(error) => {
                 error!(
-                    "Interfacer w/ pubkey {} handle_direct_message() failed to deserialize content as PeerMessage - {}",
+                    "Communicator w/ pubkey {} handle_direct_message() failed to deserialize content as PeerMessage - {}",
                     self.client.keys().public_key().to_string(),
                     error
                 );
@@ -952,7 +952,7 @@ impl InterfacerActor {
 
     async fn shutdown(&self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         info!(
-            "Interfacer w/ pubkey {} Shutdown",
+            "Communicator w/ pubkey {} Shutdown",
             self.client.keys().public_key().to_string()
         );
         // TODO: Any other shutdown logic needed?
@@ -984,14 +984,14 @@ mod tests {
             rx
         });
 
-        let interfacer =
-            Interfacer::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
-        let interfacer_handle = interfacer.new_handle();
+        let communicator =
+            Communicator::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
+        let communicator_accessor = communicator.new_accessor();
 
         let secret_key = SomeTestOrderParams::some_secret_key();
         let keys = Keys::new(secret_key);
         let pubkey = keys.public_key();
-        assert_eq!(pubkey, interfacer_handle.get_pubkey().await);
+        assert_eq!(pubkey, communicator_accessor.get_pubkey().await);
     }
 
     #[tokio::test]
@@ -1008,9 +1008,9 @@ mod tests {
             rx
         });
 
-        let interfacer =
-            Interfacer::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
-        let interfacer_handle = interfacer.new_handle();
+        let communicator =
+            Communicator::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
+        let communicator_accessor = communicator.new_accessor();
 
         let maker_obligation = MakerObligation {
             kinds: SomeTestOrderParams::maker_obligation_kinds(),
@@ -1043,7 +1043,7 @@ mod tests {
             _private: (),
         };
 
-        interfacer_handle
+        communicator_accessor
             .send_maker_order_note(order)
             .await
             .unwrap();
@@ -1070,11 +1070,11 @@ mod tests {
             rx
         });
 
-        let interfacer =
-            Interfacer::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
-        let interfacer_handle = interfacer.new_handle();
+        let communicator =
+            Communicator::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
+        let communicator_accessor = communicator.new_accessor();
 
-        let _ = interfacer_handle.query_orders().await.unwrap();
+        let _ = communicator_accessor.query_orders().await.unwrap();
     }
 
     fn query_orders_expectation(
@@ -1085,7 +1085,7 @@ mod tests {
         tag_set.push(OrderTag::TradeEngineName(SomeTestParams::engine_name_str()));
         tag_set.push(OrderTag::EventKind(EventKind::MakerOrder));
         tag_set.push(OrderTag::ApplicationTag(N3XB_APPLICATION_TAG.to_string()));
-        let expected_filter = InterfacerActor::create_event_tag_filter(tag_set);
+        let expected_filter = CommunicatorActor::create_event_tag_filter(tag_set);
         assert!(vec![expected_filter] == filters);
 
         let expected_timeout = Duration::from_secs(1);

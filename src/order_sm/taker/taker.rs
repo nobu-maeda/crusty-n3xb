@@ -11,17 +11,17 @@ use crate::{
         error::N3xbError,
         types::{EventIdString, SerdeGenericType},
     },
-    interfacer::{InterfacerHandle, PeerEnvelope},
+    communicator::{CommunicatorAccess, PeerEnvelope},
     offer::Offer,
     order::OrderEnvelope,
     trade_rsp::{TradeResponse, TradeResponseEnvelope},
 };
 
-pub struct Taker {
+pub struct TakerAccess {
     tx: mpsc::Sender<TakerRequest>,
 }
 
-impl Taker {
+impl TakerAccess {
     pub(super) async fn new(tx: mpsc::Sender<TakerRequest>) -> Self {
         Self { tx }
     }
@@ -58,29 +58,29 @@ impl Taker {
     }
 }
 
-pub(crate) struct TakerEngine {
+pub(crate) struct Taker {
     tx: mpsc::Sender<TakerRequest>,
     pub task_handle: tokio::task::JoinHandle<()>,
 }
 
-impl TakerEngine {
+impl Taker {
     const TAKER_REQUEST_CHANNEL_SIZE: usize = 2;
 
     pub(crate) async fn new(
-        interfacer_handle: InterfacerHandle,
+        communicator_accessor: CommunicatorAccess,
         order_envelope: OrderEnvelope,
         offer: Offer,
     ) -> Self {
         let (tx, rx) = mpsc::channel::<TakerRequest>(Self::TAKER_REQUEST_CHANNEL_SIZE);
-        let mut actor = TakerActor::new(rx, interfacer_handle, order_envelope, offer).await;
+        let mut actor = TakerActor::new(rx, communicator_accessor, order_envelope, offer).await;
         let task_handle = tokio::spawn(async move { actor.run().await });
         Self { tx, task_handle }
     }
 
-    // Interfacer Handle
+    // Communicator Handle
 
-    pub(crate) async fn new_handle(&self) -> Taker {
-        Taker::new(self.tx.clone()).await
+    pub(crate) async fn new_accessor(&self) -> TakerAccess {
+        TakerAccess::new(self.tx.clone()).await
     }
 }
 
@@ -103,7 +103,7 @@ pub(super) enum TakerRequest {
 
 struct TakerActor {
     rx: mpsc::Receiver<TakerRequest>,
-    interfacer_handle: InterfacerHandle,
+    communicator_accessor: CommunicatorAccess,
     order_envelope: OrderEnvelope,
     offer: Offer,
     offer_event_id: Option<EventIdString>,
@@ -114,13 +114,13 @@ struct TakerActor {
 impl TakerActor {
     pub(crate) async fn new(
         rx: mpsc::Receiver<TakerRequest>,
-        interfacer_handle: InterfacerHandle,
+        communicator_accessor: CommunicatorAccess,
         order_envelope: OrderEnvelope,
         offer: Offer,
     ) -> Self {
         TakerActor {
             rx,
-            interfacer_handle,
+            communicator_accessor,
             order_envelope,
             offer,
             offer_event_id: None,
@@ -134,7 +134,7 @@ impl TakerActor {
         let trade_uuid = self.order_envelope.order.trade_uuid;
 
         if let Some(error) = self
-            .interfacer_handle
+            .communicator_accessor
             .register_peer_message_tx(trade_uuid, tx)
             .await
             .err()
@@ -190,7 +190,7 @@ impl TakerActor {
         let offer = self.offer.clone();
 
         let result = self
-            .interfacer_handle
+            .communicator_accessor
             .send_taker_offer_message(
                 order_envelope.pubkey,
                 Some(order_envelope.event_id.clone()),

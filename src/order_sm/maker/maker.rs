@@ -12,17 +12,17 @@ use crate::{
         error::{N3xbError, OfferInvalidReason},
         types::{EventIdString, SerdeGenericType},
     },
-    interfacer::{InterfacerHandle, PeerEnvelope},
+    communicator::{CommunicatorAccess, PeerEnvelope},
     offer::{Offer, OfferEnvelope},
     order::Order,
     trade_rsp::{TradeResponse, TradeResponseBuilder, TradeResponseStatus},
 };
 
-pub struct Maker {
+pub struct MakerAccess {
     tx: mpsc::Sender<MakerRequest>,
 }
 
-impl Maker {
+impl MakerAccess {
     pub(super) async fn new(tx: mpsc::Sender<MakerRequest>) -> Self {
         let maker = Self { tx };
         maker
@@ -84,25 +84,25 @@ impl Maker {
     }
 }
 
-pub(crate) struct MakerEngine {
+pub(crate) struct Maker {
     tx: mpsc::Sender<MakerRequest>,
     pub task_handle: tokio::task::JoinHandle<()>,
 }
 
-impl MakerEngine {
+impl Maker {
     const MAKER_REQUEST_CHANNEL_SIZE: usize = 2;
 
-    pub(crate) async fn new(interfacer_handle: InterfacerHandle, order: Order) -> Self {
+    pub(crate) async fn new(communicator_accessor: CommunicatorAccess, order: Order) -> Self {
         let (tx, rx) = mpsc::channel::<MakerRequest>(Self::MAKER_REQUEST_CHANNEL_SIZE);
-        let mut actor = MakerActor::new(rx, interfacer_handle, order).await;
+        let mut actor = MakerActor::new(rx, communicator_accessor, order).await;
         let task_handle = tokio::spawn(async move { actor.run().await });
         Self { tx, task_handle }
     }
 
-    // Interfacer Handle
+    // Communicator Handle
 
-    pub(crate) async fn new_handle(&self) -> Maker {
-        Maker::new(self.tx.clone()).await
+    pub(crate) async fn new_accessor(&self) -> MakerAccess {
+        MakerAccess::new(self.tx.clone()).await
     }
 }
 
@@ -136,7 +136,7 @@ pub(super) enum MakerRequest {
 
 struct MakerActor {
     rx: mpsc::Receiver<MakerRequest>,
-    interfacer_handle: InterfacerHandle,
+    communicator_accessor: CommunicatorAccess,
     order: Order,
     order_event_id: Option<EventIdString>,
     offer_envelopes: HashMap<EventIdString, OfferEnvelope>,
@@ -150,12 +150,12 @@ struct MakerActor {
 impl MakerActor {
     pub(crate) async fn new(
         rx: mpsc::Receiver<MakerRequest>,
-        interfacer_handle: InterfacerHandle,
+        communicator_accessor: CommunicatorAccess,
         order: Order,
     ) -> Self {
         MakerActor {
             rx,
-            interfacer_handle,
+            communicator_accessor,
             order,
             order_event_id: None,
             offer_envelopes: HashMap::new(),
@@ -172,7 +172,7 @@ impl MakerActor {
         let trade_uuid = self.order.trade_uuid;
 
         if let Some(error) = self
-            .interfacer_handle
+            .communicator_accessor
             .register_peer_message_tx(trade_uuid, tx)
             .await
             .err()
@@ -232,7 +232,10 @@ impl MakerActor {
 
     async fn send_maker_order(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         let order = self.order.clone();
-        let result = self.interfacer_handle.send_maker_order_note(order).await;
+        let result = self
+            .communicator_accessor
+            .send_maker_order_note(order)
+            .await;
         match result {
             Ok(event_id) => {
                 self.order_event_id = Some(event_id.clone());
@@ -304,7 +307,7 @@ impl MakerActor {
         let trade_rsp_clone = trade_rsp.clone();
 
         let result = self
-            .interfacer_handle
+            .communicator_accessor
             .send_trade_response(
                 pubkey,
                 Some(accepted_offer_event_id),
@@ -472,7 +475,7 @@ impl MakerActor {
             .build()
             .unwrap();
 
-        self.interfacer_handle
+        self.communicator_accessor
             .send_trade_response(
                 pubkey,
                 Some(offer_envelope.event_id.clone()),
