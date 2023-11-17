@@ -6,9 +6,12 @@ use url::Url;
 use uuid::Uuid;
 
 use super::{obligation::*, trade_details::*};
-use crate::common::{
-    error::N3xbError,
-    types::{EventIdString, ObligationKind, SerdeGenericTrait},
+use crate::{
+    common::{
+        error::N3xbError,
+        types::{EventIdString, ObligationKind, SerdeGenericTrait},
+    },
+    offer::OfferBuilder,
 };
 
 #[derive(Clone, Debug)]
@@ -34,9 +37,11 @@ pub struct Order {
 impl Order {
     pub fn validate(&self) -> Result<(), N3xbError> {
         // Add additional validation rules here. Code is doc in this case
-        self.validate_maker_obligation_kind_currencies_same()?;
+        self.validate_maker_obligation_kinds_has_settlement()?;
+        self.validate_maker_obligation_kinds_currencies_same()?;
         self.validate_maker_obligation_amount_valid()?;
-        self.validate_taker_obligation_kind_currencies_same()?;
+        self.validate_taker_obligation_kinds_has_settlement()?;
+        self.validate_taker_obligation_kinds_currencies_same()?;
         self.validate_taker_obligation_specified()?;
         self.validate_taker_obligation_limit_rate_valid()?;
         self.validate_taker_obligation_market_offset_not_supported()?;
@@ -44,7 +49,30 @@ impl Order {
         Ok(())
     }
 
-    fn validate_maker_obligation_kind_currencies_same(&self) -> Result<(), N3xbError> {
+    fn validate_maker_obligation_kinds_has_settlement(&self) -> Result<(), N3xbError> {
+        for maker_obligation_kind in &self.maker_obligation.kinds {
+            match maker_obligation_kind {
+                ObligationKind::Fiat(_currency, method) => {
+                    if method.is_none() {
+                        return Err(N3xbError::Simple(format!(
+                            "Maker Obligation Kinds in Order missing Settlement Method"
+                        )));
+                    }
+                }
+                ObligationKind::Bitcoin(method) => {
+                    if method.is_none() {
+                        return Err(N3xbError::Simple(format!(
+                            "Maker Obligation Kinds in Order missing Settlement Method"
+                        )));
+                    }
+                }
+                ObligationKind::Custom(_) => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_maker_obligation_kinds_currencies_same(&self) -> Result<(), N3xbError> {
         let mut obligation_kind: Option<ObligationKind> = None;
 
         for maker_obligation_kind in &self.maker_obligation.kinds {
@@ -76,7 +104,30 @@ impl Order {
         Ok(())
     }
 
-    fn validate_taker_obligation_kind_currencies_same(&self) -> Result<(), N3xbError> {
+    fn validate_taker_obligation_kinds_has_settlement(&self) -> Result<(), N3xbError> {
+        for taker_obligation_kind in &self.taker_obligation.kinds {
+            match taker_obligation_kind {
+                ObligationKind::Fiat(_currency, method) => {
+                    if method.is_none() {
+                        return Err(N3xbError::Simple(format!(
+                            "Taker Obligation Kinds in Order missing Settlement Method"
+                        )));
+                    }
+                }
+                ObligationKind::Bitcoin(method) => {
+                    if method.is_none() {
+                        return Err(N3xbError::Simple(format!(
+                            "Taker Obligation Kinds in Order missing Settlement Method"
+                        )));
+                    }
+                }
+                ObligationKind::Custom(_) => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_taker_obligation_kinds_currencies_same(&self) -> Result<(), N3xbError> {
         let mut obligation_kind: Option<ObligationKind> = None;
 
         for taker_obligation_kind in &self.taker_obligation.kinds {
@@ -180,6 +231,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_validate_order_maker_obligation_kind_fiat_missing_settlement() {
+        let maker_obligation_kinds = HashSet::from([
+            ObligationKind::Fiat(Currency::USD, None),
+            ObligationKind::Fiat(Currency::EUR, Some(FiatPaymentMethod::ACHTransfer)),
+        ]);
+        let maker_obligation = MakerObligation {
+            kinds: maker_obligation_kinds,
+            content: SomeTestOrderParams::maker_obligation_content(),
+        };
+
+        let result = SomeTestOrderParams::default_builder()
+            .maker_obligation(maker_obligation)
+            .build();
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_validate_order_maker_obligation_kind_bitcoin_missing_settlement() {
+        let maker_obligation_kinds = HashSet::from([ObligationKind::Bitcoin(None)]);
+        let maker_obligation = MakerObligation {
+            kinds: maker_obligation_kinds,
+            content: SomeTestOrderParams::maker_obligation_content(),
+        };
+
+        let result = SomeTestOrderParams::default_builder()
+            .maker_obligation(maker_obligation)
+            .build();
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
     async fn test_validate_order_maker_obligation_kind_currencies_mismatches() {
         let maker_obligation_kinds = HashSet::from([
             ObligationKind::Fiat(Currency::JPY, Some(FiatPaymentMethod::TransferWise)),
@@ -229,6 +311,37 @@ mod tests {
 
         let result = SomeTestOrderParams::default_builder()
             .maker_obligation(maker_obligation)
+            .build();
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_validate_order_taker_obligation_kind_fiat_missing_settlement() {
+        let taker_obligation_kinds = HashSet::from([
+            ObligationKind::Fiat(Currency::USD, None),
+            ObligationKind::Fiat(Currency::EUR, Some(FiatPaymentMethod::ACHTransfer)),
+        ]);
+        let taker_obligation = TakerObligation {
+            kinds: taker_obligation_kinds,
+            content: SomeTestOrderParams::taker_obligation_content(),
+        };
+
+        let result = SomeTestOrderParams::default_builder()
+            .taker_obligation(taker_obligation)
+            .build();
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_validate_order_taker_obligation_kind_bitcoin_missing_settlement() {
+        let taker_obligation_kinds = HashSet::from([ObligationKind::Bitcoin(None)]);
+        let taker_obligation = TakerObligation {
+            kinds: taker_obligation_kinds,
+            content: SomeTestOrderParams::taker_obligation_content(),
+        };
+
+        let result = SomeTestOrderParams::default_builder()
+            .taker_obligation(taker_obligation)
             .build();
         assert!(result.is_err());
     }

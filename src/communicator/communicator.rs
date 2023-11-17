@@ -676,7 +676,8 @@ impl CommunicatorActor {
     }
 
     fn create_event_tags(tags: Vec<OrderTag>) -> Vec<Tag> {
-        tags.iter()
+        let tags_vec = tags
+            .iter()
             .map(|event_tag| match event_tag {
                 OrderTag::TradeUUID(trade_uuid) => Tag::Generic(
                     TagKind::Custom(event_tag.key().to_string()),
@@ -707,7 +708,9 @@ impl CommunicatorActor {
                     vec![app_tag.to_owned()],
                 ),
             })
-            .collect()
+            .collect();
+        print!("{:?} ", tags_vec);
+        tags_vec
     }
 
     // Query Order Notes
@@ -717,6 +720,12 @@ impl CommunicatorActor {
         tag_set.push(OrderTag::TradeEngineName(self.trade_engine_name.to_owned()));
         tag_set.push(OrderTag::EventKind(EventKind::MakerOrder));
         tag_set.push(OrderTag::ApplicationTag(N3XB_APPLICATION_TAG.to_string()));
+
+        // TODO: Add ways to filter for
+        //  - Trade Engine Name
+        //  - Maker Obligation Kind
+        //  - Taker Obligation Kind
+        //  - Trade Detail Parameters
 
         let filter = Self::create_event_tag_filter(tag_set);
         let timeout = Duration::from_secs(1);
