@@ -7,6 +7,7 @@ use tokio::select;
 use tokio::sync::{mpsc, oneshot};
 
 use secp256k1::{rand::rngs::OsRng, Secp256k1, SecretKey, XOnlyPublicKey};
+use url::Url;
 use uuid::Uuid;
 
 use crate::common::error::N3xbError;
@@ -459,7 +460,8 @@ impl CommunicatorActor {
     async fn handle_notification(&mut self, notification: RelayPoolNotification) {
         match notification {
             RelayPoolNotification::Event(url, event) => {
-                self.handle_notification_event(url, event).await;
+                self.handle_notification_event(Url::from_str(url.as_str()).unwrap(), event)
+                    .await;
             }
             RelayPoolNotification::Message(url, _relay_message) => {
                 trace!(
@@ -587,7 +589,10 @@ impl CommunicatorActor {
 
     async fn get_relays(&self, rsp_tx: oneshot::Sender<Vec<Url>>) {
         let relays = self.client.relays().await;
-        let urls: Vec<Url> = relays.iter().map(|(url, _)| url.to_owned()).collect();
+        let urls: Vec<Url> = relays
+            .iter()
+            .map(|(url, _)| Url::from_str(url.as_str()).unwrap())
+            .collect();
         rsp_tx.send(urls).unwrap(); // Oneshot should not fail
     }
 
@@ -723,7 +728,7 @@ impl CommunicatorActor {
             }
         };
 
-        let maybe_order_envelopes = self.extract_order_envelopes_from_events(events);
+        let maybe_order_envelopes = self.extract_order_envelopes_from_events(events).await;
         let mut order_envelopes: Vec<OrderEnvelope> = Vec::new();
         for maybe_order_envelope in maybe_order_envelopes {
             match maybe_order_envelope {
@@ -754,7 +759,10 @@ impl CommunicatorActor {
         order_tags
     }
 
-    fn extract_order_envelope_from_event(&self, event: Event) -> Result<OrderEnvelope, N3xbError> {
+    async fn extract_order_envelope_from_event(
+        &self,
+        event: Event,
+    ) -> Result<OrderEnvelope, N3xbError> {
         let maker_order_note: MakerOrderNote = serde_json::from_str(event.content.as_str())?;
         let order_tags = self.extract_order_tags_from_tags(event.tags);
 
@@ -846,26 +854,46 @@ impl CommunicatorActor {
             _private: (),
         };
 
-        // let relays = self
-        //     .client
-        //     .database()
-        //     .event_recently_seen_on_relays(event.id);
+        // Is this order seen from other relays?
+        let relay_urls = self
+            .client
+            .database()
+            .event_recently_seen_on_relays(event.id)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let urls = relay_urls
+            .iter()
+            .map(|url| Url::parse(url.as_str()).unwrap())
+            .collect();
 
         Ok(OrderEnvelope {
             pubkey: event.pubkey,
+            urls,
             event_id: event.id.to_string(),
             order: order,
             _private: (),
         })
     }
 
-    fn extract_order_envelopes_from_events(
+    async fn extract_order_envelopes_from_events(
         &self,
         events: Vec<Event>,
     ) -> Vec<Result<OrderEnvelope, N3xbError>> {
         let mut order_envelopes: Vec<Result<OrderEnvelope, N3xbError>> = Vec::new();
+        let mut event_ids: HashSet<EventId> = HashSet::new();
+
         for event in events {
-            let order_envelope = self.extract_order_envelope_from_event(event);
+            // See if this event have been seen from another relay
+            // Bypass if so because it should have been accounted for the first time
+            if event_ids.contains(&event.id) {
+                continue;
+            } else {
+                event_ids.insert(event.id);
+            }
+
+            let order_envelope = self.extract_order_envelope_from_event(event).await;
             order_envelopes.push(order_envelope);
         }
         order_envelopes
