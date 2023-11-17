@@ -65,6 +65,8 @@ impl TakerSimpleTesterActor {
             &SomeTestOrderParams::default_builder().build().unwrap(),
         );
 
+        // Figure out which relay the Order is from
+
         // Create and setup a Taker for an Order with a new Offer
         let offer = SomeTestOfferParams::default_builder().build().unwrap();
         let taker = self.manager.new_taker(order_envelope, offer).await.unwrap();

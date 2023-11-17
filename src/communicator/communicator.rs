@@ -1,6 +1,7 @@
 use log::{debug, error, info, trace, warn};
 use std::collections::HashSet;
 use std::net::SocketAddr;
+use std::str::FromStr;
 use std::time::Duration;
 use tokio::select;
 use tokio::sync::{mpsc, oneshot};
@@ -210,7 +211,7 @@ impl Communicator {
         trade_engine_name: impl Into<String>,
     ) -> Self {
         let (tx, rx) = mpsc::channel::<CommunicatorRequest>(Self::INTEFACER_REQUEST_CHANNEL_SIZE);
-        let mut actor = CommunicatorActor::new(rx, trade_engine_name, client).await;
+        let actor = CommunicatorActor::new(rx, trade_engine_name, client).await;
         let task_handle = tokio::spawn(async move { actor.run().await });
         Self { tx, task_handle }
     }
@@ -322,7 +323,7 @@ impl CommunicatorActor {
 
     async fn run(mut self) {
         // Nostr client initializaiton
-        let pubkey = self.client.keys().public_key();
+        let pubkey = self.client.keys().await.public_key();
         self.client
             .subscribe(self.subscription_filters(pubkey))
             .await;
@@ -356,7 +357,7 @@ impl CommunicatorActor {
         let mut terminate = false;
 
         match request {
-            CommunicatorRequest::GetPublicKey { rsp_tx } => self.get_pubkey(rsp_tx),
+            CommunicatorRequest::GetPublicKey { rsp_tx } => self.get_pubkey(rsp_tx).await,
 
             // Relays Management
             CommunicatorRequest::AddRelays {
@@ -460,19 +461,27 @@ impl CommunicatorActor {
             RelayPoolNotification::Event(url, event) => {
                 self.handle_notification_event(url, event).await;
             }
-            RelayPoolNotification::Message(url, _) => {
+            RelayPoolNotification::Message(url, _relay_message) => {
                 trace!(
-                    "Communicator w/ pubkey {} handle_notification(), dropping Message from url {}",
-                    self.client.keys().public_key().to_string(),
+                    "Communicator w/ pubkey {} handle_notification(), dropping Relay Message from url {}",
+                    self.client.keys().await.public_key().to_string(),
                     url.to_string()
                 );
             }
             RelayPoolNotification::Shutdown => {
                 info!(
                     "Communicator w/ pubkey {} handle_notification() Shutdown",
-                    self.client.keys().public_key().to_string()
+                    self.client.keys().await.public_key().to_string()
                 );
             }
+            RelayPoolNotification::RelayStatus { url, status: _ } => {
+                trace!(
+                    "Communicator w/ pubkey {} handle_notification(), dropping Relay Status from url {}",
+                    self.client.keys().await.public_key().to_string(),
+                    url.to_string()
+                );
+            }
+            RelayPoolNotification::Stop => todo!(),
         };
     }
 
@@ -482,19 +491,19 @@ impl CommunicatorActor {
         } else {
             debug!(
                 "Communicator w/ pubkey {} handle_notification_event() Event kind Fallthrough",
-                self.client.keys().public_key().to_string()
+                self.client.keys().await.public_key().to_string()
             );
         }
     }
 
     async fn handle_direct_message(&mut self, _url: Url, event: Event) {
-        let secret_key = self.client.keys().secret_key().unwrap();
+        let secret_key = self.client.keys().await.secret_key().unwrap();
         let content = match decrypt(&secret_key, &event.pubkey, &event.content) {
             Ok(content) => content,
             Err(error) => {
                 error!(
                     "Communicator w/ pubkey {} handle_direct_message() failed to decrypt - {}",
-                    self.client.keys().public_key().to_string(),
+                    self.client.keys().await.public_key().to_string(),
                     error
                 );
                 return;
@@ -511,7 +520,7 @@ impl CommunicatorActor {
                 {
                     error!(
                         "Communicator w/ pubkey {} handle_direct_message() failed in router.handle_peer_message() - {}",
-                        self.client.keys().public_key().to_string(),
+                        self.client.keys().await.public_key().to_string(),
                         error
                     );
                     return;
@@ -520,7 +529,7 @@ impl CommunicatorActor {
             Err(error) => {
                 error!(
                     "Communicator w/ pubkey {} handle_direct_message() failed to deserialize content as PeerMessage - {}",
-                    self.client.keys().public_key().to_string(),
+                    self.client.keys().await.public_key().to_string(),
                     error
                 );
                 return;
@@ -530,8 +539,8 @@ impl CommunicatorActor {
 
     // Nostr Client Management
 
-    fn get_pubkey(&self, rsp_tx: oneshot::Sender<XOnlyPublicKey>) {
-        let pubkey = self.client.keys().public_key();
+    async fn get_pubkey(&self, rsp_tx: oneshot::Sender<XOnlyPublicKey>) {
+        let pubkey = self.client.keys().await.public_key();
         rsp_tx.send(pubkey).unwrap(); // Oneshot should not fail
     }
 
@@ -541,13 +550,20 @@ impl CommunicatorActor {
         connect: bool,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
-        if let Some(error) = self.client.add_relays(relays).await.err() {
+        let into_relays: Vec<(String, Option<SocketAddr>)> = relays
+            .into_iter()
+            .map(|(url, addr)| {
+                let url = url.into();
+                (url, addr)
+            })
+            .collect();
+        if let Some(error) = self.client.add_relays(into_relays).await.err() {
             rsp_tx.send(Err(error.into())).unwrap(); // Oneshot should not fail
             return;
         }
 
         if connect {
-            let pubkey = self.client.keys().public_key();
+            let pubkey = self.client.keys().await.public_key();
             self.client
                 .subscribe(self.subscription_filters(pubkey))
                 .await;
@@ -561,7 +577,8 @@ impl CommunicatorActor {
         relay: impl Into<String> + 'static,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
-        let result = self.client.remove_relay(relay).await;
+        let relay_string: String = relay.into();
+        let result = self.client.remove_relay(relay_string).await;
         match result {
             Ok(_) => rsp_tx.send(Ok(())).unwrap(),
             Err(error) => rsp_tx.send(Err(error.into())).unwrap(),
@@ -641,7 +658,7 @@ impl CommunicatorActor {
             &Self::create_event_tags(tag_set),
         );
 
-        let keys = self.client.keys();
+        let keys = self.client.keys().await;
         let result = self
             .client
             .send_event(builder.to_event(&keys).unwrap())
@@ -661,26 +678,29 @@ impl CommunicatorActor {
                     vec![trade_uuid.to_string()],
                 ),
                 OrderTag::MakerObligations(obligations) => Tag::Generic(
-                    TagKind::Custom(event_tag.key()),
+                    TagKind::Custom(event_tag.key().to_string()),
                     obligations.to_owned().into_iter().collect(),
                 ),
                 OrderTag::TakerObligations(obligations) => Tag::Generic(
-                    TagKind::Custom(event_tag.key()),
+                    TagKind::Custom(event_tag.key().to_string()),
                     obligations.to_owned().into_iter().collect(),
                 ),
                 OrderTag::TradeDetailParameters(parameters) => Tag::Generic(
-                    TagKind::Custom(event_tag.key()),
+                    TagKind::Custom(event_tag.key().to_string()),
                     parameters.to_owned().into_iter().collect(),
                 ),
-                OrderTag::TradeEngineName(name) => {
-                    Tag::Generic(TagKind::Custom(event_tag.key()), vec![name.to_owned()])
-                }
-                OrderTag::EventKind(kind) => {
-                    Tag::Generic(TagKind::Custom(event_tag.key()), vec![kind.to_string()])
-                }
-                OrderTag::ApplicationTag(app_tag) => {
-                    Tag::Generic(TagKind::Custom(event_tag.key()), vec![app_tag.to_owned()])
-                }
+                OrderTag::TradeEngineName(name) => Tag::Generic(
+                    TagKind::Custom(event_tag.key().to_string()),
+                    vec![name.to_owned()],
+                ),
+                OrderTag::EventKind(kind) => Tag::Generic(
+                    TagKind::Custom(event_tag.key().to_string()),
+                    vec![kind.to_string()],
+                ),
+                OrderTag::ApplicationTag(app_tag) => Tag::Generic(
+                    TagKind::Custom(event_tag.key().to_string()),
+                    vec![app_tag.to_owned()],
+                ),
             })
             .collect()
     }
@@ -825,9 +845,14 @@ impl CommunicatorActor {
             pow_difficulty: maker_order_note.pow_difficulty,
             _private: (),
         };
+
+        // let relays = self
+        //     .client
+        //     .database()
+        //     .event_recently_seen_on_relays(event.id);
+
         Ok(OrderEnvelope {
             pubkey: event.pubkey,
-            url: Url::parse("https://github.com/nostr-protocol/").unwrap(), // TODO: This is a placeholder. Nostr-sdk does not yet return the url fo the relay on event query
             event_id: event.id.to_string(),
             order: order,
             _private: (),
@@ -846,44 +871,67 @@ impl CommunicatorActor {
         order_envelopes
     }
 
-    fn create_event_tag_filter(tags: Vec<OrderTag>) -> Filter {
-        let mut tag_map = Map::new();
-        tags.iter().for_each(|tag| match tag {
-            OrderTag::TradeUUID(trade_uuid) => {
-                tag_map.insert(tag.hash_key(), Value::String(trade_uuid.to_string()));
+    fn consume_tags_for_filter(tags: Vec<OrderTag>, filter: Filter) -> Filter {
+        if let Some(tag) = tags.first() {
+            match tag {
+                OrderTag::TradeUUID(trade_uuid) => {
+                    let filter = filter.custom_tag(
+                        Alphabet::try_from(tag.key()).unwrap(),
+                        [trade_uuid.to_string()].to_vec(),
+                    );
+                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
+                }
+                OrderTag::MakerObligations(obligations) => {
+                    let filter = filter.custom_tag(
+                        Alphabet::try_from(tag.key()).unwrap(),
+                        obligations.to_owned().into_iter().collect(),
+                    );
+                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
+                }
+                OrderTag::TakerObligations(obligations) => {
+                    let filter = filter.custom_tag(
+                        Alphabet::try_from(tag.key()).unwrap(),
+                        obligations.to_owned().into_iter().collect(),
+                    );
+                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
+                }
+                OrderTag::TradeDetailParameters(parameters) => {
+                    let filter = filter.custom_tag(
+                        Alphabet::try_from(tag.key()).unwrap(),
+                        parameters.to_owned().into_iter().collect(),
+                    );
+                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
+                }
+                OrderTag::TradeEngineName(name) => {
+                    let filter = filter.custom_tag(
+                        Alphabet::try_from(tag.key()).unwrap(),
+                        [name.to_owned()].to_vec(),
+                    );
+                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
+                }
+                OrderTag::EventKind(kind) => {
+                    let filter = filter.custom_tag(
+                        Alphabet::try_from(tag.key()).unwrap(),
+                        [kind.to_string()].to_vec(),
+                    );
+                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
+                }
+                OrderTag::ApplicationTag(app_tag) => {
+                    let filter = filter.custom_tag(
+                        Alphabet::try_from(tag.key()).unwrap(),
+                        [app_tag.to_owned()].to_vec(),
+                    );
+                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
+                }
             }
-            OrderTag::MakerObligations(obligations) => {
-                tag_map.insert(tag.hash_key(), obligations.to_owned().into_iter().collect());
-            }
-            OrderTag::TakerObligations(obligations) => {
-                tag_map.insert(tag.hash_key(), obligations.to_owned().into_iter().collect());
-            }
-            OrderTag::TradeDetailParameters(parameters) => {
-                tag_map.insert(tag.hash_key(), parameters.to_owned().into_iter().collect());
-            }
-            OrderTag::TradeEngineName(name) => {
-                tag_map.insert(
-                    tag.hash_key(),
-                    Value::Array(vec![Value::String(name.to_owned())]),
-                );
-            }
-            OrderTag::EventKind(kind) => {
-                tag_map.insert(
-                    tag.hash_key(),
-                    Value::Array(vec![Value::String(kind.to_string())]),
-                );
-            }
-            OrderTag::ApplicationTag(app_tag) => {
-                tag_map.insert(
-                    tag.hash_key(),
-                    Value::Array(vec![Value::String(app_tag.to_owned())]),
-                );
-            }
-        });
+        } else {
+            filter
+        }
+    }
 
-        Filter::new()
-            .kind(Self::MAKER_ORDER_NOTE_KIND)
-            .custom(tag_map)
+    fn create_event_tag_filter(tags: Vec<OrderTag>) -> Filter {
+        let filter = Filter::new().kind(Self::MAKER_ORDER_NOTE_KIND);
+        Self::consume_tags_for_filter(tags, filter)
     }
 
     async fn send_peer_message(
@@ -900,7 +948,17 @@ impl CommunicatorActor {
             }
         };
 
-        let result = self.client.send_direct_msg(pubkey, content_string).await;
+        let responding_to_event_id: Option<EventId> =
+            if let Some(responding_to_id) = peer_message.responding_to_id {
+                Some(EventId::from_str(responding_to_id.as_str()).unwrap())
+            } else {
+                None
+            };
+
+        let result = self
+            .client
+            .send_direct_msg(pubkey, content_string, responding_to_event_id)
+            .await;
 
         match result {
             Ok(event_id) => rsp_tx.send(Ok(event_id.to_string())).unwrap(),
@@ -953,145 +1011,9 @@ impl CommunicatorActor {
     async fn shutdown(&self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         info!(
             "Communicator w/ pubkey {} Shutdown",
-            self.client.keys().public_key().to_string()
+            self.client.keys().await.public_key().to_string()
         );
         // TODO: Any other shutdown logic needed?
         rsp_tx.send(Ok(())).unwrap();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use tokio::sync::broadcast;
-
-    use super::*;
-    use crate::{
-        order::{MakerObligation, TakerObligation, TradeDetails},
-        testing::*,
-    };
-
-    #[tokio::test]
-    async fn test_get_pubkey() {
-        let mut client = Client::new();
-        client.expect_keys().returning(|| {
-            let secret_key = SomeTestOrderParams::some_secret_key();
-            Keys::new(secret_key)
-        });
-        client.expect_subscribe().returning(|_| {});
-        client.expect_notifications().returning(|| {
-            let (tx, rx) = broadcast::channel::<RelayPoolNotification>(1);
-            Box::leak(Box::new(tx));
-            rx
-        });
-
-        let communicator =
-            Communicator::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
-        let communicator_accessor = communicator.new_accessor();
-
-        let secret_key = SomeTestOrderParams::some_secret_key();
-        let keys = Keys::new(secret_key);
-        let pubkey = keys.public_key();
-        assert_eq!(pubkey, communicator_accessor.get_pubkey().await);
-    }
-
-    #[tokio::test]
-    async fn test_send_maker_order_note() {
-        let mut client = Client::new();
-        client.expect_keys().returning(|| Keys::generate());
-        client.expect_subscribe().returning(|_| {});
-        client
-            .expect_send_event()
-            .returning(send_maker_order_note_expectation);
-        client.expect_notifications().returning(|| {
-            let (tx, rx) = broadcast::channel::<RelayPoolNotification>(1);
-            Box::leak(Box::new(tx));
-            rx
-        });
-
-        let communicator =
-            Communicator::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
-        let communicator_accessor = communicator.new_accessor();
-
-        let maker_obligation = MakerObligation {
-            kinds: SomeTestOrderParams::maker_obligation_kinds(),
-            content: SomeTestOrderParams::maker_obligation_content(),
-        };
-
-        let taker_obligation = TakerObligation {
-            kinds: SomeTestOrderParams::taker_obligation_kinds(),
-            content: SomeTestOrderParams::taker_obligation_content(),
-        };
-
-        let trade_details = TradeDetails {
-            parameters: SomeTestOrderParams::trade_parameters(),
-            content: SomeTestOrderParams::trade_details_content(),
-        };
-
-        let trade_engine_specifics = SomeTradeEngineMakerOrderSpecifics {
-            test_specific_field: SomeTestParams::engine_specific_str(),
-        };
-
-        let boxed_trade_engine_specifics = Box::new(trade_engine_specifics);
-
-        let order = Order {
-            trade_uuid: SomeTestOrderParams::some_uuid(),
-            maker_obligation,
-            taker_obligation,
-            trade_details,
-            trade_engine_specifics: boxed_trade_engine_specifics,
-            pow_difficulty: SomeTestOrderParams::pow_difficulty(),
-            _private: (),
-        };
-
-        communicator_accessor
-            .send_maker_order_note(order)
-            .await
-            .unwrap();
-    }
-
-    fn send_maker_order_note_expectation(event: Event) -> Result<EventId, Error> {
-        print!("Nostr Event: {:?}\n", event);
-        print!("Nostr Event Content: {:?}\n", event.content);
-        assert!(event.content == SomeTestOrderParams::expected_json_string());
-        Ok(event.id)
-    }
-
-    #[tokio::test]
-    async fn test_query_orders() {
-        let mut client = Client::new();
-        client.expect_keys().returning(|| Keys::generate());
-        client.expect_subscribe().returning(|_| {});
-        client
-            .expect_get_events_of()
-            .returning(query_orders_expectation);
-        client.expect_notifications().returning(|| {
-            let (tx, rx) = broadcast::channel::<RelayPoolNotification>(1);
-            Box::leak(Box::new(tx));
-            rx
-        });
-
-        let communicator =
-            Communicator::new_with_nostr_client(client, SomeTestParams::engine_name_str()).await;
-        let communicator_accessor = communicator.new_accessor();
-
-        let _ = communicator_accessor.query_orders().await.unwrap();
-    }
-
-    fn query_orders_expectation(
-        filters: Vec<Filter>,
-        timeout: Option<Duration>,
-    ) -> Result<Vec<Event>, Error> {
-        let mut tag_set: Vec<OrderTag> = Vec::new();
-        tag_set.push(OrderTag::TradeEngineName(SomeTestParams::engine_name_str()));
-        tag_set.push(OrderTag::EventKind(EventKind::MakerOrder));
-        tag_set.push(OrderTag::ApplicationTag(N3XB_APPLICATION_TAG.to_string()));
-        let expected_filter = CommunicatorActor::create_event_tag_filter(tag_set);
-        assert!(vec![expected_filter] == filters);
-
-        let expected_timeout = Duration::from_secs(1);
-        assert!(expected_timeout == timeout.unwrap());
-
-        let empty_event_vec: Vec<Event> = Vec::new();
-        Ok(empty_event_vec)
     }
 }

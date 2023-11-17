@@ -48,17 +48,17 @@ pub enum OrderTag {
     ApplicationTag(String),
 }
 
-const ORDER_TAG_TRADE_UUID_KEY: &str = "i";
-const ORDER_TAG_MAKER_OBLIGATIONS_KEY: &str = "m";
-const ORDER_TAG_TAKER_OBLIGATIONS_KEY: &str = "t";
-const ORDER_TAG_TRADE_DETAIL_PARAMETERS_KEY: &str = "p";
-const ORDER_TAG_TRADE_ENGINE_NAME_KEY: &str = "n";
-const ORDER_TAG_EVENT_KIND_KEY: &str = "k";
-const ORDER_TAG_APPLICATION_TAG_KEY: &str = "d";
+const ORDER_TAG_TRADE_UUID_KEY: char = 'i';
+const ORDER_TAG_MAKER_OBLIGATIONS_KEY: char = 'm';
+const ORDER_TAG_TAKER_OBLIGATIONS_KEY: char = 't';
+const ORDER_TAG_TRADE_DETAIL_PARAMETERS_KEY: char = 'p';
+const ORDER_TAG_TRADE_ENGINE_NAME_KEY: char = 'n';
+const ORDER_TAG_EVENT_KIND_KEY: char = 'k';
+const ORDER_TAG_APPLICATION_TAG_KEY: char = 'd';
 
 impl OrderTag {
-    pub fn key(&self) -> String {
-        let str = match self {
+    pub fn key(&self) -> char {
+        match self {
             OrderTag::TradeUUID(_) => ORDER_TAG_TRADE_UUID_KEY,
             OrderTag::MakerObligations(_) => ORDER_TAG_MAKER_OBLIGATIONS_KEY,
             OrderTag::TakerObligations(_) => ORDER_TAG_TAKER_OBLIGATIONS_KEY,
@@ -66,20 +66,11 @@ impl OrderTag {
             OrderTag::TradeEngineName(_) => ORDER_TAG_TRADE_ENGINE_NAME_KEY,
             OrderTag::EventKind(_) => ORDER_TAG_EVENT_KIND_KEY,
             OrderTag::ApplicationTag(_) => ORDER_TAG_APPLICATION_TAG_KEY,
-        };
-        str.to_string()
-    }
-
-    pub fn hash_key(&self) -> String {
-        format!("#{}", self.key())
-    }
-
-    pub fn key_for(tag: impl AsRef<OrderTag>) -> String {
-        tag.as_ref().key()
+        }
     }
 
     pub fn from_key(key: impl AsRef<str>, value: Vec<String>) -> Result<OrderTag, N3xbError> {
-        match key.as_ref() {
+        match key.as_ref().chars().next().unwrap() {
             ORDER_TAG_TRADE_UUID_KEY => {
                 let uuid_string = value[0].clone();
                 match Uuid::from_str(uuid_string.as_str()) {
