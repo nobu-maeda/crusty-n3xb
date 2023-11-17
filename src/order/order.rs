@@ -338,7 +338,7 @@ mod tests {
             TradeParameter::AcceptsPartialTake,
             TradeParameter::TrustedArbitration,
             TradeParameter::TrustedEscrow,
-            TradeParameter::TradeTimesOut(TradeTimeOutLimit::NoTimeout),
+            TradeParameter::TradeTimesOut(TradeTimeOutLimit::FourDays),
         ]);
 
         let trade_details_content = TradeDetailsContent {
@@ -365,7 +365,7 @@ mod tests {
             TradeParameter::AcceptsPartialTake,
             TradeParameter::TrustedArbitration,
             TradeParameter::TrustedEscrow,
-            TradeParameter::TradeTimesOut(TradeTimeOutLimit::NoTimeout),
+            TradeParameter::TradeTimesOut(TradeTimeOutLimit::OneDay),
         ]);
 
         let trade_details_content = TradeDetailsContent {
@@ -392,7 +392,7 @@ mod tests {
             TradeParameter::AcceptsPartialTake,
             TradeParameter::TrustedArbitration,
             TradeParameter::TrustedEscrow,
-            TradeParameter::TradeTimesOut(TradeTimeOutLimit::NoTimeout),
+            TradeParameter::TradeTimesOut(TradeTimeOutLimit::FourDays),
         ]);
 
         let trade_details_content = TradeDetailsContent {

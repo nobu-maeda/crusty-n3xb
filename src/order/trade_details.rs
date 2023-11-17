@@ -118,10 +118,9 @@ impl TradeParameter {
 )]
 pub enum TradeTimeOutLimit {
     #[default]
-    NoTimeout,
+    TradeEngineSpecific,
     OneDay,
     FourDays,
-    TradeEngineSpecific,
 }
 
 #[cfg(test)]

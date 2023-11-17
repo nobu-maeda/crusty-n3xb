@@ -63,7 +63,7 @@ impl SomeTestOrderParams {
             TradeParameter::AcceptsPartialTake,
             TradeParameter::TrustedArbitration,
             TradeParameter::TrustedEscrow,
-            TradeParameter::TradeTimesOut(TradeTimeOutLimit::NoTimeout),
+            TradeParameter::TradeTimesOut(TradeTimeOutLimit::FourDays),
         ])
     }
 
