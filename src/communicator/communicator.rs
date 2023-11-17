@@ -11,12 +11,11 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::common::error::N3xbError;
-use crate::common::types::{
-    EventIdString, EventKind, ObligationKind, OrderTag, SerdeGenericType, N3XB_APPLICATION_TAG,
-};
+use crate::common::types::{EventIdString, ObligationKind, SerdeGenericType};
 use crate::offer::Offer;
 use crate::order::{
-    MakerObligation, Order, OrderEnvelope, TakerObligation, TradeDetails, TradeParameter,
+    EventKind, FilterTag, MakerObligation, Order, OrderEnvelope, OrderTag, TakerObligation,
+    TradeDetails, TradeParameter, N3XB_APPLICATION_TAG,
 };
 use crate::trade_rsp::TradeResponse;
 
@@ -125,9 +124,15 @@ impl CommunicatorAccess {
         rsp_rx.await.unwrap()
     }
 
-    pub(crate) async fn query_orders(&self) -> Result<Vec<OrderEnvelope>, N3xbError> {
+    pub(crate) async fn query_orders(
+        &self,
+        filter_tags: HashSet<FilterTag>,
+    ) -> Result<Vec<OrderEnvelope>, N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<Vec<OrderEnvelope>, N3xbError>>();
-        let request = CommunicatorRequest::QueryOrders { rsp_tx };
+        let request = CommunicatorRequest::QueryOrders {
+            filter_tags,
+            rsp_tx,
+        };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -274,6 +279,7 @@ pub(super) enum CommunicatorRequest {
         rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
     },
     QueryOrders {
+        filter_tags: HashSet<FilterTag>,
         rsp_tx: oneshot::Sender<Result<Vec<OrderEnvelope>, N3xbError>>,
     },
     SendTakerOfferMessage {
@@ -406,7 +412,10 @@ impl CommunicatorActor {
             }
 
             // Query Order Notes
-            CommunicatorRequest::QueryOrders { rsp_tx } => self.query_orders(rsp_tx).await,
+            CommunicatorRequest::QueryOrders {
+                filter_tags,
+                rsp_tx,
+            } => self.query_orders(filter_tags, rsp_tx).await,
 
             // Send Taker Offer Message
             CommunicatorRequest::SendTakerOfferMessage {
@@ -614,11 +623,11 @@ impl CommunicatorActor {
     ) {
         // Create Note Content
         let maker_order_note = MakerOrderNote {
-            maker_obligation: order.maker_obligation.content,
-            taker_obligation: order.taker_obligation.content,
-            trade_details: order.trade_details.content,
-            trade_engine_specifics: order.trade_engine_specifics,
-            pow_difficulty: order.pow_difficulty,
+            maker_obligation: order.maker_obligation.content.clone(),
+            taker_obligation: order.taker_obligation.content.clone(),
+            trade_details: order.trade_details.content.clone(),
+            trade_engine_specifics: order.trade_engine_specifics.clone(),
+            pow_difficulty: order.pow_difficulty.clone(),
         };
 
         let content_string = match serde_json::to_string(&maker_order_note) {
@@ -629,38 +638,13 @@ impl CommunicatorActor {
             }
         };
 
-        // Create Note Tags
-        let mut tag_set: Vec<OrderTag> = Vec::new();
-
-        tag_set.push(OrderTag::TradeUUID(order.trade_uuid));
-        tag_set.push(OrderTag::MakerObligations(
-            order
-                .maker_obligation
-                .kinds
-                .iter()
-                .flat_map(|k| k.to_tags())
-                .collect(),
-        ));
-        tag_set.push(OrderTag::TakerObligations(
-            order
-                .taker_obligation
-                .kinds
-                .iter()
-                .flat_map(|k| k.to_tags())
-                .collect(),
-        ));
-        tag_set.push(OrderTag::TradeDetailParameters(
-            TradeDetails::parameters_to_tags(order.trade_details.parameters),
-        ));
-        tag_set.push(OrderTag::TradeEngineName(self.trade_engine_name.to_owned()));
-        tag_set.push(OrderTag::EventKind(EventKind::MakerOrder));
-        tag_set.push(OrderTag::ApplicationTag(N3XB_APPLICATION_TAG.to_string()));
+        let order_tags = OrderTag::from_order(order, &self.trade_engine_name);
 
         // NIP-78 Event Kind - 30078
         let builder = EventBuilder::new(
             Self::MAKER_ORDER_NOTE_KIND,
             content_string,
-            &Self::create_event_tags(tag_set),
+            &Self::create_event_tags(order_tags),
         );
 
         let keys = self.client.keys().await;
@@ -676,24 +660,33 @@ impl CommunicatorActor {
     }
 
     fn create_event_tags(tags: Vec<OrderTag>) -> Vec<Tag> {
-        let tags_vec = tags
-            .iter()
+        tags.iter()
             .map(|event_tag| match event_tag {
                 OrderTag::TradeUUID(trade_uuid) => Tag::Generic(
                     TagKind::Custom(event_tag.key().to_string()),
                     vec![trade_uuid.to_string()],
                 ),
-                OrderTag::MakerObligations(obligations) => Tag::Generic(
+                OrderTag::MakerObligations(obligation_kinds) => Tag::Generic(
                     TagKind::Custom(event_tag.key().to_string()),
-                    obligations.to_owned().into_iter().collect(),
+                    obligation_kinds
+                        .to_owned()
+                        .iter()
+                        .flat_map(|kind| kind.to_tag_strings())
+                        .collect(),
                 ),
-                OrderTag::TakerObligations(obligations) => Tag::Generic(
+                OrderTag::TakerObligations(obligations_kinds) => Tag::Generic(
                     TagKind::Custom(event_tag.key().to_string()),
-                    obligations.to_owned().into_iter().collect(),
+                    obligations_kinds
+                        .to_owned()
+                        .iter()
+                        .flat_map(|kind| kind.to_tag_strings())
+                        .collect(),
                 ),
                 OrderTag::TradeDetailParameters(parameters) => Tag::Generic(
                     TagKind::Custom(event_tag.key().to_string()),
-                    parameters.to_owned().into_iter().collect(),
+                    TradeDetails::parameters_to_tags(parameters.clone())
+                        .into_iter()
+                        .collect(),
                 ),
                 OrderTag::TradeEngineName(name) => Tag::Generic(
                     TagKind::Custom(event_tag.key().to_string()),
@@ -708,18 +701,17 @@ impl CommunicatorActor {
                     vec![app_tag.to_owned()],
                 ),
             })
-            .collect();
-        print!("{:?} ", tags_vec);
-        tags_vec
+            .collect()
     }
 
     // Query Order Notes
 
-    async fn query_orders(&self, rsp_tx: oneshot::Sender<Result<Vec<OrderEnvelope>, N3xbError>>) {
-        let mut tag_set: Vec<OrderTag> = Vec::new();
-        tag_set.push(OrderTag::TradeEngineName(self.trade_engine_name.to_owned()));
-        tag_set.push(OrderTag::EventKind(EventKind::MakerOrder));
-        tag_set.push(OrderTag::ApplicationTag(N3XB_APPLICATION_TAG.to_string()));
+    async fn query_orders(
+        &self,
+        filter_tags: HashSet<FilterTag>,
+        rsp_tx: oneshot::Sender<Result<Vec<OrderEnvelope>, N3xbError>>,
+    ) {
+        let order_tags = OrderTag::from_filter_tags(filter_tags, &self.trade_engine_name);
 
         // TODO: Add ways to filter for
         //  - Trade Engine Name
@@ -727,7 +719,7 @@ impl CommunicatorActor {
         //  - Taker Obligation Kind
         //  - Trade Detail Parameters
 
-        let filter = Self::create_event_tag_filter(tag_set);
+        let filter = Self::create_event_tag_filter(order_tags);
         let timeout = Duration::from_secs(1);
         let events = match self.client.get_events_of(vec![filter], Some(timeout)).await {
             Ok(events) => events,
@@ -759,7 +751,7 @@ impl CommunicatorActor {
             let mut tag_vec = tag.as_vec();
             let tag_key = tag_vec.remove(0);
 
-            if let Ok(order_tag) = OrderTag::from_key(&tag_key, tag_vec) {
+            if let Ok(order_tag) = OrderTag::from_key_value(&tag_key, tag_vec) {
                 order_tags.push(order_tag);
             } else {
                 warn!("Unrecognized Tag with key: {}", tag_key);
@@ -784,14 +776,12 @@ impl CommunicatorActor {
             match order_tag {
                 OrderTag::TradeUUID(trade_uuid) => some_trade_uuid = Some(trade_uuid),
                 OrderTag::MakerObligations(obligations) => {
-                    some_maker_obligation_kinds = Some(ObligationKind::from_tags(obligations)?);
+                    some_maker_obligation_kinds = Some(obligations);
                 }
                 OrderTag::TakerObligations(obligations) => {
-                    some_taker_obligation_kinds = Some(ObligationKind::from_tags(obligations)?);
+                    some_taker_obligation_kinds = Some(obligations);
                 }
-                OrderTag::TradeDetailParameters(parameters) => {
-                    trade_parameters = TradeDetails::tags_to_parameters(parameters);
-                }
+                OrderTag::TradeDetailParameters(parameters) => trade_parameters = parameters,
 
                 // Sanity Checks. Abort order parsing if fails
                 OrderTag::TradeEngineName(name) => {
@@ -921,21 +911,31 @@ impl CommunicatorActor {
                 OrderTag::MakerObligations(obligations) => {
                     let filter = filter.custom_tag(
                         Alphabet::try_from(tag.key()).unwrap(),
-                        obligations.to_owned().into_iter().collect(),
+                        obligations
+                            .to_owned()
+                            .into_iter()
+                            .flat_map(|kind| kind.to_tag_strings())
+                            .collect(),
                     );
                     Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
                 }
                 OrderTag::TakerObligations(obligations) => {
                     let filter = filter.custom_tag(
                         Alphabet::try_from(tag.key()).unwrap(),
-                        obligations.to_owned().into_iter().collect(),
+                        obligations
+                            .to_owned()
+                            .into_iter()
+                            .flat_map(|kind| kind.to_tag_strings())
+                            .collect(),
                     );
                     Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
                 }
                 OrderTag::TradeDetailParameters(parameters) => {
                     let filter = filter.custom_tag(
                         Alphabet::try_from(tag.key()).unwrap(),
-                        parameters.to_owned().into_iter().collect(),
+                        TradeDetails::parameters_to_tags(parameters.clone())
+                            .into_iter()
+                            .collect(),
                     );
                     Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
                 }

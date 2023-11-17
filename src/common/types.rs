@@ -2,7 +2,6 @@ use dyn_clone::DynClone;
 use iso_currency::Currency;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumString, IntoStaticStr};
-use uuid::Uuid;
 
 use std::any::Any;
 use std::hash::Hash;
@@ -36,81 +35,6 @@ impl dyn SerdeGenericTrait {
         self.any_ref().downcast_ref()
     }
 }
-
-#[derive(Clone, Debug)]
-pub enum OrderTag {
-    TradeUUID(Uuid),
-    MakerObligations(HashSet<String>),
-    TakerObligations(HashSet<String>),
-    TradeDetailParameters(HashSet<String>),
-    TradeEngineName(String),
-    EventKind(EventKind),
-    ApplicationTag(String),
-}
-
-const ORDER_TAG_TRADE_UUID_KEY: char = 'i';
-const ORDER_TAG_MAKER_OBLIGATIONS_KEY: char = 'm';
-const ORDER_TAG_TAKER_OBLIGATIONS_KEY: char = 't';
-const ORDER_TAG_TRADE_DETAIL_PARAMETERS_KEY: char = 'p';
-const ORDER_TAG_TRADE_ENGINE_NAME_KEY: char = 'n';
-const ORDER_TAG_EVENT_KIND_KEY: char = 'k';
-const ORDER_TAG_APPLICATION_TAG_KEY: char = 'd';
-
-impl OrderTag {
-    pub fn key(&self) -> char {
-        match self {
-            OrderTag::TradeUUID(_) => ORDER_TAG_TRADE_UUID_KEY,
-            OrderTag::MakerObligations(_) => ORDER_TAG_MAKER_OBLIGATIONS_KEY,
-            OrderTag::TakerObligations(_) => ORDER_TAG_TAKER_OBLIGATIONS_KEY,
-            OrderTag::TradeDetailParameters(_) => ORDER_TAG_TRADE_DETAIL_PARAMETERS_KEY,
-            OrderTag::TradeEngineName(_) => ORDER_TAG_TRADE_ENGINE_NAME_KEY,
-            OrderTag::EventKind(_) => ORDER_TAG_EVENT_KIND_KEY,
-            OrderTag::ApplicationTag(_) => ORDER_TAG_APPLICATION_TAG_KEY,
-        }
-    }
-
-    pub fn from_key(key: impl AsRef<str>, value: Vec<String>) -> Result<OrderTag, N3xbError> {
-        match key.as_ref().chars().next().unwrap() {
-            ORDER_TAG_TRADE_UUID_KEY => {
-                let uuid_string = value[0].clone();
-                match Uuid::from_str(uuid_string.as_str()) {
-                    Ok(uuid) => Ok(OrderTag::TradeUUID(uuid)),
-                    Err(error) => Err(N3xbError::Simple(format!(
-                        "Trade UUID Order Tag does not contain valid UUID string - {}",
-                        error
-                    ))),
-                }
-            }
-            ORDER_TAG_MAKER_OBLIGATIONS_KEY => {
-                let tag_set: HashSet<String> = HashSet::from_iter(value);
-                Ok(OrderTag::MakerObligations(tag_set))
-            }
-            ORDER_TAG_TAKER_OBLIGATIONS_KEY => {
-                Ok(OrderTag::TakerObligations(HashSet::from_iter(value)))
-            }
-            ORDER_TAG_TRADE_DETAIL_PARAMETERS_KEY => {
-                Ok(OrderTag::TradeDetailParameters(HashSet::from_iter(value)))
-            }
-            ORDER_TAG_TRADE_ENGINE_NAME_KEY => Ok(OrderTag::TradeEngineName(value[0].clone())),
-            ORDER_TAG_EVENT_KIND_KEY => {
-                let event_kind = EventKind::from_str(value[0].as_str())?;
-                Ok(OrderTag::EventKind(event_kind))
-            }
-            ORDER_TAG_APPLICATION_TAG_KEY => Ok(OrderTag::ApplicationTag(value[0].clone())),
-            _ => Err(N3xbError::Simple(format!(
-                "Unrecognized key '{}' for Order Tag",
-                key.as_ref()
-            ))),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Display, EnumString, IntoStaticStr)]
-pub enum EventKind {
-    MakerOrder,
-}
-
-pub static N3XB_APPLICATION_TAG: &str = "n3xb";
 
 #[derive(
     Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Debug, EnumString, Display, IntoStaticStr,
@@ -225,7 +149,7 @@ impl ObligationKind {
         }
     }
 
-    pub fn to_tags(&self) -> HashSet<String> {
+    pub fn to_tag_strings(&self) -> HashSet<String> {
         let mut tag_string_set: HashSet<String>;
         let obligation_kind_prefix_bitcoin = ObligationKind::Bitcoin(None).to_string();
         let obligation_kind_prefix_fiat = ObligationKind::Fiat(Currency::XXX, None).to_string();
@@ -283,7 +207,7 @@ impl ObligationKind {
         tag_string_set
     }
 
-    pub fn from_tags(tags: HashSet<String>) -> Result<HashSet<ObligationKind>, N3xbError> {
+    pub fn from_tag_strings(tags: HashSet<String>) -> Result<HashSet<ObligationKind>, N3xbError> {
         let obligation_kind_prefix_bitcoin = ObligationKind::Bitcoin(None).to_string();
         let obligation_kind_prefix_fiat = ObligationKind::Fiat(Currency::XXX, None).to_string();
         let obligation_kind_prefix_custom = ObligationKind::Custom("".to_string()).to_string();
@@ -381,7 +305,7 @@ mod tests {
     #[test]
     fn bitcoin_onchain_obligation_kind_to_tags() {
         let obligation_kind = ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Onchain));
-        let obligation_tags = obligation_kind.to_tags();
+        let obligation_tags = obligation_kind.to_tag_strings();
         let expected_tags = HashSet::from(["Bitcoin-Onchain".to_string(), "Bitcoin".to_string()]);
         print!(
             "Obligation: {:?} Expected: {:?}",
@@ -393,7 +317,7 @@ mod tests {
     #[test]
     fn bitcoin_onchain_obligation_kind_from_tags() {
         let obligation_tags = HashSet::from(["Bitcoin-Onchain".to_string(), "Bitcoin".to_string()]);
-        let obligation_kinds = ObligationKind::from_tags(obligation_tags).unwrap();
+        let obligation_kinds = ObligationKind::from_tag_strings(obligation_tags).unwrap();
         let expected_kinds = HashSet::from([ObligationKind::Bitcoin(Some(
             BitcoinSettlementMethod::Onchain,
         ))]);
@@ -410,8 +334,10 @@ mod tests {
             ObligationKind::Fiat(Currency::USD, Some(FiatPaymentMethod::Venmo)),
             ObligationKind::Fiat(Currency::USD, Some(FiatPaymentMethod::CashApp)),
         ]);
-        let obligation_tags: HashSet<String> =
-            obligation_kinds.iter().flat_map(|k| k.to_tags()).collect();
+        let obligation_tags: HashSet<String> = obligation_kinds
+            .iter()
+            .flat_map(|k| k.to_tag_strings())
+            .collect();
         let expected_tags = HashSet::from([
             "Fiat-USD-Venmo".to_string(),
             "Fiat-USD-CashApp".to_string(),
@@ -433,7 +359,7 @@ mod tests {
             "Fiat-USD".to_string(),
             "Fiat".to_string(),
         ]);
-        let obligation_kinds = ObligationKind::from_tags(obligation_tags).unwrap();
+        let obligation_kinds = ObligationKind::from_tag_strings(obligation_tags).unwrap();
         let expected_kinds = HashSet::from([
             ObligationKind::Fiat(Currency::USD, Some(FiatPaymentMethod::Venmo)),
             ObligationKind::Fiat(Currency::USD, Some(FiatPaymentMethod::CashApp)),
@@ -448,7 +374,7 @@ mod tests {
     #[test]
     fn custom_obligation_kind_to_tags() {
         let obligation_kind = ObligationKind::Custom("Barter".to_string());
-        let obligation_tags = obligation_kind.to_tags();
+        let obligation_tags = obligation_kind.to_tag_strings();
         let expected_tags = HashSet::from(["Custom-Barter".to_string(), "Custom".to_string()]);
         print!(
             "Obligation: {:?} Expected: {:?}",
@@ -460,7 +386,7 @@ mod tests {
     #[test]
     fn custom_obligation_kind_from_tags() {
         let obligation_tags = HashSet::from(["Custom-Barter".to_string(), "Custom".to_string()]);
-        let obligation_kinds = ObligationKind::from_tags(obligation_tags).unwrap();
+        let obligation_kinds = ObligationKind::from_tag_strings(obligation_tags).unwrap();
         let expected_kinds = HashSet::from([ObligationKind::Custom("Barter".to_string())]);
         print!(
             "Obligation: {:?} Expected: {:?}",

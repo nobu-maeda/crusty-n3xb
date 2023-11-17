@@ -6,12 +6,9 @@ use url::Url;
 use uuid::Uuid;
 
 use super::{obligation::*, trade_details::*};
-use crate::{
-    common::{
-        error::N3xbError,
-        types::{EventIdString, ObligationKind, SerdeGenericTrait},
-    },
-    offer::OfferBuilder,
+use crate::common::{
+    error::N3xbError,
+    types::{EventIdString, ObligationKind, SerdeGenericTrait},
 };
 
 #[derive(Clone, Debug)]

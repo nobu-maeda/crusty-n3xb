@@ -1,5 +1,5 @@
 use log::{debug, warn};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 
 use secp256k1::{SecretKey, XOnlyPublicKey};
@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::common::error::N3xbError;
 use crate::communicator::{Communicator, CommunicatorAccess};
 use crate::offer::Offer;
-use crate::order::{Order, OrderEnvelope};
+use crate::order::{FilterTag, Order, OrderEnvelope};
 use crate::order_sm::maker::{Maker, MakerAccess};
 use crate::order_sm::taker::{Taker, TakerAccess};
 
@@ -107,8 +107,11 @@ impl Manager {
         Ok(maker_returned_accessor)
     }
 
-    pub async fn query_orders(&mut self) -> Result<Vec<OrderEnvelope>, N3xbError> {
-        let mut order_envelopes = self.communicator_accessor.query_orders().await?;
+    pub async fn query_orders(
+        &mut self,
+        filter_tags: HashSet<FilterTag>,
+    ) -> Result<Vec<OrderEnvelope>, N3xbError> {
+        let mut order_envelopes = self.communicator_accessor.query_orders(filter_tags).await?;
         let queried_length = order_envelopes.len();
 
         let valid_order_envelopes: Vec<OrderEnvelope> = order_envelopes
