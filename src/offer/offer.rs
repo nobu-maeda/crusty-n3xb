@@ -200,7 +200,7 @@ mod tests {
         let order = SomeTestOrderParams::default_builder().build().unwrap();
 
         let maker_obligation = Obligation {
-            kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::FaceToFace),
+            kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::FaceToFace)),
             amount: 1000000,
             bond_amount: Some(4000000),
         };
@@ -296,7 +296,7 @@ mod tests {
         let order = SomeTestOrderParams::default_builder().build().unwrap();
 
         let maker_obligation = Obligation {
-            kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
+            kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
             amount: u64::MAX,
             bond_amount: Some(4000000),
         };
@@ -314,7 +314,7 @@ mod tests {
         let order = SomeTestOrderParams::default_builder().build().unwrap();
 
         let maker_obligation = Obligation {
-            kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
+            kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
             amount: 1000000,
             bond_amount: Some(3000000),
         };
@@ -332,7 +332,7 @@ mod tests {
         let order = SomeTestOrderParams::default_builder().build().unwrap();
 
         let maker_obligation = Obligation {
-            kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
+            kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
             amount: 1000000,
             bond_amount: None,
         };
@@ -369,7 +369,7 @@ mod tests {
         let order = SomeTestOrderParams::default_builder().build().unwrap();
 
         let taker_obligation = Obligation {
-            kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Onchain),
+            kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Onchain)),
             amount: 40000000,
             bond_amount: Some(4000000),
         };
@@ -387,13 +387,13 @@ mod tests {
         let order = SomeTestOrderParams::default_builder().build().unwrap();
 
         let maker_obligation = Obligation {
-            kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
+            kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
             amount: 1000000,
             bond_amount: Some(4200000),
         };
 
         let taker_obligation = Obligation {
-            kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Lightning),
+            kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
             amount: 42000000,
             bond_amount: Some(4200000),
         };
@@ -412,7 +412,7 @@ mod tests {
         let order = SomeTestOrderParams::default_builder().build().unwrap();
 
         let taker_obligation = Obligation {
-            kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Lightning),
+            kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
             amount: 40000000,
             bond_amount: Some(3000000),
         };
@@ -430,7 +430,7 @@ mod tests {
         let order = SomeTestOrderParams::default_builder().build().unwrap();
 
         let taker_obligation = Obligation {
-            kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Lightning),
+            kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
             amount: 40000000,
             bond_amount: None,
         };

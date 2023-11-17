@@ -182,8 +182,8 @@ mod tests {
     #[tokio::test]
     async fn test_validate_order_maker_obligation_kind_currencies_mismatches() {
         let maker_obligation_kinds = HashSet::from([
-            ObligationKind::Fiat(Currency::JPY, FiatPaymentMethod::TransferWise),
-            ObligationKind::Fiat(Currency::EUR, FiatPaymentMethod::TransferWise),
+            ObligationKind::Fiat(Currency::JPY, Some(FiatPaymentMethod::TransferWise)),
+            ObligationKind::Fiat(Currency::EUR, Some(FiatPaymentMethod::TransferWise)),
         ]);
 
         let maker_obligation = MakerObligation {
@@ -236,8 +236,8 @@ mod tests {
     #[tokio::test]
     async fn test_validate_order_taker_obligation_kind_currencies_mismatches() {
         let taker_obligation_kinds = HashSet::from([
-            ObligationKind::Fiat(Currency::TWD, FiatPaymentMethod::TransferWise),
-            ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::TransferWise),
+            ObligationKind::Fiat(Currency::TWD, Some(FiatPaymentMethod::TransferWise)),
+            ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::TransferWise)),
         ]);
 
         let taker_obligation = TakerObligation {

@@ -23,7 +23,7 @@ impl SomeTestOfferParams {
 
     pub fn maker_obligation() -> Obligation {
         Obligation {
-            kind: ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
+            kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
             amount: 1000000,
             bond_amount: Some(4000000),
         }
@@ -31,7 +31,7 @@ impl SomeTestOfferParams {
 
     pub fn taker_obligation() -> Obligation {
         Obligation {
-            kind: ObligationKind::Bitcoin(BitcoinSettlementMethod::Lightning),
+            kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
             amount: 40000000,
             bond_amount: Some(4000000),
         }

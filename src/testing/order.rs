@@ -34,8 +34,8 @@ impl SomeTestOrderParams {
 
     pub fn maker_obligation_kinds() -> HashSet<ObligationKind> {
         HashSet::from([
-            ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::WeChatPay),
-            ObligationKind::Fiat(Currency::CNY, FiatPaymentMethod::AliPay),
+            ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
+            ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::AliPay)),
         ])
     }
 
@@ -47,7 +47,9 @@ impl SomeTestOrderParams {
     }
 
     pub fn taker_obligation_kinds() -> HashSet<ObligationKind> {
-        HashSet::from([ObligationKind::Bitcoin(BitcoinSettlementMethod::Lightning)])
+        HashSet::from([ObligationKind::Bitcoin(Some(
+            BitcoinSettlementMethod::Lightning,
+        ))])
     }
 
     pub fn taker_obligation_content() -> TakerObligationContent {
