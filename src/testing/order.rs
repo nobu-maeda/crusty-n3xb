@@ -77,6 +77,14 @@ impl SomeTestOrderParams {
         }
     }
 
+    pub(crate) fn event_kind() -> EventKind {
+        EventKind::MakerOrder
+    }
+
+    pub fn application_tag() -> String {
+        "n3xB".to_string()
+    }
+
     pub fn pow_difficulty() -> u64 {
         8u64
     }

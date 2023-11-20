@@ -126,7 +126,7 @@ impl CommunicatorAccess {
 
     pub(crate) async fn query_orders(
         &self,
-        filter_tags: HashSet<FilterTag>,
+        filter_tags: Vec<FilterTag>,
     ) -> Result<Vec<OrderEnvelope>, N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<Vec<OrderEnvelope>, N3xbError>>();
         let request = CommunicatorRequest::QueryOrders {
@@ -279,7 +279,7 @@ pub(super) enum CommunicatorRequest {
         rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
     },
     QueryOrders {
-        filter_tags: HashSet<FilterTag>,
+        filter_tags: Vec<FilterTag>,
         rsp_tx: oneshot::Sender<Result<Vec<OrderEnvelope>, N3xbError>>,
     },
     SendTakerOfferMessage {
@@ -708,16 +708,10 @@ impl CommunicatorActor {
 
     async fn query_orders(
         &self,
-        filter_tags: HashSet<FilterTag>,
+        filter_tags: Vec<FilterTag>,
         rsp_tx: oneshot::Sender<Result<Vec<OrderEnvelope>, N3xbError>>,
     ) {
         let order_tags = OrderTag::from_filter_tags(filter_tags, &self.trade_engine_name);
-
-        // TODO: Add ways to filter for
-        //  - Trade Engine Name
-        //  - Maker Obligation Kind
-        //  - Taker Obligation Kind
-        //  - Trade Detail Parameters
 
         let filter = Self::create_event_tag_filter(order_tags);
         let timeout = Duration::from_secs(1);

@@ -1,5 +1,5 @@
 use log::{debug, warn};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::net::SocketAddr;
 
 use secp256k1::{SecretKey, XOnlyPublicKey};
@@ -109,7 +109,7 @@ impl Manager {
 
     pub async fn query_orders(
         &mut self,
-        filter_tags: HashSet<FilterTag>,
+        filter_tags: Vec<FilterTag>,
     ) -> Result<Vec<OrderEnvelope>, N3xbError> {
         let mut order_envelopes = self.communicator_accessor.query_orders(filter_tags).await?;
         let queried_length = order_envelopes.len();

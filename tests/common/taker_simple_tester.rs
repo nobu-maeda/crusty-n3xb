@@ -53,7 +53,7 @@ impl TakerSimpleTesterActor {
         // Query & poll for Orders
         // * Optionally create ability to subscribe to a certain filter of Orders
         let order_envelope = loop {
-            let query_filter = HashSet::new(); // TODO: Add query filter
+            let query_filter = Vec::new(); // TODO: Add query filter
             let order_envelopes = self.manager.query_orders(query_filter).await.unwrap();
             let order_envelopes: Vec<OrderEnvelope> = order_envelopes
                 .into_iter()
