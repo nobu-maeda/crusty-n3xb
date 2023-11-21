@@ -32,33 +32,129 @@ impl SomeTestOrderParams {
         Uuid::from_str("20c38e4b-037b-4654-b99c-1d9f2beb755f").unwrap()
     }
 
-    pub fn maker_obligation_kinds() -> HashSet<ObligationKind> {
+    // Obligation Kinds
+
+    pub fn obligation_fiat_cny_kinds() -> HashSet<ObligationKind> {
         HashSet::from([
             ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
             ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::AliPay)),
         ])
     }
 
-    pub fn maker_obligation_content() -> MakerObligationContent {
-        MakerObligationContent {
-            amount: 1000000, // 1M RMB
-            amount_min: None,
-        }
+    pub fn obligation_fiat_usd_kinds() -> HashSet<ObligationKind> {
+        HashSet::from([
+            ObligationKind::Fiat(Currency::USD, Some(FiatPaymentMethod::Zelle)),
+            ObligationKind::Fiat(Currency::USD, Some(FiatPaymentMethod::ACHTransfer)),
+        ])
     }
 
-    pub fn taker_obligation_kinds() -> HashSet<ObligationKind> {
+    pub fn obligation_fiat_eur_kinds() -> HashSet<ObligationKind> {
+        HashSet::from([ObligationKind::Fiat(
+            Currency::USD,
+            Some(FiatPaymentMethod::Revolut),
+        )])
+    }
+
+    pub fn obligation_bitcoin_onchain_kinds() -> HashSet<ObligationKind> {
+        HashSet::from([ObligationKind::Bitcoin(Some(
+            BitcoinSettlementMethod::Onchain,
+        ))])
+    }
+
+    pub fn obligation_bitcoin_lightning_kinds() -> HashSet<ObligationKind> {
         HashSet::from([ObligationKind::Bitcoin(Some(
             BitcoinSettlementMethod::Lightning,
         ))])
     }
 
-    pub fn taker_obligation_content() -> TakerObligationContent {
+    pub fn obligation_bitcoin_both_kinds() -> HashSet<ObligationKind> {
+        HashSet::from([
+            ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Onchain)),
+            ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
+        ])
+    }
+
+    // Maker Obligation Contents
+
+    pub fn maker_obligation_fiat_cny_content() -> MakerObligationContent {
+        MakerObligationContent {
+            amount: 35000, // 35k RMB
+            amount_min: None,
+        }
+    }
+
+    pub fn maker_obligation_fiat_usd_content() -> MakerObligationContent {
+        MakerObligationContent {
+            amount: 5000, // 5k USD
+            amount_min: Some(180000),
+        }
+    }
+
+    pub fn maker_obligation_fiat_eur_content() -> MakerObligationContent {
+        MakerObligationContent {
+            amount: 4500, // 4.5k EUR
+            amount_min: None,
+        }
+    }
+
+    pub fn maker_obligation_bitcoin_content() -> MakerObligationContent {
+        MakerObligationContent {
+            amount: 10000000, // 10,000,000 Sats / 0.1 BTC
+            amount_min: None,
+        }
+    }
+
+    // Taker Obligation Contents
+
+    pub fn taker_obligation_fiat_cny_content() -> TakerObligationContent {
         TakerObligationContent {
-            limit_rate: Some(40.0), // 10,000,000 Sats/ 250,000 RMB (@ ~$35k USD / BTC) = 40.00
+            limit_rate: Some(0.0035), // 35,000 RMB / 10,000,000 Sats (@ ~$50k USD / BTC) = 0.0035
             market_offset_pct: None,
             market_oracles: None,
         }
     }
+
+    pub fn taker_obligation_fiat_usd_content() -> TakerObligationContent {
+        TakerObligationContent {
+            limit_rate: Some(0.0005), // 5,000 USD / 10,000,000 Sats (@ ~$50k USD / BTC) = 0.0005
+            market_offset_pct: None,
+            market_oracles: None,
+        }
+    }
+
+    pub fn taker_obligation_fiat_eur_content() -> TakerObligationContent {
+        TakerObligationContent {
+            limit_rate: Some(0.00045), // 4,500 EUR / 10,000,000 Sats (@ ~$50k USD / BTC) = 0.00045
+            market_offset_pct: None,
+            market_oracles: None,
+        }
+    }
+
+    pub fn taker_obligation_bitcoin_rmb_content() -> TakerObligationContent {
+        TakerObligationContent {
+            limit_rate: Some(285.71429), // 10,000,000 Sats/ 35,000 RMB (@ ~$50k USD / BTC) = 285.71
+            market_offset_pct: None,
+            market_oracles: None,
+        }
+    }
+
+    pub fn taker_obligation_bitcoin_usd_content() -> TakerObligationContent {
+        TakerObligationContent {
+            limit_rate: Some(2000.0), // 10,000,000 Sats/ 5,000 USD (@ $50k USD / BTC) = 2000
+            market_offset_pct: None,
+            market_oracles: None,
+        }
+    }
+
+    pub fn taker_obligation_bitcoin_eur_content() -> TakerObligationContent {
+        TakerObligationContent {
+            limit_rate: Some(2222.22222), // 10,000,000 Sats/ 4,500 EUR (@ ~$50k USD / BTC) = 2222.22
+            market_offset_pct: None,
+            market_oracles: None,
+        }
+    }
+
+    // Trade Parameters
 
     pub fn trade_parameters() -> HashSet<TradeParameter> {
         HashSet::from([
@@ -69,6 +165,10 @@ impl SomeTestOrderParams {
         ])
     }
 
+    pub fn trade_parameters_empty() -> HashSet<TradeParameter> {
+        HashSet::from([])
+    }
+
     pub fn trade_details_content() -> TradeDetailsContent {
         TradeDetailsContent {
             maker_bond_pct: Some(10),
@@ -77,6 +177,15 @@ impl SomeTestOrderParams {
         }
     }
 
+    pub fn trade_details_empty() -> TradeDetailsContent {
+        TradeDetailsContent {
+            maker_bond_pct: None,
+            taker_bond_pct: None,
+            trade_timeout: None,
+        }
+    }
+
+    #[cfg(test)]
     pub(crate) fn event_kind() -> EventKind {
         EventKind::MakerOrder
     }
@@ -90,7 +199,7 @@ impl SomeTestOrderParams {
     }
 
     pub fn expected_json_string() -> String {
-        "{\"maker_obligation\":{\"amount\":1000000,\"amount_min\":null},\"taker_obligation\":{\"limit_rate\":40.0,\"market_offset_pct\":null,\"market_oracles\":null},\"trade_details\":{\"maker_bond_pct\":10,\"taker_bond_pct\":10,\"trade_timeout\":null},\"trade_engine_specifics\":{\"type\":\"some-trade-engine-maker-order-specifics\",\"test_specific_field\":\"some-test-specific-info\"},\"pow_difficulty\":8}".to_string()
+        "{\"maker_obligation\":{\"amount\":35000,\"amount_min\":null},\"taker_obligation\":{\"limit_rate\":285.71,\"market_offset_pct\":null,\"market_oracles\":null},\"trade_details\":{\"maker_bond_pct\":10,\"taker_bond_pct\":10,\"trade_timeout\":null},\"trade_engine_specifics\":{\"type\":\"some-trade-engine-maker-order-specifics\",\"test_specific_field\":\"some-test-specific-info\"},\"pow_difficulty\":8}".to_string()
     }
 
     pub fn default_builder() -> OrderBuilder {
@@ -98,15 +207,15 @@ impl SomeTestOrderParams {
         builder.trade_uuid(Self::some_uuid());
 
         let maker_obligation = MakerObligation {
-            kinds: Self::maker_obligation_kinds(),
-            content: Self::maker_obligation_content(),
+            kinds: Self::obligation_fiat_cny_kinds(),
+            content: Self::maker_obligation_fiat_cny_content(),
         };
 
         builder.maker_obligation(maker_obligation);
 
         let taker_obligation = TakerObligation {
-            kinds: Self::taker_obligation_kinds(),
-            content: Self::taker_obligation_content(),
+            kinds: Self::obligation_bitcoin_lightning_kinds(),
+            content: Self::taker_obligation_bitcoin_rmb_content(),
         };
 
         builder.taker_obligation(taker_obligation);

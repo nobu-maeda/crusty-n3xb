@@ -21,26 +21,110 @@ impl SomeTestOfferParams {
         XOnlyPublicKey::from(kpk)
     }
 
-    pub fn maker_obligation() -> Obligation {
+    // Maker Oligations
+
+    pub fn maker_obligation_rmb_wechat() -> Obligation {
         Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
-            amount: 1000000,
-            bond_amount: Some(4000000),
+            amount: 35000,
+            bond_amount: Some(1000000),
         }
     }
 
-    pub fn taker_obligation() -> Obligation {
+    pub fn maker_obligation_rmb_alipay() -> Obligation {
+        Obligation {
+            kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::AliPay)),
+            amount: 35000,
+            bond_amount: Some(1000000),
+        }
+    }
+
+    pub fn maker_obligation_usd_zelle() -> Obligation {
+        Obligation {
+            kind: ObligationKind::Fiat(Currency::USD, Some(FiatPaymentMethod::Zelle)),
+            amount: 5000,
+            bond_amount: Some(1000000),
+        }
+    }
+
+    pub fn maker_obligation_eur_revolut() -> Obligation {
+        Obligation {
+            kind: ObligationKind::Fiat(Currency::EUR, Some(FiatPaymentMethod::Revolut)),
+            amount: 4500,
+            bond_amount: Some(1000000),
+        }
+    }
+
+    pub fn maker_obligation_bitcoin_onchain() -> Obligation {
+        Obligation {
+            kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Onchain)),
+            amount: 10000000,
+            bond_amount: Some(1000000),
+        }
+    }
+
+    pub fn maker_obligation_bitcoin_lightning() -> Obligation {
         Obligation {
             kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
-            amount: 40000000,
-            bond_amount: Some(4000000),
+            amount: 10000000,
+            bond_amount: Some(1000000),
+        }
+    }
+
+    // Taker Obligation
+
+    pub fn taker_obligation_rmb_wechat() -> Obligation {
+        Obligation {
+            kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
+            amount: 35000,
+            bond_amount: Some(1000000),
+        }
+    }
+
+    pub fn taker_obligation_rmb_alipay() -> Obligation {
+        Obligation {
+            kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::AliPay)),
+            amount: 35000,
+            bond_amount: Some(1000000),
+        }
+    }
+
+    pub fn taker_obligation_usd_zelle() -> Obligation {
+        Obligation {
+            kind: ObligationKind::Fiat(Currency::USD, Some(FiatPaymentMethod::Zelle)),
+            amount: 5000,
+            bond_amount: Some(1000000),
+        }
+    }
+
+    pub fn taker_obligation_eur_revolut() -> Obligation {
+        Obligation {
+            kind: ObligationKind::Fiat(Currency::EUR, Some(FiatPaymentMethod::Revolut)),
+            amount: 4500,
+            bond_amount: Some(1000000),
+        }
+    }
+
+    pub fn taker_obligation_bitcoin_onchain() -> Obligation {
+        Obligation {
+            kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Onchain)),
+            amount: 10000000,
+            bond_amount: Some(1000000),
+        }
+    }
+
+    pub fn taker_obligation_bitcoin_lightning() -> Obligation {
+        Obligation {
+            kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
+            amount: 10000000,
+            bond_amount: Some(1000000),
         }
     }
 
     pub fn default_builder() -> OfferBuilder {
         let mut builder: OfferBuilder = OfferBuilder::new();
-        builder.maker_obligation(Self::maker_obligation());
-        builder.taker_obligation(Self::taker_obligation());
+        builder.maker_obligation(Self::maker_obligation_rmb_wechat());
+        builder.taker_obligation(Self::taker_obligation_bitcoin_lightning());
 
         let trade_engine_specifics = Box::new(SomeTradeEngineTakerOfferSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),

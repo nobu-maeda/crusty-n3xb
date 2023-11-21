@@ -235,7 +235,7 @@ mod tests {
         ]);
         let maker_obligation = MakerObligation {
             kinds: maker_obligation_kinds,
-            content: SomeTestOrderParams::maker_obligation_content(),
+            content: SomeTestOrderParams::maker_obligation_fiat_cny_content(),
         };
 
         let result = SomeTestOrderParams::default_builder()
@@ -249,7 +249,7 @@ mod tests {
         let maker_obligation_kinds = HashSet::from([ObligationKind::Bitcoin(None)]);
         let maker_obligation = MakerObligation {
             kinds: maker_obligation_kinds,
-            content: SomeTestOrderParams::maker_obligation_content(),
+            content: SomeTestOrderParams::maker_obligation_fiat_cny_content(),
         };
 
         let result = SomeTestOrderParams::default_builder()
@@ -267,7 +267,7 @@ mod tests {
 
         let maker_obligation = MakerObligation {
             kinds: maker_obligation_kinds,
-            content: SomeTestOrderParams::maker_obligation_content(),
+            content: SomeTestOrderParams::maker_obligation_fiat_cny_content(),
         };
 
         let result = SomeTestOrderParams::default_builder()
@@ -284,7 +284,7 @@ mod tests {
         };
 
         let maker_obligation = MakerObligation {
-            kinds: SomeTestOrderParams::maker_obligation_kinds(),
+            kinds: SomeTestOrderParams::obligation_fiat_cny_kinds(),
             content: maker_obligation_content,
         };
 
@@ -302,7 +302,7 @@ mod tests {
         };
 
         let maker_obligation = MakerObligation {
-            kinds: SomeTestOrderParams::maker_obligation_kinds(),
+            kinds: SomeTestOrderParams::obligation_fiat_cny_kinds(),
             content: maker_obligation_content,
         };
 
@@ -320,7 +320,7 @@ mod tests {
         ]);
         let taker_obligation = TakerObligation {
             kinds: taker_obligation_kinds,
-            content: SomeTestOrderParams::taker_obligation_content(),
+            content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         };
 
         let result = SomeTestOrderParams::default_builder()
@@ -334,7 +334,7 @@ mod tests {
         let taker_obligation_kinds = HashSet::from([ObligationKind::Bitcoin(None)]);
         let taker_obligation = TakerObligation {
             kinds: taker_obligation_kinds,
-            content: SomeTestOrderParams::taker_obligation_content(),
+            content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         };
 
         let result = SomeTestOrderParams::default_builder()
@@ -352,7 +352,7 @@ mod tests {
 
         let taker_obligation = TakerObligation {
             kinds: taker_obligation_kinds,
-            content: SomeTestOrderParams::taker_obligation_content(),
+            content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         };
 
         let result = SomeTestOrderParams::default_builder()
@@ -370,7 +370,7 @@ mod tests {
         };
 
         let taker_obligation = TakerObligation {
-            kinds: SomeTestOrderParams::taker_obligation_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
             content: taker_obligation_content,
         };
 
@@ -389,7 +389,7 @@ mod tests {
         };
 
         let taker_obligation = TakerObligation {
-            kinds: SomeTestOrderParams::taker_obligation_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
             content: taker_obligation_content,
         };
 
@@ -408,7 +408,7 @@ mod tests {
         };
 
         let taker_obligation = TakerObligation {
-            kinds: SomeTestOrderParams::taker_obligation_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
             content: taker_obligation_content,
         };
 
@@ -431,7 +431,7 @@ mod tests {
         };
 
         let taker_obligation = TakerObligation {
-            kinds: SomeTestOrderParams::taker_obligation_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
             content: taker_obligation_content,
         };
 

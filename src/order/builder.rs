@@ -113,13 +113,13 @@ mod tests {
         builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestOrderParams::maker_obligation_kinds(),
-            content: SomeTestOrderParams::maker_obligation_content(),
+            kinds: SomeTestOrderParams::obligation_fiat_cny_kinds(),
+            content: SomeTestOrderParams::maker_obligation_fiat_cny_content(),
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestOrderParams::taker_obligation_kinds(),
-            content: SomeTestOrderParams::taker_obligation_content(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         });
 
         builder.trade_details(TradeDetails {
@@ -141,19 +141,19 @@ mod tests {
                 assert_eq!(order.trade_uuid, SomeTestOrderParams::some_uuid());
                 assert_eq!(
                     order.maker_obligation.kinds,
-                    SomeTestOrderParams::maker_obligation_kinds()
+                    SomeTestOrderParams::obligation_fiat_cny_kinds()
                 );
                 assert_eq!(
                     order.maker_obligation.content,
-                    SomeTestOrderParams::maker_obligation_content()
+                    SomeTestOrderParams::maker_obligation_fiat_cny_content()
                 );
                 assert_eq!(
                     order.taker_obligation.kinds,
-                    SomeTestOrderParams::taker_obligation_kinds()
+                    SomeTestOrderParams::obligation_bitcoin_lightning_kinds()
                 );
                 assert_eq!(
                     order.taker_obligation.content,
-                    SomeTestOrderParams::taker_obligation_content()
+                    SomeTestOrderParams::taker_obligation_bitcoin_rmb_content()
                 );
                 assert_eq!(
                     order.trade_details.parameters,
@@ -189,13 +189,13 @@ mod tests {
         let mut builder: OrderBuilder = OrderBuilder::new();
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestOrderParams::maker_obligation_kinds(),
-            content: SomeTestOrderParams::maker_obligation_content(),
+            kinds: SomeTestOrderParams::obligation_fiat_cny_kinds(),
+            content: SomeTestOrderParams::maker_obligation_fiat_cny_content(),
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestOrderParams::taker_obligation_kinds(),
-            content: SomeTestOrderParams::taker_obligation_content(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         });
 
         builder.trade_details(TradeDetails {
@@ -221,8 +221,8 @@ mod tests {
         builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestOrderParams::taker_obligation_kinds(),
-            content: SomeTestOrderParams::taker_obligation_content(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         });
 
         builder.trade_details(TradeDetails {
@@ -255,8 +255,8 @@ mod tests {
         builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestOrderParams::maker_obligation_kinds(),
-            content: SomeTestOrderParams::maker_obligation_content(),
+            kinds: SomeTestOrderParams::obligation_fiat_cny_kinds(),
+            content: SomeTestOrderParams::maker_obligation_fiat_cny_content(),
         });
 
         builder.trade_details(TradeDetails {
@@ -289,13 +289,13 @@ mod tests {
         builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestOrderParams::maker_obligation_kinds(),
-            content: SomeTestOrderParams::maker_obligation_content(),
+            kinds: SomeTestOrderParams::obligation_fiat_cny_kinds(),
+            content: SomeTestOrderParams::maker_obligation_fiat_cny_content(),
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestOrderParams::taker_obligation_kinds(),
-            content: SomeTestOrderParams::taker_obligation_content(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         });
 
         let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
@@ -323,13 +323,13 @@ mod tests {
         builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestOrderParams::maker_obligation_kinds(),
-            content: SomeTestOrderParams::maker_obligation_content(),
+            kinds: SomeTestOrderParams::obligation_fiat_cny_kinds(),
+            content: SomeTestOrderParams::maker_obligation_fiat_cny_content(),
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestOrderParams::taker_obligation_kinds(),
-            content: SomeTestOrderParams::taker_obligation_content(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         });
 
         builder.trade_details(TradeDetails {
@@ -356,13 +356,13 @@ mod tests {
         builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.maker_obligation(MakerObligation {
-            kinds: SomeTestOrderParams::maker_obligation_kinds(),
-            content: SomeTestOrderParams::maker_obligation_content(),
+            kinds: SomeTestOrderParams::obligation_fiat_cny_kinds(),
+            content: SomeTestOrderParams::maker_obligation_fiat_cny_content(),
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestOrderParams::taker_obligation_kinds(),
-            content: SomeTestOrderParams::taker_obligation_content(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         });
 
         builder.trade_details(TradeDetails {
@@ -383,19 +383,19 @@ mod tests {
                 assert_eq!(order.trade_uuid, SomeTestOrderParams::some_uuid());
                 assert_eq!(
                     order.maker_obligation.kinds,
-                    SomeTestOrderParams::maker_obligation_kinds()
+                    SomeTestOrderParams::obligation_fiat_cny_kinds()
                 );
                 assert_eq!(
                     order.maker_obligation.content,
-                    SomeTestOrderParams::maker_obligation_content()
+                    SomeTestOrderParams::maker_obligation_fiat_cny_content()
                 );
                 assert_eq!(
                     order.taker_obligation.kinds,
-                    SomeTestOrderParams::taker_obligation_kinds()
+                    SomeTestOrderParams::obligation_bitcoin_lightning_kinds()
                 );
                 assert_eq!(
                     order.taker_obligation.content,
-                    SomeTestOrderParams::taker_obligation_content()
+                    SomeTestOrderParams::taker_obligation_bitcoin_rmb_content()
                 );
                 assert_eq!(
                     order.trade_details.parameters,

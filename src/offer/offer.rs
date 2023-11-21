@@ -180,12 +180,12 @@ mod tests {
     #[tokio::test]
     async fn test_validate_offer_maker_amount_in_bounds() {
         let maker_obligation_content = MakerObligationContent {
-            amount: 1200000,
-            amount_min: Some(800000),
+            amount: 40000,
+            amount_min: Some(30000),
         };
 
         let maker_obligation = MakerObligation {
-            kinds: SomeTestOrderParams::maker_obligation_kinds(),
+            kinds: SomeTestOrderParams::obligation_fiat_cny_kinds(),
             content: maker_obligation_content,
         };
 
@@ -221,7 +221,7 @@ mod tests {
         };
 
         let maker_obligation = MakerObligation {
-            kinds: SomeTestOrderParams::maker_obligation_kinds(),
+            kinds: SomeTestOrderParams::obligation_fiat_cny_kinds(),
             content: maker_obligation_content,
         };
 
@@ -237,11 +237,11 @@ mod tests {
     async fn test_validate_offer_maker_f64_amount_min() {
         let maker_obligation_content = MakerObligationContent {
             amount: 2000000,
-            amount_min: Some(1000000),
+            amount_min: Some(35000),
         };
 
         let maker_obligation = MakerObligation {
-            kinds: SomeTestOrderParams::maker_obligation_kinds(),
+            kinds: SomeTestOrderParams::obligation_fiat_cny_kinds(),
             content: maker_obligation_content,
         };
 
@@ -255,12 +255,12 @@ mod tests {
     #[tokio::test]
     async fn test_validate_offer_maker_f64_amount_max() {
         let maker_obligation_content = MakerObligationContent {
-            amount: 1000000,
-            amount_min: Some(700000),
+            amount: 35000,
+            amount_min: Some(2),
         };
 
         let maker_obligation = MakerObligation {
-            kinds: SomeTestOrderParams::maker_obligation_kinds(),
+            kinds: SomeTestOrderParams::obligation_fiat_cny_kinds(),
             content: maker_obligation_content,
         };
 
@@ -279,7 +279,7 @@ mod tests {
         };
 
         let maker_obligation = MakerObligation {
-            kinds: SomeTestOrderParams::maker_obligation_kinds(),
+            kinds: SomeTestOrderParams::obligation_fiat_cny_kinds(),
             content: maker_obligation_content,
         };
 

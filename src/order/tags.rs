@@ -161,7 +161,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_key_for_maker_obligations() {
-        let maker_obligation_kinds = SomeTestOrderParams::maker_obligation_kinds();
+        let maker_obligation_kinds = SomeTestOrderParams::obligation_fiat_cny_kinds();
         let order_tag = OrderTag::MakerObligations(maker_obligation_kinds);
         let key = order_tag.key();
         assert_eq!(key, 'm');
@@ -169,7 +169,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_key_for_taker_obligations() {
-        let taker_obligation_kinds = SomeTestOrderParams::taker_obligation_kinds();
+        let taker_obligation_kinds = SomeTestOrderParams::obligation_bitcoin_lightning_kinds();
         let order_tag = OrderTag::TakerObligations(taker_obligation_kinds);
         let key = order_tag.key();
         assert_eq!(key, 't');
@@ -219,7 +219,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_order_tag_from_maker_obligations_key_value() {
-        let maker_obligation_kinds = SomeTestOrderParams::maker_obligation_kinds();
+        let maker_obligation_kinds = SomeTestOrderParams::obligation_fiat_cny_kinds();
         let key = "m";
         let value = maker_obligation_kinds
             .iter()
@@ -234,7 +234,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_order_tag_from_taker_obligations_key_value() {
-        let taker_obligation_kinds = SomeTestOrderParams::taker_obligation_kinds();
+        let taker_obligation_kinds = SomeTestOrderParams::obligation_bitcoin_lightning_kinds();
         let key = "t";
         let value = taker_obligation_kinds
             .iter()
@@ -317,10 +317,10 @@ mod tests {
     async fn test_order_tags_from_filter_tags() {
         let mut filter_tags: Vec<FilterTag> = Vec::new();
         filter_tags.push(FilterTag::MakerObligations(
-            SomeTestOrderParams::maker_obligation_kinds(),
+            SomeTestOrderParams::obligation_fiat_cny_kinds(),
         ));
         filter_tags.push(FilterTag::TakerObligations(
-            SomeTestOrderParams::taker_obligation_kinds(),
+            SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
         ));
         filter_tags.push(FilterTag::TradeDetailParameters(
             SomeTestOrderParams::trade_parameters(),
@@ -329,10 +329,10 @@ mod tests {
         let order_tags = OrderTag::from_filter_tags(filter_tags, trade_engine_name.clone());
         assert_eq!(order_tags.len(), 6);
         assert!(order_tags.contains(&OrderTag::MakerObligations(
-            SomeTestOrderParams::maker_obligation_kinds()
+            SomeTestOrderParams::obligation_fiat_cny_kinds()
         )));
         assert!(order_tags.contains(&OrderTag::TakerObligations(
-            SomeTestOrderParams::taker_obligation_kinds()
+            SomeTestOrderParams::obligation_bitcoin_lightning_kinds()
         )));
         assert!(order_tags.contains(&OrderTag::TradeDetailParameters(
             SomeTestOrderParams::trade_parameters()
