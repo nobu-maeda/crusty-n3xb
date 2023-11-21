@@ -108,7 +108,7 @@ impl Manager {
     }
 
     pub async fn query_orders(
-        &mut self,
+        &self,
         filter_tags: Vec<FilterTag>,
     ) -> Result<Vec<OrderEnvelope>, N3xbError> {
         let mut order_envelopes = self.communicator_accessor.query_orders(filter_tags).await?;

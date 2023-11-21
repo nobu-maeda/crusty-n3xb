@@ -13,7 +13,6 @@ pub enum FilterTag {
     MakerObligations(HashSet<ObligationKind>),
     TakerObligations(HashSet<ObligationKind>),
     TradeDetailParameters(HashSet<TradeParameter>),
-    TradeEngineName(String),
 }
 
 impl FilterTag {
@@ -24,7 +23,6 @@ impl FilterTag {
             Self::TradeDetailParameters(parameters) => {
                 OrderTag::TradeDetailParameters(parameters.clone())
             }
-            Self::TradeEngineName(name) => OrderTag::TradeEngineName(name.clone()),
         }
     }
 }

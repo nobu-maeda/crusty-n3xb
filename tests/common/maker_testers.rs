@@ -7,14 +7,14 @@ use crusty_n3xb::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub struct MakerSimpleTester {
+pub struct MakerTester {
     cmpl_rx: oneshot::Receiver<Result<(), N3xbError>>,
 }
 
-impl MakerSimpleTester {
-    pub async fn start(manager: Manager, order: Order) -> Self {
+impl MakerTester {
+    pub async fn start(manager: Manager, order: Order, wait_for_offer: bool) -> Self {
         let (cmpl_tx, cmpl_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let actor = MakerSimpleTesterActor::new(cmpl_tx, manager, order).await;
+        let actor = MakerTesterActor::new(cmpl_tx, manager, order, wait_for_offer).await;
         tokio::spawn(async move { actor.run().await });
         Self { cmpl_rx }
     }
@@ -24,22 +24,25 @@ impl MakerSimpleTester {
     }
 }
 
-struct MakerSimpleTesterActor {
+struct MakerTesterActor {
     cmpl_tx: oneshot::Sender<Result<(), N3xbError>>,
     manager: Manager,
     order: Order,
+    wait_for_offer: bool,
 }
 
-impl MakerSimpleTesterActor {
+impl MakerTesterActor {
     async fn new(
         cmpl_tx: oneshot::Sender<Result<(), N3xbError>>,
         manager: Manager,
         order: Order,
+        wait_for_offer: bool,
     ) -> Self {
         Self {
             cmpl_tx,
             manager,
             order,
+            wait_for_offer,
         }
     }
 
@@ -55,6 +58,12 @@ impl MakerSimpleTesterActor {
 
         // The whole thing kicks off by sending a Maker Order Note
         maker.post_new_order().await.unwrap();
+
+        if !self.wait_for_offer {
+            self.manager.shutdown().await.unwrap();
+            self.cmpl_tx.send(Ok(())).unwrap();
+            return;
+        }
 
         // Wait for Offer notifications - This can be made into a loop if wanted, or to wait for a particular offer
         let notif_result = notif_rx.recv().await.unwrap();

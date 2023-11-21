@@ -5,6 +5,7 @@ use std::str::FromStr;
 use iso_currency::Currency;
 use secp256k1::{PublicKey, SecretKey, XOnlyPublicKey};
 use serde::{Deserialize, Serialize};
+use url::Url;
 use uuid::Uuid;
 
 use crate::common::types::*;
@@ -86,7 +87,7 @@ impl SomeTestOrderParams {
     pub fn maker_obligation_fiat_usd_content() -> MakerObligationContent {
         MakerObligationContent {
             amount: 5000, // 5k USD
-            amount_min: Some(180000),
+            amount_min: Some(3000),
         }
     }
 
@@ -298,6 +299,26 @@ impl SomeTestOrderParams {
             expected_trade_engine_specifics.test_specific_field
         );
         assert_eq!(order.pow_difficulty, expected.pow_difficulty);
+    }
+
+    pub fn filter_for_trade_uuid(
+        trade_uuid: Uuid,
+        order_envelopes: Vec<OrderEnvelope>,
+    ) -> Vec<OrderEnvelope> {
+        order_envelopes
+            .into_iter()
+            .filter(|order_envelope| order_envelope.order.trade_uuid == trade_uuid)
+            .collect()
+    }
+
+    pub fn filter_for_relay_url(
+        relay_url: Url,
+        order_envelopes: Vec<OrderEnvelope>,
+    ) -> Vec<OrderEnvelope> {
+        order_envelopes
+            .into_iter()
+            .filter(|order_envelope| order_envelope.urls.contains(&relay_url))
+            .collect()
     }
 }
 
