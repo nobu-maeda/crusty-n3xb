@@ -10,6 +10,7 @@ use super::{Order, TradeDetails, TradeParameter};
 #[derive(Clone, Debug, PartialEq, Eq, Display, EnumString, IntoStaticStr)]
 
 pub enum FilterTag {
+    TradeUuid(Uuid),
     MakerObligations(HashSet<ObligationKind>),
     TakerObligations(HashSet<ObligationKind>),
     TradeDetailParameters(HashSet<TradeParameter>),
@@ -18,6 +19,7 @@ pub enum FilterTag {
 impl FilterTag {
     pub(crate) fn to_order_tag(self) -> OrderTag {
         match self {
+            Self::TradeUuid(uuid) => OrderTag::TradeUUID(uuid),
             Self::MakerObligations(kinds) => OrderTag::MakerObligations(kinds.clone()),
             Self::TakerObligations(kinds) => OrderTag::TakerObligations(kinds.clone()),
             Self::TradeDetailParameters(parameters) => {
