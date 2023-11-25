@@ -60,6 +60,7 @@ impl MakerTesterActor {
         maker.post_new_order().await.unwrap();
 
         if !self.wait_for_offer {
+            maker.trade_complete().await.unwrap();
             self.manager.shutdown().await.unwrap();
             self.cmpl_tx.send(Ok(())).unwrap();
             return;

@@ -55,6 +55,9 @@ impl TakerTesterActor {
     }
 
     async fn run(self) {
+        let timeout = tokio::time::Duration::from_secs(3);
+        let start_time = tokio::time::Instant::now();
+
         let order_envelopes = loop {
             let order_envelopes = self
                 .manager
@@ -62,7 +65,12 @@ impl TakerTesterActor {
                 .await
                 .unwrap();
 
-            if let Some(trade_uuid) = self.take_trade_uuid {
+            // If current time is greater than timeout, then shutdown, send completion and return
+            if tokio::time::Instant::now() - start_time > timeout {
+                self.manager.shutdown().await.unwrap();
+                self.cmpl_tx.send(Ok(order_envelopes)).unwrap();
+                return;
+            } else if let Some(trade_uuid) = self.take_trade_uuid {
                 let filtered_envelopes: Vec<OrderEnvelope> =
                     SomeTestOrderParams::filter_for_trade_uuid(trade_uuid, order_envelopes);
                 if filtered_envelopes.len() > 0 {

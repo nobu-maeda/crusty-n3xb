@@ -1,7 +1,7 @@
 mod common;
 
 #[cfg(test)]
-mod integration_tests {
+mod test_simple {
     use std::net::SocketAddr;
     use std::time::Duration;
 
@@ -17,9 +17,6 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_simple_four_relays_flow() {
-        // setup tracing
-        let _trace_sub = tracing_subscriber::fmt::try_init();
-
         let mut relays: Vec<Relay> = Vec::new();
 
         let relay: Relay = Relay::start();
