@@ -42,8 +42,17 @@ impl TakerAccess<New> {
 }
 
 impl TakerAccess<Trading> {
-    pub async fn send_peer_message(&self, _content: Box<dyn SerdeGenericTrait>) {
-        todo!();
+    pub async fn send_peer_message(
+        &self,
+        _content: Box<dyn SerdeGenericTrait>,
+    ) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = TakerRequest::PeerMessage {
+            message: _content,
+            rsp_tx,
+        };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
     }
 
     pub async fn trade_complete(self) -> Result<(), N3xbError> {
@@ -113,14 +122,18 @@ pub(super) enum TakerRequest {
     SendTakerOffer {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
+    PeerMessage {
+        message: Box<dyn SerdeGenericTrait>,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
+    TradeComplete {
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
     RegisterTradeNotifTx {
         tx: mpsc::Sender<Result<TradeResponseEnvelope, N3xbError>>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     UnregisterTradeNotifTx {
-        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
-    },
-    TradeComplete {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
 }
@@ -197,15 +210,18 @@ impl TakerActor {
 
         match request {
             TakerRequest::SendTakerOffer { rsp_tx } => self.send_taker_offer(rsp_tx).await,
+            TakerRequest::PeerMessage { message, rsp_tx } => {
+                self.send_peer_message(message, rsp_tx).await;
+            }
+            TakerRequest::TradeComplete { rsp_tx } => {
+                self.trade_complete(rsp_tx).await;
+                terminate = true;
+            }
             TakerRequest::RegisterTradeNotifTx { tx, rsp_tx } => {
                 self.register_trade_notif_tx(tx, rsp_tx).await
             }
             TakerRequest::UnregisterTradeNotifTx { rsp_tx } => {
                 self.unregister_trade_notif_tx(rsp_tx).await
-            }
-            TakerRequest::TradeComplete { rsp_tx } => {
-                self.trade_complete(rsp_tx).await;
-                terminate = true;
             }
         }
         terminate
@@ -229,6 +245,32 @@ impl TakerActor {
         match result {
             Ok(event_id) => {
                 self.offer_event_id = Some(event_id);
+                rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
+            }
+            Err(err) => {
+                rsp_tx.send(Err(err)).unwrap(); // oneshot should not fail
+            }
+        }
+    }
+
+    async fn send_peer_message(
+        &mut self,
+        message: Box<dyn SerdeGenericTrait>,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    ) {
+        let result = self
+            .communicator_accessor
+            .send_trade_engine_specific_message(
+                self.order_envelope.pubkey,
+                None,
+                self.order_envelope.event_id.clone(),
+                self.order_envelope.order.trade_uuid,
+                message,
+            )
+            .await;
+
+        match result {
+            Ok(_) => {
                 rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
             }
             Err(err) => {

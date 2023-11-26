@@ -180,11 +180,11 @@ pub(super) enum MakerRequest {
     CancelOrder {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
-    TradeComplete {
-        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
-    },
     PeerMessage {
         message: Box<dyn SerdeGenericTrait>,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
+    TradeComplete {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     RegisterOfferNotifTx {
@@ -286,12 +286,12 @@ impl MakerActor {
                 self.cancel_order(rsp_tx).await;
                 terminate = true;
             }
+            MakerRequest::PeerMessage { message, rsp_tx } => {
+                self.send_peer_message(message, rsp_tx).await;
+            }
             MakerRequest::TradeComplete { rsp_tx } => {
                 self.trade_complete(rsp_tx).await;
                 terminate = true;
-            }
-            MakerRequest::PeerMessage { message, rsp_tx } => {
-                self.send_peer_message(message, rsp_tx).await;
             }
             MakerRequest::RegisterOfferNotifTx { tx, rsp_tx } => {
                 self.register_notif_tx(tx, rsp_tx).await;
@@ -540,7 +540,7 @@ impl MakerActor {
             .communicator_accessor
             .send_trade_engine_specific_message(
                 pubkey,
-                Some(accepted_offer_event_id),
+                None,
                 maker_order_note_id,
                 self.order.trade_uuid.clone(),
                 message,
