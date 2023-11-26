@@ -1,6 +1,10 @@
 use log::{debug, error, info, warn};
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, HashSet},
+    marker::PhantomData,
+};
 use strum_macros::{Display, IntoStaticStr};
+use url::Url;
 
 use tokio::{
     select,
@@ -10,7 +14,7 @@ use tokio::{
 use crate::{
     common::{
         error::{N3xbError, OfferInvalidReason},
-        types::{EventIdString, SerdeGenericType},
+        types::{EventIdString, SerdeGenericTrait, SerdeGenericType},
     },
     communicator::{CommunicatorAccess, PeerEnvelope},
     offer::{Offer, OfferEnvelope},
@@ -18,23 +22,32 @@ use crate::{
     trade_rsp::{TradeResponse, TradeResponseBuilder, TradeResponseStatus},
 };
 
-pub struct MakerAccess {
+// Maker SM States
+pub struct New;
+pub struct Pending;
+pub struct Trading;
+
+pub struct MakerAccess<State = New> {
     tx: mpsc::Sender<MakerRequest>,
+    state: PhantomData<State>,
 }
 
-impl MakerAccess {
-    pub(super) async fn new(tx: mpsc::Sender<MakerRequest>) -> Self {
-        let maker = Self { tx };
-        maker
-    }
-
-    pub async fn post_new_order(&self) -> Result<(), N3xbError> {
+impl MakerAccess<New> {
+    pub async fn post_new_order(self) -> Result<MakerAccess<Pending>, N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = MakerRequest::SendMakerOrder { rsp_tx };
         self.tx.send(request).await.unwrap();
-        rsp_rx.await.unwrap()
-    }
+        rsp_rx.await.unwrap()?;
 
+        // Post New Order success, transition to Pending state
+        Ok(MakerAccess {
+            tx: self.tx,
+            state: PhantomData,
+        })
+    }
+}
+
+impl MakerAccess<Pending> {
     pub async fn query_offers(&self) -> HashMap<EventIdString, OfferEnvelope> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<HashMap<EventIdString, OfferEnvelope>>();
         let request = MakerRequest::QueryOffers { rsp_tx };
@@ -49,13 +62,44 @@ impl MakerAccess {
         rsp_rx.await.unwrap()
     }
 
-    pub async fn accept_offer(&self, trade_rsp: TradeResponse) -> Result<(), N3xbError> {
+    pub async fn accept_offer(
+        self,
+        trade_rsp: TradeResponse,
+    ) -> Result<MakerAccess<Trading>, N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = MakerRequest::AcceptOffer { trade_rsp, rsp_tx };
         self.tx.send(request).await.unwrap();
-        rsp_rx.await.unwrap()
+        rsp_rx.await.unwrap()?;
+
+        // Accept Offer success, transition to Trading state
+        Ok(MakerAccess {
+            tx: self.tx,
+            state: PhantomData,
+        })
     }
 
+    pub async fn cancel_order(self) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = MakerRequest::CancelOrder { rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+}
+
+impl MakerAccess<Trading> {
+    pub async fn send_peer_message(&self, _content: Box<dyn SerdeGenericTrait>) {
+        todo!()
+    }
+
+    pub async fn trade_complete(self) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = MakerRequest::TradeComplete { rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+}
+
+impl<State> MakerAccess<State> {
     pub async fn register_offer_notif_tx(
         &self,
         notif_tx: mpsc::Sender<Result<OfferEnvelope, N3xbError>>,
@@ -75,12 +119,14 @@ impl MakerAccess {
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
+}
 
-    pub async fn trade_complete(&self) -> Result<(), N3xbError> {
-        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = MakerRequest::TradeComplete { rsp_tx };
-        self.tx.send(request).await.unwrap();
-        rsp_rx.await.unwrap()
+impl MakerAccess {
+    pub(super) async fn new(tx: mpsc::Sender<MakerRequest>) -> Self {
+        Self {
+            tx,
+            state: PhantomData,
+        }
     }
 }
 
@@ -122,14 +168,17 @@ pub(super) enum MakerRequest {
         trade_rsp: TradeResponse,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
+    CancelOrder {
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
+    TradeComplete {
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
     RegisterOfferNotifTx {
         tx: mpsc::Sender<Result<OfferEnvelope, N3xbError>>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     UnregisterOfferNotifTx {
-        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
-    },
-    TradeComplete {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
 }
@@ -138,6 +187,7 @@ struct MakerActor {
     rx: mpsc::Receiver<MakerRequest>,
     communicator_accessor: CommunicatorAccess,
     order: Order,
+    relay_urls: HashSet<Url>,
     order_event_id: Option<EventIdString>,
     offer_envelopes: HashMap<EventIdString, OfferEnvelope>,
     accepted_offer_event_id: Option<EventIdString>,
@@ -157,6 +207,7 @@ impl MakerActor {
             rx,
             communicator_accessor,
             order,
+            relay_urls: HashSet::new(),
             order_event_id: None,
             offer_envelopes: HashMap::new(),
             accepted_offer_event_id: None,
@@ -218,15 +269,19 @@ impl MakerActor {
             MakerRequest::AcceptOffer { trade_rsp, rsp_tx } => {
                 self.accept_offer(trade_rsp, rsp_tx).await
             }
+            MakerRequest::CancelOrder { rsp_tx } => {
+                self.cancel_order(rsp_tx).await;
+                terminate = true;
+            }
+            MakerRequest::TradeComplete { rsp_tx } => {
+                self.trade_complete(rsp_tx).await;
+                terminate = true;
+            }
             MakerRequest::RegisterOfferNotifTx { tx, rsp_tx } => {
                 self.register_notif_tx(tx, rsp_tx).await;
             }
             MakerRequest::UnregisterOfferNotifTx { rsp_tx } => {
                 self.unregister_notif_tx(rsp_tx).await;
-            }
-            MakerRequest::TradeComplete { rsp_tx } => {
-                self.trade_complete(rsp_tx).await;
-                terminate = true;
             }
         };
         terminate
@@ -239,8 +294,9 @@ impl MakerActor {
             .send_maker_order_note(order)
             .await;
         match result {
-            Ok(event_id) => {
-                self.order_event_id = Some(event_id.clone());
+            Ok(order_envelope) => {
+                self.order_event_id = Some(order_envelope.event_id);
+                self.relay_urls = order_envelope.urls;
                 rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
             }
             Err(error) => {
@@ -306,6 +362,32 @@ impl MakerActor {
             }
         };
 
+        // Send Trade Response Pending to all other Offers
+        for offer_envelope in self.offer_envelopes.values() {
+            let offer_event_id = offer_envelope.event_id.clone();
+            if offer_event_id == accepted_offer_event_id {
+                continue;
+            } else {
+                warn!("Maker w/ TradeUUID {} has other outstanding offers, but no explicit rejection sent to Takers", self.order.trade_uuid)
+            }
+
+            // TODO: This triggers Send/Sync problems. Can't find a ready solve. Skipping for now
+            // let offer_envelope = offer_envelope.clone();
+            //
+            // if let Some(reject_err) = self
+            //     .reject_taker_offer(offer_envelope, OfferInvalidReason::PendingAnother)
+            //     .await
+            //     .err()
+            // {
+            //     error!(
+            //         "Maker w/ TradeUUID {} rejected Offer with Event ID {} but with error - {}",
+            //         self.order.trade_uuid.clone(),
+            //         offer_event_id,
+            //         reject_err
+            //     )
+            // }
+        }
+
         let trade_rsp_clone = trade_rsp.clone();
 
         let result = self
@@ -323,6 +405,72 @@ impl MakerActor {
             Ok(event_id) => {
                 self.trade_rsp = Some(trade_rsp);
                 self.trade_rsp_event_id = Some(event_id);
+                rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
+            }
+            Err(error) => {
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+            }
+        }
+    }
+
+    async fn cancel_order(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+        let maker_order_note_id = match self.order_event_id.clone() {
+            Some(event_id) => event_id,
+            None => {
+                let error = N3xbError::Simple(format!(
+                        "Maker w/ TradeUUID {} expected to already have sent Maker Order Note and receive Event ID",
+                        self.order.trade_uuid
+                    ));
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+                return;
+            }
+        };
+
+        // Send Trade Response Cancelled to all Offers received so far
+        for _offer_envelope in self.offer_envelopes.values() {
+            warn!("Maker w/ TradeUUID {} has outstanding offers, but no explicit cancellation sent to Takers", self.order.trade_uuid)
+            // TODO: This triggers Send/Sync problems. Can't find a ready solve. Skipping for now
+            // let pubkey = offer_envelope.pubkey.clone();
+            // let offer_event_id = offer_envelope.event_id.clone();
+
+            // let trade_rsp = TradeResponseBuilder::new()
+            //     .offer_event_id(offer_event_id.clone())
+            //     .trade_response(TradeResponseStatus::Rejected)
+            //     .reject_reason(OfferInvalidReason::Cancelled)
+            //     .build()
+            //     .unwrap();
+
+            // let result = self
+            //     .communicator_accessor
+            //     .send_trade_response(
+            //         pubkey,
+            //         Some(offer_event_id.clone()),
+            //         maker_order_note_id.clone(),
+            //         self.order.trade_uuid.clone(),
+            //         trade_rsp,
+            //     )
+            //     .await;
+
+            // match result {
+            //     Ok(_) => {}
+            //     Err(error) => {
+            //         error!(
+            //             "Maker w/ TradeUUID {} failed to send TradeResponse Cancelled to Offer w/ Event ID {} - {}",
+            //             self.order.trade_uuid, offer_event_id, error
+            //         );
+            //     }
+            // }
+        }
+
+        // Delete Order Note
+        let result = self
+            .communicator_accessor
+            .delete_maker_order_note(maker_order_note_id.clone())
+            .await;
+
+        // Send response back to user
+        match result {
+            Ok(_) => {
                 rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
             }
             Err(error) => {
@@ -406,7 +554,7 @@ impl MakerActor {
         let mut notif_result: Result<OfferEnvelope, N3xbError> = Ok(offer_envelope.clone());
 
         let reason = if self.accepted_offer_event_id.is_some() {
-            Some(OfferInvalidReason::Pending)
+            Some(OfferInvalidReason::PendingAnother)
         } else if self.offer_envelopes.contains_key(&offer_envelope.event_id) {
             Some(OfferInvalidReason::DuplicateOffer)
         } else if let Some(reason) = offer_envelope.offer.validate_against(&self.order).err() {

@@ -97,7 +97,8 @@ impl From<OfferInvalidReason> for N3xbError {
 
 #[derive(Clone, Display, IntoStaticStr, PartialEq, Serialize, Deserialize)]
 pub enum OfferInvalidReason {
-    Pending,
+    Cancelled,
+    PendingAnother,
     DuplicateOffer,
     MakerObligationKindInvalid,
     MakerObligationAmountInvalid,
@@ -114,7 +115,8 @@ pub enum OfferInvalidReason {
 impl fmt::Debug for OfferInvalidReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OfferInvalidReason::Pending => write!(f, "Order is pending another Taker"),
+            OfferInvalidReason::Cancelled => write!(f, "Order have been cancelled"),
+            OfferInvalidReason::PendingAnother => write!(f, "Order is pending another Taker"),
             OfferInvalidReason::DuplicateOffer => write!(f, "Offer already previously received"),
             OfferInvalidReason::MakerObligationKindInvalid => write!(
                 f,

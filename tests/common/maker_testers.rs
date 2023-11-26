@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crusty_n3xb::{
     common::error::N3xbError,
     manager::Manager,
@@ -5,7 +7,10 @@ use crusty_n3xb::{
     order::Order,
     testing::{SomeTestOfferParams, SomeTestTradeRspParams, TESTING_DEFAULT_CHANNEL_SIZE},
 };
-use tokio::sync::{mpsc, oneshot};
+use tokio::{
+    sync::{mpsc, oneshot},
+    time::sleep,
+};
 
 pub struct MakerTester {
     cmpl_rx: oneshot::Receiver<Result<(), N3xbError>>,
@@ -57,10 +62,11 @@ impl MakerTesterActor {
         maker.register_offer_notif_tx(notif_tx).await.unwrap();
 
         // The whole thing kicks off by sending a Maker Order Note
-        maker.post_new_order().await.unwrap();
+        let maker = maker.post_new_order().await.unwrap();
 
         if !self.wait_for_offer {
-            maker.trade_complete().await.unwrap();
+            sleep(Duration::from_secs(2)).await;
+            maker.cancel_order().await.unwrap();
             self.manager.shutdown().await.unwrap();
             self.cmpl_tx.send(Ok(())).unwrap();
             return;
@@ -90,7 +96,7 @@ impl MakerTesterActor {
         let mut trade_rsp_builder = SomeTestTradeRspParams::default_builder();
         trade_rsp_builder.offer_event_id(offer_envelope.event_id);
         let trade_rsp = trade_rsp_builder.build().unwrap();
-        maker.accept_offer(trade_rsp).await.unwrap();
+        let maker = maker.accept_offer(trade_rsp).await.unwrap();
 
         maker.trade_complete().await.unwrap();
         self.manager.shutdown().await.unwrap();

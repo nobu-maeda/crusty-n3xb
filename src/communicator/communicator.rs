@@ -117,8 +117,8 @@ impl CommunicatorAccess {
     pub(crate) async fn send_maker_order_note(
         &self,
         order: Order,
-    ) -> Result<EventIdString, N3xbError> {
-        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<EventIdString, N3xbError>>();
+    ) -> Result<OrderEnvelope, N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<OrderEnvelope, N3xbError>>();
         let request = CommunicatorRequest::SendMakerOrderNote { order, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
@@ -175,6 +175,16 @@ impl CommunicatorAccess {
             trade_rsp,
             rsp_tx,
         };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+
+    pub(crate) async fn delete_maker_order_note(
+        &self,
+        event_id: EventIdString,
+    ) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = CommunicatorRequest::DeletMakerOrderNote { event_id, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -276,7 +286,7 @@ pub(super) enum CommunicatorRequest {
     },
     SendMakerOrderNote {
         order: Order,
-        rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
+        rsp_tx: oneshot::Sender<Result<OrderEnvelope, N3xbError>>,
     },
     QueryOrders {
         filter_tags: Vec<FilterTag>,
@@ -297,6 +307,10 @@ pub(super) enum CommunicatorRequest {
         trade_uuid: Uuid,
         trade_rsp: TradeResponse,
         rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
+    },
+    DeletMakerOrderNote {
+        event_id: EventIdString,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     Shutdown {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
@@ -455,6 +469,11 @@ impl CommunicatorActor {
                     rsp_tx,
                 )
                 .await;
+            }
+
+            // Delete an Maker Order Note
+            CommunicatorRequest::DeletMakerOrderNote { event_id, rsp_tx } => {
+                self.delete_maker_order_note(event_id, rsp_tx).await;
             }
 
             // Shutdown
@@ -619,7 +638,7 @@ impl CommunicatorActor {
     async fn send_maker_order_note(
         &self,
         order: Order,
-        rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
+        rsp_tx: oneshot::Sender<Result<OrderEnvelope, N3xbError>>,
     ) {
         // Create Note Content
         let maker_order_note = MakerOrderNote {
@@ -638,7 +657,7 @@ impl CommunicatorActor {
             }
         };
 
-        let order_tags = OrderTag::from_order(order, &self.trade_engine_name);
+        let order_tags = OrderTag::from_order(order.clone(), &self.trade_engine_name);
 
         // NIP-78 Event Kind - 30078
         let builder = EventBuilder::new(
@@ -648,13 +667,32 @@ impl CommunicatorActor {
         );
 
         let keys = self.client.keys().await;
+
+        let urls = self
+            .client
+            .relays()
+            .await
+            .keys()
+            .cloned()
+            .map(|url| Url::parse(url.as_str()).unwrap())
+            .collect();
+
         let result = self
             .client
             .send_event(builder.to_event(&keys).unwrap())
             .await;
 
         match result {
-            Ok(event_id) => rsp_tx.send(Ok(event_id.to_string())).unwrap(),
+            Ok(event_id) => {
+                let order_envelope = OrderEnvelope {
+                    pubkey: keys.public_key(),
+                    event_id: event_id.to_string(),
+                    urls,
+                    order,
+                    _private: (),
+                };
+                rsp_tx.send(Ok(order_envelope)).unwrap();
+            }
             Err(error) => rsp_tx.send(Err(error.into())).unwrap(),
         }
     }
@@ -1037,6 +1075,24 @@ impl CommunicatorActor {
         };
 
         self.send_peer_message(pubkey, peer_message, rsp_tx).await;
+    }
+
+    async fn delete_maker_order_note(
+        &self,
+        event_id: EventIdString,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    ) {
+        let result = self
+            .client
+            .delete_event(
+                EventId::from_str(&event_id).unwrap(),
+                Some("n3xB: Order cancelled by Maker before Trade commenced"),
+            )
+            .await;
+        match result {
+            Ok(_) => rsp_tx.send(Ok(())).unwrap(),
+            Err(error) => rsp_tx.send(Err(error.into())).unwrap(),
+        }
     }
 
     async fn shutdown(&self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
