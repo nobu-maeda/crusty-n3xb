@@ -11,7 +11,7 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::common::error::N3xbError;
-use crate::common::types::{EventIdString, ObligationKind, SerdeGenericType};
+use crate::common::types::{EventIdString, ObligationKind, SerdeGenericTrait, SerdeGenericType};
 use crate::offer::Offer;
 use crate::order::{
     EventKind, FilterTag, MakerObligation, Order, OrderEnvelope, OrderTag, TakerObligation,
@@ -179,6 +179,27 @@ impl CommunicatorAccess {
         rsp_rx.await.unwrap()
     }
 
+    pub(crate) async fn send_trade_engine_specific_message(
+        &self,
+        pubkey: XOnlyPublicKey,
+        responding_to_id: Option<EventIdString>,
+        maker_order_note_id: EventIdString,
+        trade_uuid: Uuid,
+        message: Box<dyn SerdeGenericTrait>,
+    ) -> Result<EventIdString, N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<EventIdString, N3xbError>>();
+        let request = CommunicatorRequest::SendTradeEngineSpecificMessage {
+            pubkey,
+            responding_to_id,
+            maker_order_note_id,
+            trade_uuid,
+            message,
+            rsp_tx,
+        };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+
     pub(crate) async fn delete_maker_order_note(
         &self,
         event_id: EventIdString,
@@ -306,6 +327,14 @@ pub(super) enum CommunicatorRequest {
         maker_order_note_id: EventIdString,
         trade_uuid: Uuid,
         trade_rsp: TradeResponse,
+        rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
+    },
+    SendTradeEngineSpecificMessage {
+        pubkey: XOnlyPublicKey, // Pubkey of destination receipient
+        responding_to_id: Option<EventIdString>,
+        maker_order_note_id: EventIdString,
+        trade_uuid: Uuid,
+        message: Box<dyn SerdeGenericTrait>,
         rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
     },
     DeletMakerOrderNote {
@@ -471,6 +500,25 @@ impl CommunicatorActor {
                 .await;
             }
 
+            // Send Trade Engine Specific Peer Message
+            CommunicatorRequest::SendTradeEngineSpecificMessage {
+                pubkey,
+                responding_to_id,
+                maker_order_note_id,
+                trade_uuid,
+                message,
+                rsp_tx,
+            } => {
+                self.send_trade_engine_specific_message(
+                    pubkey,
+                    responding_to_id,
+                    maker_order_note_id,
+                    trade_uuid,
+                    message,
+                    rsp_tx,
+                )
+                .await;
+            }
             // Delete an Maker Order Note
             CommunicatorRequest::DeletMakerOrderNote { event_id, rsp_tx } => {
                 self.delete_maker_order_note(event_id, rsp_tx).await;
@@ -1051,6 +1099,27 @@ impl CommunicatorActor {
             trade_uuid,
             message_type: SerdeGenericType::TakerOffer,
             message: Box::new(offer),
+        };
+
+        self.send_peer_message(pubkey, peer_message, rsp_tx).await;
+    }
+
+    async fn send_trade_engine_specific_message(
+        &self,
+        pubkey: XOnlyPublicKey,
+        responding_to_id: Option<EventIdString>,
+        maker_order_note_id: EventIdString,
+        trade_uuid: Uuid,
+        message: Box<dyn SerdeGenericTrait>,
+        rsp_tx: oneshot::Sender<Result<EventIdString, N3xbError>>,
+    ) {
+        let peer_message = PeerMessage {
+            r#type: "n3xb-peer-message".to_string(),
+            responding_to_id,
+            maker_order_note_id,
+            trade_uuid,
+            message_type: SerdeGenericType::TradeEngineSpecific,
+            message,
         };
 
         self.send_peer_message(pubkey, peer_message, rsp_tx).await;

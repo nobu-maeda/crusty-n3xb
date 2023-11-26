@@ -87,8 +87,17 @@ impl MakerAccess<Pending> {
 }
 
 impl MakerAccess<Trading> {
-    pub async fn send_peer_message(&self, _content: Box<dyn SerdeGenericTrait>) {
-        todo!()
+    pub async fn send_peer_message(
+        &self,
+        content: Box<dyn SerdeGenericTrait>,
+    ) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = MakerRequest::PeerMessage {
+            message: content,
+            rsp_tx,
+        };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
     }
 
     pub async fn trade_complete(self) -> Result<(), N3xbError> {
@@ -172,6 +181,10 @@ pub(super) enum MakerRequest {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     TradeComplete {
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
+    PeerMessage {
+        message: Box<dyn SerdeGenericTrait>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     RegisterOfferNotifTx {
@@ -276,6 +289,9 @@ impl MakerActor {
             MakerRequest::TradeComplete { rsp_tx } => {
                 self.trade_complete(rsp_tx).await;
                 terminate = true;
+            }
+            MakerRequest::PeerMessage { message, rsp_tx } => {
+                self.send_peer_message(message, rsp_tx).await;
             }
             MakerRequest::RegisterOfferNotifTx { tx, rsp_tx } => {
                 self.register_notif_tx(tx, rsp_tx).await;
@@ -469,6 +485,68 @@ impl MakerActor {
             .await;
 
         // Send response back to user
+        match result {
+            Ok(_) => {
+                rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
+            }
+            Err(error) => {
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+            }
+        }
+    }
+
+    async fn send_peer_message(
+        &mut self,
+        message: Box<dyn SerdeGenericTrait>,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    ) {
+        let accepted_offer_event_id = match self.accepted_offer_event_id.clone() {
+            Some(event_id) => event_id,
+            None => {
+                let error = N3xbError::Simple(format!(
+                    "Maker w/ TradeUUID {} expected to already have accepted an Offer",
+                    self.order.trade_uuid
+                ));
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+                return;
+            }
+        };
+
+        let pubkey = match self.offer_envelopes.get(&accepted_offer_event_id) {
+            Some(offer_envelope) => offer_envelope.pubkey.clone(),
+            None => {
+                let error = N3xbError::Simple(format!(
+                    "Maker w/ TradeUUID {} expected, but does not contain accepted Offer {}",
+                    self.order.trade_uuid, accepted_offer_event_id
+                ));
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+                return;
+            }
+        };
+
+        let maker_order_note_id = match self.order_event_id.clone() {
+            Some(event_id) => event_id,
+            None => {
+                let error = N3xbError::Simple(format!(
+                    "Maker w/ TradeUUID {} expected to already have sent Maker Order Note and receive Event ID",
+                    self.order.trade_uuid
+                ));
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+                return;
+            }
+        };
+
+        let result = self
+            .communicator_accessor
+            .send_trade_engine_specific_message(
+                pubkey,
+                Some(accepted_offer_event_id),
+                maker_order_note_id,
+                self.order.trade_uuid.clone(),
+                message,
+            )
+            .await;
+
         match result {
             Ok(_) => {
                 rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
