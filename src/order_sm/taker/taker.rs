@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use log::{debug, error, info, warn};
 
 use strum_macros::{Display, IntoStaticStr};
@@ -9,7 +11,7 @@ use tokio::{
 use crate::{
     common::{
         error::N3xbError,
-        types::{EventIdString, SerdeGenericType},
+        types::{EventIdString, SerdeGenericTrait, SerdeGenericType},
     },
     communicator::{CommunicatorAccess, PeerEnvelope},
     offer::Offer,
@@ -17,22 +19,42 @@ use crate::{
     trade_rsp::{TradeResponse, TradeResponseEnvelope},
 };
 
-pub struct TakerAccess {
+pub struct New;
+pub struct Trading;
+
+pub struct TakerAccess<State = New> {
     tx: mpsc::Sender<TakerRequest>,
+    state: PhantomData<State>,
 }
 
-impl TakerAccess {
-    pub(super) async fn new(tx: mpsc::Sender<TakerRequest>) -> Self {
-        Self { tx }
-    }
-
-    pub async fn take_order(&self) -> Result<(), N3xbError> {
+impl TakerAccess<New> {
+    pub async fn take_order(self) -> Result<TakerAccess<Trading>, N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = TakerRequest::SendTakerOffer { rsp_tx };
         self.tx.send(request).await.unwrap();
-        rsp_rx.await.unwrap()
+        rsp_rx.await.unwrap()?;
+
+        Ok(TakerAccess {
+            tx: self.tx,
+            state: PhantomData,
+        })
+    }
+}
+
+impl TakerAccess<Trading> {
+    pub async fn send_peer_message(&self, _content: Box<dyn SerdeGenericTrait>) {
+        todo!();
     }
 
+    pub async fn trade_complete(self) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = TakerRequest::TradeComplete { rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+}
+
+impl<State> TakerAccess<State> {
     pub async fn register_trade_notif_tx(
         &self,
         tx: mpsc::Sender<Result<TradeResponseEnvelope, N3xbError>>,
@@ -49,12 +71,14 @@ impl TakerAccess {
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
+}
 
-    pub async fn trade_complete(&self) -> Result<(), N3xbError> {
-        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = TakerRequest::TradeComplete { rsp_tx };
-        self.tx.send(request).await.unwrap();
-        rsp_rx.await.unwrap()
+impl TakerAccess {
+    pub(super) async fn new(tx: mpsc::Sender<TakerRequest>) -> Self {
+        Self {
+            tx,
+            state: PhantomData,
+        }
     }
 }
 
