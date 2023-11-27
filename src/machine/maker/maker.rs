@@ -16,9 +16,10 @@ use crate::{
         error::{N3xbError, OfferInvalidReason},
         types::{EventIdString, SerdeGenericTrait, SerdeGenericType},
     },
-    communicator::{CommunicatorAccess, PeerEnvelope},
+    communicator::CommunicatorAccess,
     offer::{Offer, OfferEnvelope},
     order::Order,
+    peer_msg::PeerEnvelope,
     trade_rsp::{TradeResponse, TradeResponseBuilder, TradeResponseStatus},
 };
 

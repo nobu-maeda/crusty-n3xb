@@ -5,9 +5,10 @@ use secp256k1::XOnlyPublicKey;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::common::{error::N3xbError, types::EventIdString};
-
-use super::peer_messaging::{PeerEnvelope, PeerMessage};
+use crate::{
+    common::{error::N3xbError, types::EventIdString},
+    peer_msg::{PeerEnvelope, PeerMessage},
+};
 
 pub(super) struct Router {
     peer_message_tx_map: HashMap<Uuid, mpsc::Sender<PeerEnvelope>>,
@@ -117,7 +118,6 @@ mod tests {
     use super::*;
     use crate::{
         common::types::SerdeGenericType,
-        communicator::peer_messaging::PeerEnvelope,
         offer::Offer,
         testing::{SomeTestOfferParams, SomeTestOrderParams},
     };

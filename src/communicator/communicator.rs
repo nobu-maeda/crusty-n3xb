@@ -17,11 +17,11 @@ use crate::order::{
     EventKind, FilterTag, MakerObligation, Order, OrderEnvelope, OrderTag, TakerObligation,
     TradeDetails, TradeParameter, N3XB_APPLICATION_TAG,
 };
+use crate::peer_msg::{PeerEnvelope, PeerMessage};
 use crate::trade_rsp::TradeResponse;
 
 use super::maker_order_note::MakerOrderNote;
 use super::nostr::*;
-use super::peer_messaging::{PeerEnvelope, PeerMessage};
 use super::router::Router;
 
 pub(crate) struct CommunicatorAccess {

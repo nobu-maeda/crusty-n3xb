@@ -13,9 +13,10 @@ use crate::{
         error::N3xbError,
         types::{EventIdString, SerdeGenericTrait, SerdeGenericType},
     },
-    communicator::{CommunicatorAccess, PeerEnvelope},
+    communicator::CommunicatorAccess,
     offer::Offer,
     order::OrderEnvelope,
+    peer_msg::PeerEnvelope,
     trade_rsp::{TradeResponse, TradeResponseEnvelope},
 };
 
