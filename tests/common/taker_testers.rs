@@ -2,6 +2,7 @@ use crusty_n3xb::{
     common::error::N3xbError,
     manager::Manager,
     order::{FilterTag, OrderEnvelope},
+    peer_msg::PeerEnvelope,
     testing::{
         SomeTestOfferParams, SomeTestOrderParams, SomeTestTradeRspParams,
         TESTING_DEFAULT_CHANNEL_SIZE,
@@ -10,6 +11,10 @@ use crusty_n3xb::{
 };
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
+
+use crate::common::test_trade_msgs::AnotherTradeEngMsg;
+
+use super::test_trade_msgs::SomeTradeEngMsg;
 
 pub struct TakerTester {
     cmpl_rx: oneshot::Receiver<Result<Vec<OrderEnvelope>, N3xbError>>,
@@ -98,16 +103,20 @@ impl TakerTesterActor {
         let taker = self.manager.new_taker(order_envelope, offer).await.unwrap();
 
         // Register Taker for Trade Response notifications
-        let (notif_tx, mut notif_rx) =
+        let (trade_notif_tx, mut trade_notif_rx) =
             mpsc::channel::<Result<TradeResponseEnvelope, N3xbError>>(TESTING_DEFAULT_CHANNEL_SIZE);
-        taker.register_trade_notif_tx(notif_tx).await.unwrap();
+        taker.register_trade_notif_tx(trade_notif_tx).await.unwrap();
+
+        let (peer_notif_tx, mut peer_notif_rx) =
+            mpsc::channel::<Result<PeerEnvelope, N3xbError>>(TESTING_DEFAULT_CHANNEL_SIZE);
+        taker.register_peer_notif_tx(peer_notif_tx).await.unwrap();
 
         // Take Order with configured Offer
         let taker = taker.take_order().await.unwrap();
 
         // Wait for Trade Response notifications
-        let notif_result = notif_rx.recv().await.unwrap();
-        let trade_rsp_envelope = notif_result.unwrap();
+        let trade_notif_result = trade_notif_rx.recv().await.unwrap();
+        let trade_rsp_envelope = trade_notif_result.unwrap();
 
         let mut expected_trade_rsp_builder = SomeTestTradeRspParams::default_builder();
         expected_trade_rsp_builder.offer_event_id("".to_string());
@@ -118,6 +127,31 @@ impl TakerTesterActor {
         assert_eq!(
             trade_rsp_envelope.trade_rsp.trade_response,
             TradeResponseStatus::Accepted
+        );
+
+        // Send a Trade Engine specific Peer Message
+        let some_trade_eng_msg = SomeTradeEngMsg {
+            some_trade_specific_field: SomeTradeEngMsg::some_trade_specific_string(),
+        };
+
+        taker
+            .send_peer_message(Box::new(some_trade_eng_msg))
+            .await
+            .unwrap();
+
+        // Wait for another Trade Engine specific Peer Message
+        let peer_notif_result = peer_notif_rx.recv().await.unwrap();
+        let peer_envelope = peer_notif_result.unwrap();
+
+        // Check Peer Message
+        let another_trade_eng_msg = peer_envelope
+            .message
+            .downcast_ref::<AnotherTradeEngMsg>()
+            .unwrap();
+
+        assert_eq!(
+            another_trade_eng_msg.another_trade_specific_field,
+            AnotherTradeEngMsg::another_trade_specific_string()
         );
 
         taker.trade_complete().await.unwrap();

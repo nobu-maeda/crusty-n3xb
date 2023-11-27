@@ -5,12 +5,15 @@ use crusty_n3xb::{
     manager::Manager,
     offer::OfferEnvelope,
     order::Order,
+    peer_msg::PeerEnvelope,
     testing::{SomeTestOfferParams, SomeTestTradeRspParams, TESTING_DEFAULT_CHANNEL_SIZE},
 };
 use tokio::{
     sync::{mpsc, oneshot},
     time::sleep,
 };
+
+use crate::common::test_trade_msgs::{AnotherTradeEngMsg, SomeTradeEngMsg};
 
 pub struct MakerTester {
     cmpl_rx: oneshot::Receiver<Result<(), N3xbError>>,
@@ -57,9 +60,14 @@ impl MakerTesterActor {
         let maker = self.manager.new_maker(order).await.unwrap();
 
         // Register Maker for Offer notificaitons
-        let (notif_tx, mut notif_rx) =
+        let (offer_notif_tx, mut offer_notif_rx) =
             mpsc::channel::<Result<OfferEnvelope, N3xbError>>(TESTING_DEFAULT_CHANNEL_SIZE);
-        maker.register_offer_notif_tx(notif_tx).await.unwrap();
+        maker.register_offer_notif_tx(offer_notif_tx).await.unwrap();
+
+        // Register Maker for Trade Engine specific Peer Messages
+        let (peer_notif_tx, mut peer_notif_rx) =
+            mpsc::channel::<Result<PeerEnvelope, N3xbError>>(TESTING_DEFAULT_CHANNEL_SIZE);
+        maker.register_peer_notif_tx(peer_notif_tx).await.unwrap();
 
         // The whole thing kicks off by sending a Maker Order Note
         let maker = maker.post_new_order().await.unwrap();
@@ -73,8 +81,8 @@ impl MakerTesterActor {
         }
 
         // Wait for Offer notifications - This can be made into a loop if wanted, or to wait for a particular offer
-        let notif_result = notif_rx.recv().await.unwrap();
-        let offer_envelope = notif_result.unwrap();
+        let offer_notif_result = offer_notif_rx.recv().await.unwrap();
+        let offer_envelope = offer_notif_result.unwrap();
 
         // Query Offer
         let offer_envelopes = maker.query_offers().await;
@@ -97,6 +105,31 @@ impl MakerTesterActor {
         trade_rsp_builder.offer_event_id(offer_envelope.event_id);
         let trade_rsp = trade_rsp_builder.build().unwrap();
         let maker = maker.accept_offer(trade_rsp).await.unwrap();
+
+        // Wait for a Trade Engine speicifc Peer Message
+        let peer_notif_result = peer_notif_rx.recv().await.unwrap();
+        let peer_envelope = peer_notif_result.unwrap();
+
+        // Check Peer Message that its SomeTradeEngSpeicficMsg
+        let some_trade_eng_msg = peer_envelope
+            .message
+            .downcast_ref::<SomeTradeEngMsg>()
+            .unwrap();
+
+        assert_eq!(
+            some_trade_eng_msg.some_trade_specific_field,
+            SomeTradeEngMsg::some_trade_specific_string()
+        );
+
+        // Respond with another Trade Engine specific Peer Message
+        let another_trade_eng_msg = AnotherTradeEngMsg {
+            another_trade_specific_field: AnotherTradeEngMsg::another_trade_specific_string(),
+        };
+
+        maker
+            .send_peer_message(Box::new(another_trade_eng_msg))
+            .await
+            .unwrap();
 
         maker.trade_complete().await.unwrap();
         self.manager.shutdown().await.unwrap();
