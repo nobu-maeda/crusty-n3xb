@@ -6,11 +6,12 @@ use uuid::Uuid;
 
 // Peer Messaging Data Structures
 
-pub(crate) struct PeerEnvelope {
-    pub(crate) pubkey: XOnlyPublicKey,
-    pub(crate) event_id: EventIdString,
+#[derive(Clone, Debug)]
+pub struct PeerEnvelope {
+    pub pubkey: XOnlyPublicKey,
+    pub event_id: EventIdString,
     pub(crate) message_type: SerdeGenericType,
-    pub(crate) message: Box<dyn SerdeGenericTrait>,
+    pub message: Box<dyn SerdeGenericTrait>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct PeerMessage {

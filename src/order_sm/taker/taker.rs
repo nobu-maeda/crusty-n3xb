@@ -80,6 +80,23 @@ impl<State> TakerAccess<State> {
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
+
+    pub async fn register_peer_notif_tx(
+        &self,
+        tx: mpsc::Sender<Result<PeerEnvelope, N3xbError>>,
+    ) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = TakerRequest::RegisterPeerNotifTx { tx, rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+
+    pub async fn unregister_peer_notif_tx(&self) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = TakerRequest::UnregisterPeerNotifTx { rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
 }
 
 impl TakerAccess {
@@ -136,6 +153,13 @@ pub(super) enum TakerRequest {
     UnregisterTradeNotifTx {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
+    RegisterPeerNotifTx {
+        tx: mpsc::Sender<Result<PeerEnvelope, N3xbError>>,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
+    UnregisterPeerNotifTx {
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
 }
 
 struct TakerActor {
@@ -145,7 +169,8 @@ struct TakerActor {
     offer: Offer,
     offer_event_id: Option<EventIdString>,
     trade_rsp_envelope: Option<TradeResponseEnvelope>,
-    notif_tx: Option<mpsc::Sender<Result<TradeResponseEnvelope, N3xbError>>>,
+    trade_notif_tx: Option<mpsc::Sender<Result<TradeResponseEnvelope, N3xbError>>>,
+    peer_notif_tx: Option<mpsc::Sender<Result<PeerEnvelope, N3xbError>>>,
 }
 
 impl TakerActor {
@@ -162,7 +187,8 @@ impl TakerActor {
             offer,
             offer_event_id: None,
             trade_rsp_envelope: None,
-            notif_tx: None,
+            trade_notif_tx: None,
+            peer_notif_tx: None,
         }
     }
 
@@ -222,6 +248,12 @@ impl TakerActor {
             }
             TakerRequest::UnregisterTradeNotifTx { rsp_tx } => {
                 self.unregister_trade_notif_tx(rsp_tx).await
+            }
+            TakerRequest::RegisterPeerNotifTx { tx, rsp_tx } => {
+                self.register_peer_notif_tx(tx, rsp_tx).await
+            }
+            TakerRequest::UnregisterPeerNotifTx { rsp_tx } => {
+                self.unregister_peer_notif_tx(rsp_tx).await
             }
         }
         terminate
@@ -285,27 +317,57 @@ impl TakerActor {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
         let mut result = Ok(());
-        if self.notif_tx.is_some() {
+        if self.trade_notif_tx.is_some() {
             let error = N3xbError::Simple(format!(
-                "Taker w/ TradeUUID {} already have notif_tx registered",
+                "Taker w/ TradeUUID {} already have trade_notif_tx registered",
                 self.order_envelope.order.trade_uuid
             ));
             result = Err(error);
         }
-        self.notif_tx = Some(tx);
+        self.trade_notif_tx = Some(tx);
         rsp_tx.send(result).unwrap();
     }
 
     async fn unregister_trade_notif_tx(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         let mut result = Ok(());
-        if self.notif_tx.is_none() {
+        if self.trade_notif_tx.is_none() {
             let error = N3xbError::Simple(format!(
-                "Taker w/ TradeUUID {} does not have notif_tx registered",
+                "Taker w/ TradeUUID {} does not have trade_notif_tx registered",
                 self.order_envelope.order.trade_uuid
             ));
             result = Err(error);
         }
-        self.notif_tx = None;
+        self.trade_notif_tx = None;
+        rsp_tx.send(result).unwrap();
+    }
+
+    async fn register_peer_notif_tx(
+        &mut self,
+        tx: mpsc::Sender<Result<PeerEnvelope, N3xbError>>,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    ) {
+        let mut result = Ok(());
+        if self.peer_notif_tx.is_some() {
+            let error = N3xbError::Simple(format!(
+                "Taker w/ TradeUUID {} already have peer_notif_tx registered",
+                self.order_envelope.order.trade_uuid
+            ));
+            result = Err(error);
+        }
+        self.peer_notif_tx = Some(tx);
+        rsp_tx.send(result).unwrap();
+    }
+
+    async fn unregister_peer_notif_tx(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+        let mut result = Ok(());
+        if self.peer_notif_tx.is_none() {
+            let error = N3xbError::Simple(format!(
+                "Taker w/ TradeUUID {} does not have peer_notif_tx registered",
+                self.order_envelope.order.trade_uuid
+            ));
+            result = Err(error);
+        }
+        self.peer_notif_tx = None;
         rsp_tx.send(result).unwrap();
     }
 
@@ -345,7 +407,20 @@ impl TakerActor {
             }
 
             SerdeGenericType::TradeEngineSpecific => {
-                todo!();
+                // Let the Trade Engine / user to do the downcasting. Pass the SerdeGeneric message up as is
+                if let Some(tx) = &self.peer_notif_tx {
+                    if let Some(error) = tx.send(Ok(peer_envelope)).await.err() {
+                        error!(
+                            "Taker w/ TradeUUID {} failed in notifying user with handle_peer_message - {}",
+                            self.order_envelope.order.trade_uuid, error
+                        );
+                    }
+                } else {
+                    warn!(
+                        "Taker w/ TradeUUID {} do not have Offer peer_notif_tx registered",
+                        self.order_envelope.order.trade_uuid
+                    );
+                }
             }
         }
     }
@@ -371,7 +446,7 @@ impl TakerActor {
         }
 
         // Notify user of new Trade Response recieved
-        if let Some(tx) = &self.notif_tx {
+        if let Some(tx) = &self.trade_notif_tx {
             if let Some(error) = tx.send(notif_result).await.err() {
                 error!(
                     "Taker w/ TradeUUID {} failed in notifying user with handle_trade_response - {}",
@@ -380,7 +455,7 @@ impl TakerActor {
             }
         } else {
             warn!(
-                "Taker w/ TradeUUID {} do not have Offer notif_tx registered",
+                "Taker w/ TradeUUID {} do not have Offer trade_notif_tx registered",
                 self.order_envelope.order.trade_uuid
             );
         }
