@@ -595,7 +595,34 @@ impl MakerActor {
 
     async fn trade_complete(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         // TODO: What else to do for Trade Complete?
-        rsp_tx.send(Ok(())).unwrap();
+
+        let maker_order_note_id = match self.order_event_id.clone() {
+            Some(event_id) => event_id,
+            None => {
+                let error = N3xbError::Simple(format!(
+                        "Maker w/ TradeUUID {} expected to already have sent Maker Order Note and receive Event ID",
+                        self.order.trade_uuid
+                    ));
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+                return;
+            }
+        };
+
+        // Delete Order Note
+        let result = self
+            .communicator_accessor
+            .delete_maker_order_note(maker_order_note_id.clone())
+            .await;
+
+        // Send response back to user
+        match result {
+            Ok(_) => {
+                rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
+            }
+            Err(error) => {
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+            }
+        }
     }
 
     async fn register_offer_notif_tx(
