@@ -112,7 +112,7 @@ impl TakerTesterActor {
         taker.register_peer_notif_tx(peer_notif_tx).await.unwrap();
 
         // Take Order with configured Offer
-        let taker = taker.take_order().await.unwrap();
+        taker.take_order().await.unwrap();
 
         // Wait for Trade Response notifications
         let trade_notif_result = trade_notif_rx.recv().await.unwrap();

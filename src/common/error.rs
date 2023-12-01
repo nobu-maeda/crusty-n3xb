@@ -23,7 +23,7 @@ impl Error for N3xbError {}
 impl fmt::Display for N3xbError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let error_string = match self {
-            N3xbError::Simple(msg) => format!("n3xB-Error | Other - {}", msg),
+            N3xbError::Simple(msg) => format!("n3xB-Error | Simple - {}", msg),
             N3xbError::InvalidOffer(reason) => {
                 format!("n3xB-Error | InvalidOffer - {}", reason)
             }

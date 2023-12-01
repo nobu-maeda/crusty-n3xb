@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use log::{debug, error, info, warn};
 
 use strum_macros::{Display, IntoStaticStr};
@@ -20,29 +18,22 @@ use crate::{
     trade_rsp::{TradeResponse, TradeResponseEnvelope},
 };
 
-pub struct New;
-pub struct Trading;
-
-pub struct TakerAccess<State = New> {
+pub struct TakerAccess {
     tx: mpsc::Sender<TakerRequest>,
-    state: PhantomData<State>,
 }
 
-impl TakerAccess<New> {
-    pub async fn take_order(self) -> Result<TakerAccess<Trading>, N3xbError> {
+impl TakerAccess {
+    pub(super) async fn new(tx: mpsc::Sender<TakerRequest>) -> Self {
+        Self { tx }
+    }
+
+    pub async fn take_order(&self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = TakerRequest::SendTakerOffer { rsp_tx };
         self.tx.send(request).await.unwrap();
-        rsp_rx.await.unwrap()?;
-
-        Ok(TakerAccess {
-            tx: self.tx,
-            state: PhantomData,
-        })
+        rsp_rx.await.unwrap()
     }
-}
 
-impl TakerAccess<Trading> {
     pub async fn send_peer_message(
         &self,
         _content: Box<dyn SerdeGenericTrait>,
@@ -62,9 +53,7 @@ impl TakerAccess<Trading> {
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
-}
 
-impl<State> TakerAccess<State> {
     pub async fn register_trade_notif_tx(
         &self,
         tx: mpsc::Sender<Result<TradeResponseEnvelope, N3xbError>>,
@@ -97,15 +86,6 @@ impl<State> TakerAccess<State> {
         let request = TakerRequest::UnregisterPeerNotifTx { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
-    }
-}
-
-impl TakerAccess {
-    pub(super) async fn new(tx: mpsc::Sender<TakerRequest>) -> Self {
-        Self {
-            tx,
-            state: PhantomData,
-        }
     }
 }
 

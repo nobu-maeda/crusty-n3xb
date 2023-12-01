@@ -1,8 +1,5 @@
 use log::{debug, error, info, warn};
-use std::{
-    collections::{HashMap, HashSet},
-    marker::PhantomData,
-};
+use std::collections::{HashMap, HashSet};
 use strum_macros::{Display, IntoStaticStr};
 use url::Url;
 
@@ -23,32 +20,22 @@ use crate::{
     trade_rsp::{TradeResponse, TradeResponseBuilder, TradeResponseStatus},
 };
 
-// Maker SM States
-pub struct New;
-pub struct Pending;
-pub struct Trading;
-
-pub struct MakerAccess<State = New> {
+pub struct MakerAccess {
     tx: mpsc::Sender<MakerRequest>,
-    state: PhantomData<State>,
 }
 
-impl MakerAccess<New> {
-    pub async fn post_new_order(self) -> Result<MakerAccess<Pending>, N3xbError> {
+impl MakerAccess {
+    pub(super) async fn new(tx: mpsc::Sender<MakerRequest>) -> Self {
+        Self { tx }
+    }
+
+    pub async fn post_new_order(&self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = MakerRequest::SendMakerOrder { rsp_tx };
         self.tx.send(request).await.unwrap();
-        rsp_rx.await.unwrap()?;
-
-        // Post New Order success, transition to Pending state
-        Ok(MakerAccess {
-            tx: self.tx,
-            state: PhantomData,
-        })
+        rsp_rx.await.unwrap()
     }
-}
 
-impl MakerAccess<Pending> {
     pub async fn query_offers(&self) -> HashMap<EventIdString, OfferEnvelope> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<HashMap<EventIdString, OfferEnvelope>>();
         let request = MakerRequest::QueryOffers { rsp_tx };
@@ -63,31 +50,20 @@ impl MakerAccess<Pending> {
         rsp_rx.await.unwrap()
     }
 
-    pub async fn accept_offer(
-        self,
-        trade_rsp: TradeResponse,
-    ) -> Result<MakerAccess<Trading>, N3xbError> {
+    pub async fn accept_offer(&self, trade_rsp: TradeResponse) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = MakerRequest::AcceptOffer { trade_rsp, rsp_tx };
         self.tx.send(request).await.unwrap();
-        rsp_rx.await.unwrap()?;
-
-        // Accept Offer success, transition to Trading state
-        Ok(MakerAccess {
-            tx: self.tx,
-            state: PhantomData,
-        })
+        rsp_rx.await.unwrap()
     }
 
-    pub async fn cancel_order(self) -> Result<(), N3xbError> {
+    pub async fn cancel_order(&self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = MakerRequest::CancelOrder { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
-}
 
-impl MakerAccess<Trading> {
     pub async fn send_peer_message(
         &self,
         content: Box<dyn SerdeGenericTrait>,
@@ -107,9 +83,7 @@ impl MakerAccess<Trading> {
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
-}
 
-impl<State> MakerAccess<State> {
     pub async fn register_offer_notif_tx(
         &self,
         offer_notif_tx: mpsc::Sender<Result<OfferEnvelope, N3xbError>>,
@@ -148,15 +122,6 @@ impl<State> MakerAccess<State> {
         let request = MakerRequest::UnregisterPeerNotifTx { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
-    }
-}
-
-impl MakerAccess {
-    pub(super) async fn new(tx: mpsc::Sender<MakerRequest>) -> Self {
-        Self {
-            tx,
-            state: PhantomData,
-        }
     }
 }
 

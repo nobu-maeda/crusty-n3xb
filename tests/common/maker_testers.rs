@@ -70,7 +70,7 @@ impl MakerTesterActor {
         maker.register_peer_notif_tx(peer_notif_tx).await.unwrap();
 
         // The whole thing kicks off by sending a Maker Order Note
-        let maker = maker.post_new_order().await.unwrap();
+        maker.post_new_order().await.unwrap();
 
         if !self.wait_for_offer {
             sleep(Duration::from_secs(2)).await;
@@ -104,7 +104,7 @@ impl MakerTesterActor {
         let mut trade_rsp_builder = SomeTestTradeRspParams::default_builder();
         trade_rsp_builder.offer_event_id(offer_envelope.event_id);
         let trade_rsp = trade_rsp_builder.build().unwrap();
-        let maker = maker.accept_offer(trade_rsp).await.unwrap();
+        maker.accept_offer(trade_rsp).await.unwrap();
 
         // Wait for a Trade Engine speicifc Peer Message
         let peer_notif_result = peer_notif_rx.recv().await.unwrap();
