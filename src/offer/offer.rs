@@ -1,7 +1,8 @@
+use log::warn;
 use secp256k1::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};
 
-use std::{any::Any, fmt::Debug};
+use std::{any::Any, fmt::Debug, ops::Rem};
 
 use crate::{
     common::{error::OfferInvalidReason, types::*},
@@ -20,8 +21,8 @@ pub struct OfferEnvelope {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Obligation {
     pub kind: ObligationKind,
-    pub amount: u64,
-    pub bond_amount: Option<u64>,
+    pub amount: f64,
+    pub bond_amount: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -62,11 +63,17 @@ impl Offer {
         return min <= float2 && float2 <= max;
     }
 
-    fn transacted_sat_amount(&self) -> u64 {
+    fn transacted_sat_amount(&self) -> Result<u64, OfferInvalidReason> {
         return if self.maker_obligation.kind.is_bitcoin() {
-            self.maker_obligation.amount
+            if self.maker_obligation.amount.fract() != 0.0 {
+                return Err(OfferInvalidReason::TransactedSatAmountFractional);
+            }
+            Ok(self.maker_obligation.amount as u64)
         } else if self.taker_obligation.kind.is_bitcoin() {
-            self.taker_obligation.amount
+            if self.taker_obligation.amount.fract() != 0.0 {
+                return Err(OfferInvalidReason::TransactedSatAmountFractional);
+            }
+            Ok(self.taker_obligation.amount as u64)
         } else {
             panic!("Neither Maker nor Taker has Bitcoin obligation in Offer")
         };
@@ -93,7 +100,7 @@ impl Offer {
 
         if let Some(maker_bond_pct) = order.trade_details.content.maker_bond_pct {
             let order_bond_amount =
-                maker_bond_pct as f64 / 100.0 * self.transacted_sat_amount() as f64;
+                maker_bond_pct as f64 / 100.0 * self.transacted_sat_amount()? as f64;
 
             // Should be okay to give +/- 0.1% leeway for bond amount
             if let Some(offer_bond_amount) = self.maker_obligation.bond_amount {
@@ -138,7 +145,7 @@ impl Offer {
 
         if let Some(taker_bond_pct) = order.trade_details.content.taker_bond_pct {
             let order_bond_amount =
-                taker_bond_pct as f64 / 100.0 * self.transacted_sat_amount() as f64;
+                taker_bond_pct as f64 / 100.0 * self.transacted_sat_amount()? as f64;
 
             // Should be okay to give +/- 0.1% leeway for bond amount
             if let Some(offer_bond_amount) = self.taker_obligation.bond_amount {
@@ -180,8 +187,8 @@ mod tests {
     #[tokio::test]
     async fn test_validate_offer_maker_amount_in_bounds() {
         let maker_obligation_content = MakerObligationContent {
-            amount: 40000,
-            amount_min: Some(30000),
+            amount: 40000.0,
+            amount_min: Some(30000.0),
         };
 
         let maker_obligation = MakerObligation {
@@ -201,8 +208,8 @@ mod tests {
 
         let maker_obligation = Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::FaceToFace)),
-            amount: 1000000,
-            bond_amount: Some(4000000),
+            amount: 1000000.0,
+            bond_amount: Some(4000000.0),
         };
 
         let mut builder = SomeTestOfferParams::default_builder();
@@ -216,8 +223,8 @@ mod tests {
     #[tokio::test]
     async fn test_validate_offer_maker_f64_amount_under() {
         let maker_obligation_content = MakerObligationContent {
-            amount: 2000000,
-            amount_min: Some(1200000),
+            amount: 2000000.0,
+            amount_min: Some(120000.0),
         };
 
         let maker_obligation = MakerObligation {
@@ -236,8 +243,8 @@ mod tests {
     #[tokio::test]
     async fn test_validate_offer_maker_f64_amount_min() {
         let maker_obligation_content = MakerObligationContent {
-            amount: 2000000,
-            amount_min: Some(35000),
+            amount: 2000000.0,
+            amount_min: Some(35000.0),
         };
 
         let maker_obligation = MakerObligation {
@@ -255,8 +262,8 @@ mod tests {
     #[tokio::test]
     async fn test_validate_offer_maker_f64_amount_max() {
         let maker_obligation_content = MakerObligationContent {
-            amount: 35000,
-            amount_min: Some(2),
+            amount: 35000.0,
+            amount_min: Some(2.0),
         };
 
         let maker_obligation = MakerObligation {
@@ -274,8 +281,8 @@ mod tests {
     #[tokio::test]
     async fn test_validate_offer_maker_f64_amount_over() {
         let maker_obligation_content = MakerObligationContent {
-            amount: 800000,
-            amount_min: Some(500000),
+            amount: 800000.0,
+            amount_min: Some(500000.0),
         };
 
         let maker_obligation = MakerObligation {
@@ -297,8 +304,8 @@ mod tests {
 
         let maker_obligation = Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
-            amount: u64::MAX,
-            bond_amount: Some(4000000),
+            amount: f64::MAX,
+            bond_amount: Some(4000000.0),
         };
 
         let mut builder = SomeTestOfferParams::default_builder();
@@ -315,8 +322,8 @@ mod tests {
 
         let maker_obligation = Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
-            amount: 1000000,
-            bond_amount: Some(3000000),
+            amount: 1000000.0,
+            bond_amount: Some(3000000.0),
         };
 
         let mut builder = SomeTestOfferParams::default_builder();
@@ -333,7 +340,7 @@ mod tests {
 
         let maker_obligation = Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
-            amount: 1000000,
+            amount: 1000000.0,
             bond_amount: None,
         };
 
@@ -370,8 +377,8 @@ mod tests {
 
         let taker_obligation = Obligation {
             kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Onchain)),
-            amount: 40000000,
-            bond_amount: Some(4000000),
+            amount: 40000000.0,
+            bond_amount: Some(4000000.0),
         };
 
         let mut builder = SomeTestOfferParams::default_builder();
@@ -388,14 +395,14 @@ mod tests {
 
         let maker_obligation = Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
-            amount: 1000000,
-            bond_amount: Some(4200000),
+            amount: 1000000.0,
+            bond_amount: Some(4200000.0),
         };
 
         let taker_obligation = Obligation {
             kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
-            amount: 42000000,
-            bond_amount: Some(4200000),
+            amount: 42000000.0,
+            bond_amount: Some(4200000.0),
         };
 
         let mut builder = SomeTestOfferParams::default_builder();
@@ -413,8 +420,8 @@ mod tests {
 
         let taker_obligation = Obligation {
             kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
-            amount: 40000000,
-            bond_amount: Some(3000000),
+            amount: 40000000.0,
+            bond_amount: Some(3000000.0),
         };
 
         let mut builder = SomeTestOfferParams::default_builder();
@@ -431,7 +438,7 @@ mod tests {
 
         let taker_obligation = Obligation {
             kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
-            amount: 40000000,
+            amount: 40000000.0,
             bond_amount: None,
         };
 

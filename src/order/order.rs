@@ -37,6 +37,7 @@ impl Order {
         self.validate_maker_obligation_kinds_has_settlement()?;
         self.validate_maker_obligation_kinds_currencies_same()?;
         self.validate_maker_obligation_amount_valid()?;
+        self.validate_maker_obligation_non_fractional_if_bitcoin()?;
         self.validate_taker_obligation_kinds_has_settlement()?;
         self.validate_taker_obligation_kinds_currencies_same()?;
         self.validate_taker_obligation_specified()?;
@@ -87,7 +88,7 @@ impl Order {
     }
 
     fn validate_maker_obligation_amount_valid(&self) -> Result<(), N3xbError> {
-        if self.maker_obligation.content.amount == 0 {
+        if self.maker_obligation.content.amount == 0.0 {
             return Err(N3xbError::Simple(format!(
                 "Maker Obligation Kind amount should not be zero"
             )));
@@ -98,6 +99,24 @@ impl Order {
                 )));
             }
         }
+        Ok(())
+    }
+
+    fn validate_maker_obligation_non_fractional_if_bitcoin(&self) -> Result<(), N3xbError> {
+        if self
+            .maker_obligation
+            .kinds
+            .iter()
+            .next()
+            .unwrap()
+            .is_bitcoin()
+        {
+            if self.maker_obligation.content.amount.fract() != 0.0 {
+                return Err(N3xbError::Simple(format!(
+                    "Maker Obligation amount should be non-fractional if Bitcoin"
+                )));
+            }
+        };
         Ok(())
     }
 
@@ -279,7 +298,7 @@ mod tests {
     #[tokio::test]
     async fn test_validate_order_maker_obligation_amount_zero() {
         let maker_obligation_content = MakerObligationContent {
-            amount: 0,
+            amount: 0.0,
             amount_min: None,
         };
 
@@ -297,8 +316,8 @@ mod tests {
     #[tokio::test]
     async fn test_validate_order_maker_obligation_amount_less_than_min() {
         let maker_obligation_content = MakerObligationContent {
-            amount: 1000000,
-            amount_min: Some(1000001),
+            amount: 1000000.0,
+            amount_min: Some(1000001.0),
         };
 
         let maker_obligation = MakerObligation {

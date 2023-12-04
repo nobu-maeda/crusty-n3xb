@@ -100,6 +100,7 @@ pub enum OfferInvalidReason {
     Cancelled,
     PendingAnother,
     DuplicateOffer,
+    TransactedSatAmountFractional,
     MakerObligationKindInvalid,
     MakerObligationAmountInvalid,
     MakerBondInvalid,
@@ -122,6 +123,9 @@ impl fmt::Debug for OfferInvalidReason {
                 f,
                 " Maker obligation kind is invalid or not in acceptable set"
             ),
+            OfferInvalidReason::TransactedSatAmountFractional => {
+                write!(f, "Transacted sat amount cannot be fractional")
+            }
             OfferInvalidReason::MakerObligationAmountInvalid => write!(
                 f,
                 "Maker obligation amount is invalid or not in acceptable range"

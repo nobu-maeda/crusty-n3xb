@@ -79,28 +79,28 @@ impl SomeTestOrderParams {
 
     pub fn maker_obligation_fiat_cny_content() -> MakerObligationContent {
         MakerObligationContent {
-            amount: 35000, // 35k RMB
+            amount: 35000.0, // 35k RMB
             amount_min: None,
         }
     }
 
     pub fn maker_obligation_fiat_usd_content() -> MakerObligationContent {
         MakerObligationContent {
-            amount: 5000, // 5k USD
-            amount_min: Some(3000),
+            amount: 5000.0, // 5k USD
+            amount_min: Some(3000.0),
         }
     }
 
     pub fn maker_obligation_fiat_eur_content() -> MakerObligationContent {
         MakerObligationContent {
-            amount: 4500, // 4.5k EUR
+            amount: 4500.0, // 4.5k EUR
             amount_min: None,
         }
     }
 
     pub fn maker_obligation_bitcoin_content() -> MakerObligationContent {
         MakerObligationContent {
-            amount: 10000000, // 10,000,000 Sats / 0.1 BTC
+            amount: 10000000.0, // 10,000,000 Sats / 0.1 BTC
             amount_min: None,
         }
     }

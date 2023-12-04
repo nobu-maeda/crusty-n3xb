@@ -18,8 +18,8 @@ pub struct TakerObligation {
 
 #[derive(PartialEq, Clone, Debug, Deserialize, Serialize)]
 pub struct MakerObligationContent {
-    pub amount: u64,
-    pub amount_min: Option<u64>,
+    pub amount: f64,
+    pub amount_min: Option<f64>,
 }
 
 #[derive(PartialEq, Clone, Debug, Deserialize, Serialize)]
