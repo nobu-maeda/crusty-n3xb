@@ -1,8 +1,7 @@
-use log::warn;
 use secp256k1::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};
 
-use std::{any::Any, fmt::Debug, ops::Rem};
+use std::{any::Any, fmt::Debug};
 
 use crate::{
     common::{error::OfferInvalidReason, types::*},

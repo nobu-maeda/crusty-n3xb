@@ -681,20 +681,8 @@ impl MakerActor {
             }
 
             SerdeGenericType::TradeEngineSpecific => {
-                // Let the Trade Engine / user to do the downcasting. Pass the SerdeGeneric message up as is
-                if let Some(tx) = &self.peer_notif_tx {
-                    if let Some(error) = tx.send(Ok(peer_envelope)).await.err() {
-                        error!(
-                            "Maker w/ TradeUUID {} failed in notifying user with handle_peer_message - {}",
-                            self.order.trade_uuid, error
-                        );
-                    }
-                } else {
-                    warn!(
-                        "Maker w/ TradeUUID {} do not have Peer notif_tx registered",
-                        self.order.trade_uuid
-                    );
-                }
+                self.handle_engine_specific_peer_message(peer_envelope)
+                    .await;
             }
         }
     }
@@ -787,6 +775,52 @@ impl MakerActor {
             .await?;
 
         reject_result
+    }
+
+    async fn handle_engine_specific_peer_message(&mut self, envelope: PeerEnvelope) {
+        // Verify peer message is signed by the expected pubkey before passing to Trade Engine
+        let expected_pubkey =
+            if let Some(accepted_offer_event_id) = self.accepted_offer_event_id.clone() {
+                match self.offer_envelopes.get(&accepted_offer_event_id) {
+                    Some(offer_envelope) => offer_envelope.pubkey.clone(),
+                    None => {
+                        error!(
+                            "Maker w/ TradeUUID {} expected to contain accepted Offer {}",
+                            self.order.trade_uuid, accepted_offer_event_id
+                        );
+                        return;
+                    }
+                }
+            } else {
+                error!(
+                    "Maker w/ TradeUUID {} expected to already have accepted an Offer",
+                    self.order.trade_uuid
+                );
+                return;
+            };
+
+        if envelope.pubkey != expected_pubkey {
+            error!(
+                "Maker w/ TradeUUID {} received TradeEngineSpecific message from unexpected pubkey {}",
+                self.order.trade_uuid, envelope.pubkey
+            );
+            return;
+        }
+
+        // Let the Trade Engine / user to do the downcasting. Pass the SerdeGeneric message up as is
+        if let Some(tx) = &self.peer_notif_tx {
+            if let Some(error) = tx.send(Ok(envelope)).await.err() {
+                error!(
+                    "Maker w/ TradeUUID {} failed in notifying user with handle_peer_message - {}",
+                    self.order.trade_uuid, error
+                );
+            }
+        } else {
+            warn!(
+                "Maker w/ TradeUUID {} do not have Peer notif_tx registered",
+                self.order.trade_uuid
+            );
+        }
     }
 }
 

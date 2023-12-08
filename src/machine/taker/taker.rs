@@ -36,11 +36,11 @@ impl TakerAccess {
 
     pub async fn send_peer_message(
         &self,
-        _content: Box<dyn SerdeGenericTrait>,
+        content: Box<dyn SerdeGenericTrait>,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = TakerRequest::PeerMessage {
-            message: _content,
+            message: content,
             rsp_tx,
         };
         self.tx.send(request).await.unwrap();
@@ -388,20 +388,8 @@ impl TakerActor {
             }
 
             SerdeGenericType::TradeEngineSpecific => {
-                // Let the Trade Engine / user to do the downcasting. Pass the SerdeGeneric message up as is
-                if let Some(tx) = &self.peer_notif_tx {
-                    if let Some(error) = tx.send(Ok(peer_envelope)).await.err() {
-                        error!(
-                            "Taker w/ TradeUUID {} failed in notifying user with handle_peer_message - {}",
-                            self.order_envelope.order.trade_uuid, error
-                        );
-                    }
-                } else {
-                    warn!(
-                        "Taker w/ TradeUUID {} do not have Offer peer_notif_tx registered",
-                        self.order_envelope.order.trade_uuid
-                    );
-                }
+                self.handle_engine_specific_peer_message(peer_envelope)
+                    .await;
             }
         }
     }
@@ -410,7 +398,12 @@ impl TakerActor {
         let mut notif_result: Result<TradeResponseEnvelope, N3xbError> =
             Ok(trade_rsp_envelope.clone());
 
-        if let Some(existing_trade_rsp_envelope) = &self.trade_rsp_envelope {
+        if trade_rsp_envelope.pubkey != self.order_envelope.pubkey {
+            notif_result = Err(N3xbError::Simple(format!(
+                "Taker w/ TradeUUID {} received TradeResponse message with unexpected pubkey. Expected pubkey: {}, Received pubkey: {}",
+                self.order_envelope.order.trade_uuid, self.order_envelope.pubkey, trade_rsp_envelope.pubkey
+            )));
+        } else if let Some(existing_trade_rsp_envelope) = &self.trade_rsp_envelope {
             notif_result = Err(N3xbError::Simple(format!(
                 "Taker w/ TradeUUID {} received duplicate TradeResponse message. Previous TradeResponse: {:?}, New TradeResponse: {:?}",
                 self.order_envelope.order.trade_uuid, existing_trade_rsp_envelope, trade_rsp_envelope
@@ -437,6 +430,32 @@ impl TakerActor {
         } else {
             warn!(
                 "Taker w/ TradeUUID {} do not have Offer trade_notif_tx registered",
+                self.order_envelope.order.trade_uuid
+            );
+        }
+    }
+
+    async fn handle_engine_specific_peer_message(&mut self, envelope: PeerEnvelope) {
+        // Verify peer message is signed by the expected pubkey before passing to Trade Engine
+        if envelope.pubkey != self.order_envelope.pubkey {
+            error!(
+                "Taker w/ TradeUUID {} received TradeEngineSpecific message with unexpected pubkey. Expected pubkey: {}, Received pubkey: {}",
+                self.order_envelope.order.trade_uuid, self.order_envelope.pubkey, envelope.pubkey
+            );
+            return;
+        }
+
+        // Let the Trade Engine / user to do the downcasting. Pass the SerdeGeneric message up as is
+        if let Some(tx) = &self.peer_notif_tx {
+            if let Some(error) = tx.send(Ok(envelope)).await.err() {
+                error!(
+                    "Maker w/ TradeUUID {} failed in notifying user with handle_peer_message - {}",
+                    self.order_envelope.order.trade_uuid, error
+                );
+            }
+        } else {
+            warn!(
+                "Maker w/ TradeUUID {} do not have Peer notif_tx registered",
                 self.order_envelope.order.trade_uuid
             );
         }
