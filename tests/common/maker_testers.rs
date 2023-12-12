@@ -57,7 +57,7 @@ impl MakerTesterActor {
     async fn run(self) {
         // Create and setup a Maker for a new Order
         let order = self.order.clone();
-        let maker = self.manager.new_maker(order).await.unwrap();
+        let maker = self.manager.new_maker(order).await;
 
         // Register Maker for Offer notificaitons
         let (offer_notif_tx, mut offer_notif_rx) =

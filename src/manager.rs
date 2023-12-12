@@ -86,7 +86,7 @@ impl Manager {
     }
 
     // Order Management
-    pub async fn new_maker(&self, order: Order) -> Result<MakerAccess, N3xbError> {
+    pub async fn new_maker(&self, order: Order) -> MakerAccess {
         let trade_uuid = order.trade_uuid;
         let maker = Maker::new(self.communicator.new_accessor(), order).await;
         let maker_my_accessor = maker.new_accessor().await;
@@ -104,7 +104,7 @@ impl Manager {
         let mut maker_accessors = self.maker_accessors.write().await;
         maker_accessors.insert(trade_uuid, maker_my_accessor);
 
-        Ok(maker_returned_accessor)
+        maker_returned_accessor
     }
 
     pub async fn query_orders(
@@ -183,6 +183,4 @@ impl Manager {
         }
         Ok(())
     }
-
-    // Private Functions
 }

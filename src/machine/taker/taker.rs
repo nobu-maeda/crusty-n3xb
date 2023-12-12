@@ -18,6 +18,7 @@ use crate::{
     trade_rsp::{TradeResponse, TradeResponseEnvelope},
 };
 
+#[derive(Clone)]
 pub struct TakerAccess {
     tx: mpsc::Sender<TakerRequest>,
 }
@@ -47,7 +48,7 @@ impl TakerAccess {
         rsp_rx.await.unwrap()
     }
 
-    pub async fn trade_complete(self) -> Result<(), N3xbError> {
+    pub async fn trade_complete(&self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = TakerRequest::TradeComplete { rsp_tx };
         self.tx.send(request).await.unwrap();
@@ -91,7 +92,7 @@ impl TakerAccess {
 
 pub(crate) struct Taker {
     tx: mpsc::Sender<TakerRequest>,
-    pub task_handle: tokio::task::JoinHandle<()>,
+    pub(crate) task_handle: tokio::task::JoinHandle<()>,
 }
 
 impl Taker {

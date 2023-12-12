@@ -20,6 +20,7 @@ use crate::{
     trade_rsp::{TradeResponse, TradeResponseBuilder, TradeResponseStatus},
 };
 
+#[derive(Clone)]
 pub struct MakerAccess {
     tx: mpsc::Sender<MakerRequest>,
 }
@@ -77,7 +78,7 @@ impl MakerAccess {
         rsp_rx.await.unwrap()
     }
 
-    pub async fn trade_complete(self) -> Result<(), N3xbError> {
+    pub async fn trade_complete(&self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = MakerRequest::TradeComplete { rsp_tx };
         self.tx.send(request).await.unwrap();
@@ -127,7 +128,7 @@ impl MakerAccess {
 
 pub(crate) struct Maker {
     tx: mpsc::Sender<MakerRequest>,
-    pub task_handle: tokio::task::JoinHandle<()>,
+    pub(crate) task_handle: tokio::task::JoinHandle<()>,
 }
 
 impl Maker {
