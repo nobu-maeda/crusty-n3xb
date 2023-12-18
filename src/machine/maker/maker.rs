@@ -1,4 +1,5 @@
 use log::{debug, error, info, warn};
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use strum_macros::{Display, IntoStaticStr};
 use url::Url;
@@ -163,6 +164,18 @@ pub(super) enum MakerRequest {
     UnregisterNotifTx {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
+}
+
+#[derive(Serialize, Deserialize)]
+struct MakerActorData {
+    order: Order,
+    relay_urls: HashSet<Url>,
+    order_event_id: Option<EventIdString>,
+    offer_envelopes: HashMap<EventIdString, OfferEnvelope>,
+    accepted_offer_event_id: Option<EventIdString>,
+    trade_rsp: Option<TradeResponse>,
+    trade_rsp_event_id: Option<EventIdString>,
+    reject_invalid_offers_silently: bool,
 }
 
 struct MakerActor {

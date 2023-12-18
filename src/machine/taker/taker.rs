@@ -1,5 +1,6 @@
 use log::{debug, error, info, warn};
 
+use serde::{Deserialize, Serialize};
 use strum_macros::{Display, IntoStaticStr};
 use tokio::{
     select,
@@ -123,6 +124,14 @@ pub(super) enum TakerRequest {
     UnregisterNotifTx {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
+}
+
+#[derive(Serialize, Deserialize)]
+struct TakerActorData {
+    order_envelope: OrderEnvelope,
+    offer: Offer,
+    offer_event_id: Option<EventIdString>,
+    trade_rsp_envelope: Option<TradeResponseEnvelope>,
 }
 
 struct TakerActor {

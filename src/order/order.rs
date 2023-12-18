@@ -11,7 +11,7 @@ use crate::common::{
     types::{EventIdString, ObligationKind, SerdeGenericTrait},
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OrderEnvelope {
     pub pubkey: XOnlyPublicKey,
     pub urls: HashSet<Url>,

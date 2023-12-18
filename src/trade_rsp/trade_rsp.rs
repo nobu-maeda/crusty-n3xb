@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::common::{error::OfferInvalidReason, types::*};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TradeResponseEnvelope {
     pub pubkey: XOnlyPublicKey,
     pub event_id: EventIdString,
@@ -20,7 +20,7 @@ pub enum TradeResponseStatus {
     NotAvailable,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TradeResponse {
     pub offer_event_id: EventIdString,
     pub trade_response: TradeResponseStatus,

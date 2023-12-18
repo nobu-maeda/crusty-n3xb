@@ -9,7 +9,7 @@ use crate::{
 };
 
 // Take Order Message Data Structure
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OfferEnvelope {
     pub pubkey: XOnlyPublicKey,
     pub event_id: EventIdString,
