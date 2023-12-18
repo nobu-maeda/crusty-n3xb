@@ -21,23 +21,23 @@ mod test_query {
     async fn test_query_order_filtering() {
         let relay1: Relay = Relay::start();
         relay1.wait_for_healthy_relay().await.unwrap();
-        let relay1_addr = (format!("{}:{}", "ws://localhost", relay1.port), None);
-        let relay1_url = Url::from_str(&relay1_addr.0).unwrap();
+        let relay1_url = Url::from_str(&format!("{}:{}", "ws://localhost", relay1.port)).unwrap();
+        let relay1_addr = (relay1_url.clone(), None);
 
         let relay2: Relay = Relay::start();
         relay2.wait_for_healthy_relay().await.unwrap();
-        let relay2_addr = (format!("{}:{}", "ws://localhost", relay2.port), None);
-        let relay2_url = Url::from_str(&relay2_addr.0).unwrap();
+        let relay2_url = Url::from_str(&format!("{}:{}", "ws://localhost", relay2.port)).unwrap();
+        let relay2_addr = (relay2_url.clone(), None);
 
         let relay3: Relay = Relay::start();
         relay3.wait_for_healthy_relay().await.unwrap();
-        let relay3_addr = (format!("{}:{}", "ws://localhost", relay3.port), None);
-        let _relay3_url = Url::from_str(&relay3_addr.0).unwrap();
+        let relay3_url = Url::from_str(&format!("{}:{}", "ws://localhost", relay3.port)).unwrap();
+        let relay3_addr = (relay3_url.clone(), None);
 
         let relay4: Relay = Relay::start();
         relay4.wait_for_healthy_relay().await.unwrap();
-        let relay4_addr = (format!("{}:{}", "ws://localhost", relay4.port), None);
-        let relay4_url = Url::from_str(&relay4_addr.0).unwrap();
+        let relay4_url = Url::from_str(&format!("{}:{}", "ws://localhost", relay4.port)).unwrap();
+        let relay4_addr = (relay4_url.clone(), None);
 
         let test_engine_name1 = String::from("TestEngine1");
         let test_engine_name2 = String::from("TestEngine2");

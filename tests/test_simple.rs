@@ -3,6 +3,7 @@ mod common;
 #[cfg(test)]
 mod test_simple {
     use std::net::SocketAddr;
+    use std::str::FromStr;
     use std::time::Duration;
 
     use tokio::time::sleep;
@@ -10,6 +11,7 @@ mod test_simple {
     use crusty_n3xb::manager::Manager;
     use crusty_n3xb::order::FilterTag;
     use crusty_n3xb::testing::*;
+    use url::Url;
 
     use super::common::maker_testers::MakerTester;
     use super::common::relay::Relay;
@@ -39,10 +41,12 @@ mod test_simple {
         let maker_manager = Manager::new(&test_engine_name).await;
         let taker_manager = Manager::new(&test_engine_name).await;
 
-        let mut relay_addrs: Vec<(String, Option<SocketAddr>)> = Vec::new();
+        let mut relay_addrs: Vec<(Url, Option<SocketAddr>)> = Vec::new();
 
         for relay in relays.iter_mut() {
-            relay_addrs.push((format!("{}:{}", "ws://localhost", relay.port), None));
+            let relay_addr =
+                Url::from_str(&format!("{}:{}", "ws://localhost", relay.port)).unwrap();
+            relay_addrs.push((relay_addr, None));
         }
 
         maker_manager

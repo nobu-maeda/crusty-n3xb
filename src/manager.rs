@@ -5,6 +5,7 @@ use std::net::SocketAddr;
 use secp256k1::{SecretKey, XOnlyPublicKey};
 use tokio::sync::RwLock;
 use tokio::task::JoinError;
+use url::Url;
 use uuid::Uuid;
 
 use crate::common::error::N3xbError;
@@ -71,7 +72,7 @@ impl Manager {
 
     pub async fn add_relays(
         &self,
-        relays: Vec<(String, Option<SocketAddr>)>,
+        relays: Vec<(Url, Option<SocketAddr>)>,
         connect: bool,
     ) -> Result<(), N3xbError> {
         debug!(
@@ -83,6 +84,21 @@ impl Manager {
             .add_relays(relays, connect)
             .await?;
         Ok(())
+    }
+
+    pub async fn remove_relay(&self, relay: Url) -> Result<(), N3xbError> {
+        debug!(
+            "Manager w/ pubkey {} removing relay {:?}",
+            self.pubkey().await,
+            relay
+        );
+        self.communicator_accessor.remove_relay(relay).await?;
+        Ok(())
+    }
+
+    pub async fn get_relays(&self) -> Vec<Url> {
+        debug!("Manager w/ pubkey {} getting relays", self.pubkey().await);
+        self.communicator_accessor.get_relays().await
     }
 
     // Order Management

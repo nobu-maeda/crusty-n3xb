@@ -7,7 +7,6 @@ use tokio::select;
 use tokio::sync::{mpsc, oneshot};
 
 use secp256k1::{rand::rngs::OsRng, Secp256k1, SecretKey, XOnlyPublicKey};
-use url::Url;
 use uuid::Uuid;
 
 use crate::common::error::N3xbError;
@@ -42,7 +41,7 @@ impl CommunicatorAccess {
 
     pub(crate) async fn add_relays(
         &self,
-        relays: Vec<(String, Option<SocketAddr>)>,
+        relays: Vec<(url::Url, Option<SocketAddr>)>,
         connect: bool,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
@@ -55,18 +54,15 @@ impl CommunicatorAccess {
         rsp_rx.await.unwrap()
     }
 
-    pub(crate) async fn remove_relay(&self, relay: impl Into<String>) -> Result<(), N3xbError> {
+    pub(crate) async fn remove_relay(&self, relay: url::Url) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = CommunicatorRequest::RemoveRelay {
-            relay: relay.into(),
-            rsp_tx,
-        };
+        let request = CommunicatorRequest::RemoveRelay { relay, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
 
-    pub(crate) async fn get_relays(&self) -> Vec<Url> {
-        let (rsp_tx, rsp_rx) = oneshot::channel::<Vec<Url>>();
+    pub(crate) async fn get_relays(&self) -> Vec<url::Url> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Vec<url::Url>>();
         let request = CommunicatorRequest::GetRelays { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
@@ -278,16 +274,16 @@ pub(super) enum CommunicatorRequest {
         rsp_tx: oneshot::Sender<XOnlyPublicKey>,
     },
     AddRelays {
-        relays: Vec<(String, Option<SocketAddr>)>,
+        relays: Vec<(url::Url, Option<SocketAddr>)>,
         connect: bool,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     RemoveRelay {
-        relay: String,
+        relay: url::Url,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     GetRelays {
-        rsp_tx: oneshot::Sender<Vec<Url>>,
+        rsp_tx: oneshot::Sender<Vec<url::Url>>,
     },
     RegisterTradeTx {
         trade_uuid: Uuid,
@@ -624,7 +620,7 @@ impl CommunicatorActor {
 
     async fn add_relays(
         &mut self,
-        relays: Vec<(impl Into<String> + 'static, Option<SocketAddr>)>,
+        relays: Vec<(url::Url, Option<SocketAddr>)>,
         connect: bool,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
@@ -652,7 +648,7 @@ impl CommunicatorActor {
 
     async fn remove_relay(
         &mut self,
-        relay: impl Into<String> + 'static,
+        relay: url::Url,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
         let relay_string: String = relay.into();
@@ -663,11 +659,11 @@ impl CommunicatorActor {
         };
     }
 
-    async fn get_relays(&self, rsp_tx: oneshot::Sender<Vec<Url>>) {
+    async fn get_relays(&self, rsp_tx: oneshot::Sender<Vec<url::Url>>) {
         let relays = self.client.relays().await;
-        let urls: Vec<Url> = relays
+        let urls: Vec<url::Url> = relays
             .iter()
-            .map(|(url, _)| Url::from_str(url.as_str()).unwrap())
+            .map(|(url, _)| url::Url::from_str(url.as_str()).unwrap())
             .collect();
         rsp_tx.send(urls).unwrap(); // Oneshot should not fail
     }
@@ -722,7 +718,7 @@ impl CommunicatorActor {
             .await
             .keys()
             .cloned()
-            .map(|url| Url::parse(url.as_str()).unwrap())
+            .map(|url| url::Url::parse(url.as_str()).unwrap())
             .collect();
 
         let result = self
@@ -944,7 +940,7 @@ impl CommunicatorActor {
 
         let urls = relay_urls
             .iter()
-            .map(|url| Url::parse(url.as_str()).unwrap())
+            .map(|url| url::Url::parse(url.as_str()).unwrap())
             .collect();
 
         Ok(OrderEnvelope {
