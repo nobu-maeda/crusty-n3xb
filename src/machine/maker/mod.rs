@@ -1,4 +1,4 @@
 mod maker;
 
 pub(crate) use maker::Maker;
-pub use maker::MakerAccess;
+pub use maker::{MakerAccess, MakerNotif};

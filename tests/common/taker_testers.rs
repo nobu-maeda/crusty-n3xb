@@ -1,13 +1,13 @@
 use crusty_n3xb::{
     common::error::N3xbError,
+    machine::taker::TakerNotif,
     manager::Manager,
     order::{FilterTag, OrderEnvelope},
-    peer_msg::PeerEnvelope,
     testing::{
         SomeTestOfferParams, SomeTestOrderParams, SomeTestTradeRspParams,
         TESTING_DEFAULT_CHANNEL_SIZE,
     },
-    trade_rsp::{TradeResponseEnvelope, TradeResponseStatus},
+    trade_rsp::TradeResponseStatus,
 };
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
@@ -102,21 +102,20 @@ impl TakerTesterActor {
         let offer = SomeTestOfferParams::default_builder().build().unwrap();
         let taker = self.manager.new_taker(order_envelope, offer).await.unwrap();
 
-        // Register Taker for Trade Response notifications
-        let (trade_notif_tx, mut trade_notif_rx) =
-            mpsc::channel::<Result<TradeResponseEnvelope, N3xbError>>(TESTING_DEFAULT_CHANNEL_SIZE);
-        taker.register_trade_notif_tx(trade_notif_tx).await.unwrap();
-
-        let (peer_notif_tx, mut peer_notif_rx) =
-            mpsc::channel::<Result<PeerEnvelope, N3xbError>>(TESTING_DEFAULT_CHANNEL_SIZE);
-        taker.register_peer_notif_tx(peer_notif_tx).await.unwrap();
+        // Register Taker for notifications
+        let (notif_tx, mut notif_rx) =
+            mpsc::channel::<Result<TakerNotif, N3xbError>>(TESTING_DEFAULT_CHANNEL_SIZE);
+        taker.register_notif_tx(notif_tx).await.unwrap();
 
         // Take Order with configured Offer
         taker.take_order().await.unwrap();
 
         // Wait for Trade Response notifications
-        let trade_notif_result = trade_notif_rx.recv().await.unwrap();
-        let trade_rsp_envelope = trade_notif_result.unwrap();
+        let notif_result = notif_rx.recv().await.unwrap();
+        let trade_rsp_envelope = match notif_result.unwrap() {
+            TakerNotif::TradeRsp(trade_rsp_envelope) => trade_rsp_envelope,
+            _ => panic!("Taker only expects Trade Response notification at this point"),
+        };
 
         let mut expected_trade_rsp_builder = SomeTestTradeRspParams::default_builder();
         expected_trade_rsp_builder.offer_event_id("".to_string());
@@ -140,8 +139,11 @@ impl TakerTesterActor {
             .unwrap();
 
         // Wait for another Trade Engine specific Peer Message
-        let peer_notif_result = peer_notif_rx.recv().await.unwrap();
-        let peer_envelope = peer_notif_result.unwrap();
+        let notif_result = notif_rx.recv().await.unwrap();
+        let peer_envelope = match notif_result.unwrap() {
+            TakerNotif::Peer(peer_envelope) => peer_envelope,
+            _ => panic!("Taker only expects Peer notification at this point"),
+        };
 
         // Check Peer Message
         let another_trade_eng_msg = peer_envelope
