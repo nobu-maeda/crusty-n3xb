@@ -24,7 +24,7 @@ pub(crate) enum SerdeGenericType {
 }
 
 #[typetag::serde(tag = "type")]
-pub trait SerdeGenericTrait: DynClone + Debug + Send {
+pub trait SerdeGenericTrait: DynClone + Debug + Send + Sync {
     fn any_ref(&self) -> &dyn Any;
 }
 

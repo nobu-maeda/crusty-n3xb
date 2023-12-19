@@ -1,11 +1,14 @@
-use log::error;
+use log::{error, trace};
 use std::{
     collections::{HashMap, HashSet},
-    sync::mpsc,
+    sync::Arc,
 };
 
 use serde::{Deserialize, Serialize};
-use tokio::sync::Semaphore;
+use tokio::{
+    io::AsyncWriteExt,
+    sync::{mpsc, RwLock},
+};
 use url::Url;
 
 use crate::{
@@ -17,6 +20,7 @@ use crate::{
 
 #[derive(Serialize, Deserialize)]
 struct MakerActorDataStore {
+    // Order state data
     order: Order,
     relay_urls: HashSet<Url>,
     order_event_id: Option<EventIdString>,
@@ -24,125 +28,182 @@ struct MakerActorDataStore {
     accepted_offer_event_id: Option<EventIdString>,
     trade_rsp: Option<TradeResponse>,
     trade_rsp_event_id: Option<EventIdString>,
+    trade_completed: bool,
+
+    // Order specific settings
     reject_invalid_offers_silently: bool,
 }
 
 impl MakerActorDataStore {
     // TODO: Optional - Encrypt with private key before persisting data
-    async fn persist(&self) -> Result<(), N3xbError> {
+    async fn persist(&self, manager_id: impl AsRef<str>) -> Result<(), N3xbError> {
         let data_json = serde_json::to_string(&self)?;
-        let data_path = format!("data/maker/{}.json", self.order.trade_uuid);
-        tokio::fs::write(data_path, data_json).await?;
-
+        let data_path = format!(
+            "data/{}/maker/{}.json",
+            manager_id.as_ref().to_owned(),
+            self.order.trade_uuid
+        );
+        let mut data_file = tokio::fs::File::create(data_path).await?;
+        data_file.write_all(data_json.as_bytes()).await?;
+        data_file.sync_all().await?;
         Ok(())
     }
 }
 
 pub(crate) struct MakerActorData {
-    store: MakerActorDataStore,
+    persist_tx: mpsc::Sender<()>,
+    store: Arc<RwLock<MakerActorDataStore>>,
 }
 
 impl MakerActorData {
     pub(crate) fn new(
+        manager_id: impl AsRef<str>,
         order: Order,
-        relay_urls: HashSet<Url>,
-        order_event_id: Option<EventIdString>,
-        offer_envelopes: HashMap<EventIdString, OfferEnvelope>,
-        accepted_offer_event_id: Option<EventIdString>,
-        trade_rsp: Option<TradeResponse>,
-        trade_rsp_event_id: Option<EventIdString>,
         reject_invalid_offers_silently: bool,
     ) -> Self {
         let store = MakerActorDataStore {
             order,
-            relay_urls,
-            order_event_id,
-            offer_envelopes,
-            accepted_offer_event_id,
-            trade_rsp,
-            trade_rsp_event_id,
+            relay_urls: HashSet::new(),
+            order_event_id: None,
+            offer_envelopes: HashMap::new(),
+            accepted_offer_event_id: None,
+            trade_rsp: None,
+            trade_rsp_event_id: None,
+            trade_completed: false,
             reject_invalid_offers_silently,
         };
-        Self { store }
+        let store = Arc::new(RwLock::new(store));
+
+        Self {
+            persist_tx: Self::setup_persistance(store.clone(), manager_id),
+            store,
+        }
     }
 
-    pub(crate) fn order(&self) -> &Order {
-        &self.store.order
+    fn setup_persistance(
+        store: Arc<RwLock<MakerActorDataStore>>,
+        manager_id: impl AsRef<str>,
+    ) -> mpsc::Sender<()> {
+        let (persist_tx, mut persist_rx) = mpsc::channel(1);
+        let manager_id = manager_id.as_ref().to_owned();
+        tokio::spawn(async move {
+            loop {
+                persist_rx.recv().await;
+                store.write().await.persist(&manager_id).await.unwrap();
+            }
+        });
+        persist_tx
     }
 
-    pub(crate) fn relay_urls(&self) -> &HashSet<Url> {
-        &self.store.relay_urls
+    fn queue_persistance(&self) {
+        match self.persist_tx.try_send(()) {
+            Ok(_) => {}
+            Err(error) => match error {
+                mpsc::error::TrySendError::Full(_) => {
+                    trace!("Persistance channel full")
+                }
+                mpsc::error::TrySendError::Closed(_) => {
+                    error!("Persistance channel closed")
+                }
+            },
+        }
     }
 
-    pub(crate) fn order_event_id(&self) -> &Option<EventIdString> {
-        &self.store.order_event_id
+    // Getter methods
+
+    pub(crate) async fn order(&self) -> Order {
+        self.store.read().await.order.to_owned()
     }
 
-    pub(crate) fn offer_envelopes(&self) -> &HashMap<EventIdString, OfferEnvelope> {
-        &self.store.offer_envelopes
+    pub(crate) async fn relay_urls(&self) -> HashSet<Url> {
+        self.store.read().await.relay_urls.to_owned()
     }
 
-    pub(crate) fn accepted_offer_event_id(&self) -> &Option<EventIdString> {
-        &self.store.accepted_offer_event_id
+    pub(crate) async fn order_event_id(&self) -> Option<EventIdString> {
+        self.store.read().await.order_event_id.to_owned()
     }
 
-    pub(crate) fn trade_rsp(&self) -> &Option<TradeResponse> {
-        &self.store.trade_rsp
+    pub(crate) async fn offer_envelopes(&self) -> HashMap<EventIdString, OfferEnvelope> {
+        self.store.read().await.offer_envelopes.to_owned()
     }
 
-    pub(crate) fn trade_rsp_event_id(&self) -> &Option<EventIdString> {
-        &self.store.trade_rsp_event_id
+    pub(crate) async fn accepted_offer_event_id(&self) -> Option<EventIdString> {
+        self.store.read().await.accepted_offer_event_id.to_owned()
     }
 
-    pub(crate) fn reject_invalid_offers_silently(&self) -> bool {
-        self.store.reject_invalid_offers_silently
+    pub(crate) async fn trade_rsp(&self) -> Option<TradeResponse> {
+        self.store.read().await.trade_rsp.to_owned()
+    }
+
+    pub(crate) async fn trade_rsp_event_id(&self) -> Option<EventIdString> {
+        self.store.read().await.trade_rsp_event_id.to_owned()
+    }
+
+    pub(crate) async fn trade_completed(&self) -> bool {
+        self.store.read().await.trade_completed
+    }
+
+    pub(crate) async fn reject_invalid_offers_silently(&self) -> bool {
+        self.store
+            .read()
+            .await
+            .reject_invalid_offers_silently
+            .to_owned()
     }
 
     // Setter methods
 
-    pub(crate) fn update_maker_order(
+    pub(crate) async fn update_maker_order(
         &mut self,
         order_event_id: EventIdString,
         relay_urls: HashSet<Url>,
     ) {
-        self.store.order_event_id = Some(order_event_id);
-        self.store.relay_urls = relay_urls;
+        self.store.write().await.order_event_id = Some(order_event_id);
+        self.store.write().await.relay_urls = relay_urls;
+        self.queue_persistance();
     }
 
-    pub(crate) fn set_offer_envelopes(
-        &mut self,
-        offer_envelopes: HashMap<EventIdString, OfferEnvelope>,
-    ) {
-        self.store.offer_envelopes = offer_envelopes;
-    }
-
-    pub(crate) fn set_accepted_offer_event_id(&mut self, accepted_offer_event_id: EventIdString) {
-        self.store.accepted_offer_event_id = Some(accepted_offer_event_id);
-    }
-
-    pub(crate) fn set_trade_rsp(
-        &mut self,
-        trade_rsp: TradeResponse,
-        trade_rsp_event_id: EventIdString,
-    ) {
-        self.store.trade_rsp = Some(trade_rsp);
-        self.store.trade_rsp_event_id = Some(trade_rsp_event_id);
-    }
-
-    pub(crate) fn set_reject_invalid_offers_silently(
-        &mut self,
-        reject_invalid_offers_silently: bool,
-    ) {
-        self.store.reject_invalid_offers_silently = reject_invalid_offers_silently;
-    }
-
-    pub(crate) fn insert_offer_envelope(
+    pub(crate) async fn insert_offer_envelope(
         &mut self,
         offer_event_id: EventIdString,
         offer_envelope: OfferEnvelope,
     ) {
         self.store
+            .write()
+            .await
             .offer_envelopes
             .insert(offer_event_id, offer_envelope);
+        self.queue_persistance();
+    }
+
+    pub(crate) async fn set_accepted_offer_event_id(
+        &mut self,
+        accepted_offer_event_id: EventIdString,
+    ) {
+        self.store.write().await.accepted_offer_event_id = Some(accepted_offer_event_id);
+        self.queue_persistance();
+    }
+
+    pub(crate) async fn set_trade_rsp(
+        &mut self,
+        trade_rsp: TradeResponse,
+        trade_rsp_event_id: EventIdString,
+    ) {
+        self.store.write().await.trade_rsp = Some(trade_rsp);
+        self.store.write().await.trade_rsp_event_id = Some(trade_rsp_event_id);
+        self.queue_persistance();
+    }
+
+    pub(crate) async fn set_trade_completed(&mut self, trade_completed: bool) {
+        self.store.write().await.trade_completed = trade_completed;
+        self.queue_persistance();
+    }
+
+    pub(crate) async fn set_reject_invalid_offers_silently(
+        &mut self,
+        reject_invalid_offers_silently: bool,
+    ) {
+        self.store.write().await.reject_invalid_offers_silently = reject_invalid_offers_silently;
+        self.queue_persistance();
     }
 }

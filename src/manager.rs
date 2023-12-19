@@ -39,6 +39,8 @@ impl Manager {
         let communicator = Communicator::new(trade_engine_name.as_ref()).await;
         let communicator_accessor = communicator.new_accessor();
 
+        Self::setup_directories(communicator_accessor.get_pubkey().await.to_string()).await;
+
         Manager {
             trade_engine_name: trade_engine_name.as_ref().to_string(),
             communicator,
@@ -54,6 +56,8 @@ impl Manager {
         let communicator = Communicator::new_with_key(key, trade_engine_name.as_ref()).await;
         let communicator_accessor = communicator.new_accessor();
 
+        Self::setup_directories(communicator_accessor.get_pubkey().await.to_string()).await;
+
         Manager {
             trade_engine_name: trade_engine_name.as_ref().to_string(),
             communicator,
@@ -62,6 +66,23 @@ impl Manager {
             takers: RwLock::new(HashMap::new()),
             maker_accessors: RwLock::new(HashMap::new()),
             taker_accessors: RwLock::new(HashMap::new()),
+        }
+    }
+
+    async fn setup_directories(identifier: impl AsRef<str>) {
+        // Create directories to data and manager with identifier if not already exist
+        let result: Result<(), N3xbError> = async {
+            let maker_dir = format!("data/{}/maker", identifier.as_ref());
+            tokio::fs::create_dir_all(maker_dir).await?;
+
+            let taker_dir = format!("data/{}/taker", identifier.as_ref());
+            tokio::fs::create_dir_all(taker_dir).await?;
+            Ok(())
+        }
+        .await;
+
+        if let Some(err) = result.err() {
+            panic!("Error setting up data directories - {}", err);
         }
     }
 
