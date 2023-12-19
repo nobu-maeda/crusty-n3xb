@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, io};
 
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, IntoStaticStr};
@@ -16,6 +16,7 @@ pub enum N3xbError {
     NostrEvent(nostr_sdk::event::Error),
     SerdesJson(serde_json::Error),
     MpscSend(String),
+    Io(io::Error),
 }
 
 impl Error for N3xbError {}
@@ -45,9 +46,10 @@ impl fmt::Display for N3xbError {
             N3xbError::SerdesJson(err) => {
                 format!("n3xB-Error | SerdesJsonError - {}", err.to_string())
             }
-            N3xbError::MpscSend(msg) => {
-                format!("n3xB-Error | MpscSendError - {}", msg)
+            N3xbError::MpscSend(err) => {
+                format!("n3xB-Error | MpscSendError - {}", err.to_string())
             }
+            N3xbError::Io(err) => format!("n3xB-Error | IoError - {}", err.to_string()),
         };
         write!(f, "{}", error_string)
     }
@@ -92,6 +94,12 @@ impl<T> From<tokio::sync::mpsc::error::SendError<T>> for N3xbError {
 impl From<OfferInvalidReason> for N3xbError {
     fn from(e: OfferInvalidReason) -> N3xbError {
         N3xbError::InvalidOffer(e)
+    }
+}
+
+impl From<io::Error> for N3xbError {
+    fn from(e: io::Error) -> N3xbError {
+        N3xbError::Io(e)
     }
 }
 
