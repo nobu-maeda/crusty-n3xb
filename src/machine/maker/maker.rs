@@ -1,6 +1,7 @@
 use log::{debug, error, info, warn};
-use std::collections::{HashMap, HashSet};
+use std::{collections::HashMap, path::Path};
 use strum_macros::{Display, IntoStaticStr};
+use uuid::Uuid;
 
 use tokio::{
     select,
@@ -117,11 +118,27 @@ pub(crate) struct Maker {
 impl Maker {
     const MAKER_REQUEST_CHANNEL_SIZE: usize = 10;
 
-    pub(crate) async fn new(communicator_accessor: CommunicatorAccess, order: Order) -> Self {
+    pub(crate) async fn new(
+        communicator_accessor: CommunicatorAccess,
+        order: Order,
+        maker_dir_path: impl AsRef<Path>,
+    ) -> Self {
         let (tx, rx) = mpsc::channel::<MakerRequest>(Self::MAKER_REQUEST_CHANNEL_SIZE);
-        let mut actor = MakerActor::new(rx, communicator_accessor, order).await;
+        let mut actor = MakerActor::new(rx, communicator_accessor, order, maker_dir_path).await;
         let task_handle = tokio::spawn(async move { actor.run().await });
         Self { tx, task_handle }
+    }
+
+    pub(crate) async fn restore(
+        communicator_accessor: CommunicatorAccess,
+        maker_data_path: impl AsRef<Path>,
+    ) -> Result<(Uuid, Self), N3xbError> {
+        let (tx, rx) = mpsc::channel::<MakerRequest>(Self::MAKER_REQUEST_CHANNEL_SIZE);
+        let (trade_uuid, mut actor) =
+            MakerActor::restore(rx, communicator_accessor, maker_data_path).await?;
+        let task_handle = tokio::spawn(async move { actor.run().await });
+        let maker = Self { tx, task_handle };
+        Ok((trade_uuid, maker))
     }
 
     // Communicator Handle
@@ -178,12 +195,9 @@ impl MakerActor {
         rx: mpsc::Receiver<MakerRequest>,
         communicator_accessor: CommunicatorAccess,
         order: Order,
+        maker_dir_path: impl AsRef<Path>,
     ) -> Self {
-        let data = MakerActorData::new(
-            communicator_accessor.get_pubkey().await.to_string(),
-            order,
-            true,
-        );
+        let data = MakerActorData::new(maker_dir_path, order, true);
 
         MakerActor {
             rx,
@@ -191,6 +205,23 @@ impl MakerActor {
             data,
             notif_tx: None,
         }
+    }
+
+    pub(crate) async fn restore(
+        rx: mpsc::Receiver<MakerRequest>,
+        communicator_accessor: CommunicatorAccess,
+        maker_data_path: impl AsRef<Path>,
+    ) -> Result<(Uuid, Self), N3xbError> {
+        let (trade_uuid, data) = MakerActorData::restore(maker_data_path).await?;
+
+        let actor = MakerActor {
+            rx,
+            communicator_accessor,
+            data,
+            notif_tx: None,
+        };
+
+        Ok((trade_uuid, actor))
     }
 
     async fn run(&mut self) {

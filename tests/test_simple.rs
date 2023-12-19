@@ -38,8 +38,11 @@ mod test_simple {
         relays.push(relay);
 
         let test_engine_name = SomeTestParams::engine_name_str();
-        let maker_manager = Manager::new(&test_engine_name).await;
-        let taker_manager = Manager::new(&test_engine_name).await;
+        let test_maker_private_key = SomeTestParams::maker_private_key();
+        let test_taker_private_key = SomeTestParams::taker_private_key();
+
+        let maker_manager = Manager::new_with_key(test_maker_private_key, &test_engine_name).await;
+        let taker_manager = Manager::new_with_key(test_taker_private_key, &test_engine_name).await;
 
         let mut relay_addrs: Vec<(Url, Option<SocketAddr>)> = Vec::new();
 

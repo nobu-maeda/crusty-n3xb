@@ -23,6 +23,7 @@ use super::maker_order_note::MakerOrderNote;
 use super::nostr::*;
 use super::router::Router;
 
+#[derive(Clone)]
 pub(crate) struct CommunicatorAccess {
     tx: mpsc::Sender<CommunicatorRequest>,
 }

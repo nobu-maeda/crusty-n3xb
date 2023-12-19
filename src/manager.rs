@@ -1,6 +1,7 @@
 use log::{debug, warn};
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::path::Path;
 
 use secp256k1::{SecretKey, XOnlyPublicKey};
 use tokio::sync::RwLock;
@@ -19,6 +20,7 @@ use crate::order::{FilterTag, Order, OrderEnvelope};
 // Might need to change to a dyn Trait if mulitple is to be supported at a time
 pub struct Manager {
     trade_engine_name: String,
+    pubkey: XOnlyPublicKey,
     communicator: Communicator,
     communicator_accessor: CommunicatorAccess,
     makers: RwLock<HashMap<Uuid, Maker>>,
@@ -28,62 +30,118 @@ pub struct Manager {
 }
 
 impl Manager {
-    // Public Functions
-
     // Constructors
-
-    // TODO: Should take in genericized Keys or Client, but also Trade Engine Specifics
     // TODO: Should also take in custom path for n3xB file locations
 
     pub async fn new(trade_engine_name: impl AsRef<str>) -> Manager {
         let communicator = Communicator::new(trade_engine_name.as_ref()).await;
-        let communicator_accessor = communicator.new_accessor();
-
-        Self::setup_directories(communicator_accessor.get_pubkey().await.to_string()).await;
-
-        Manager {
-            trade_engine_name: trade_engine_name.as_ref().to_string(),
-            communicator,
-            communicator_accessor,
-            makers: RwLock::new(HashMap::new()),
-            takers: RwLock::new(HashMap::new()),
-            maker_accessors: RwLock::new(HashMap::new()),
-            taker_accessors: RwLock::new(HashMap::new()),
-        }
+        Self::new_with_communicator(communicator, trade_engine_name).await
     }
 
-    pub async fn new_with_keys(key: SecretKey, trade_engine_name: impl AsRef<str>) -> Manager {
+    pub async fn new_with_key(key: SecretKey, trade_engine_name: impl AsRef<str>) -> Manager {
         let communicator = Communicator::new_with_key(key, trade_engine_name.as_ref()).await;
-        let communicator_accessor = communicator.new_accessor();
+        Self::new_with_communicator(communicator, trade_engine_name).await
+    }
 
-        Self::setup_directories(communicator_accessor.get_pubkey().await.to_string()).await;
+    async fn new_with_communicator(
+        communicator: Communicator,
+        trade_engine_name: impl AsRef<str>,
+    ) -> Manager {
+        let communicator_accessor = communicator.new_accessor();
+        let pubkey = communicator_accessor.get_pubkey().await;
+
+        let (makers, takers) =
+            Self::setup_and_restore(&communicator_accessor, pubkey.to_string()).await;
+        let mut maker_accessors = HashMap::new();
+        for maker in &makers {
+            maker_accessors.insert(maker.0.clone(), maker.1.new_accessor().await);
+        }
+        let mut taker_accessors = HashMap::new();
+        for taker in &takers {
+            taker_accessors.insert(taker.0.clone(), taker.1.new_accessor().await);
+        }
 
         Manager {
             trade_engine_name: trade_engine_name.as_ref().to_string(),
+            pubkey,
             communicator,
             communicator_accessor,
-            makers: RwLock::new(HashMap::new()),
-            takers: RwLock::new(HashMap::new()),
-            maker_accessors: RwLock::new(HashMap::new()),
-            taker_accessors: RwLock::new(HashMap::new()),
+            makers: RwLock::new(makers),
+            takers: RwLock::new(takers),
+            maker_accessors: RwLock::new(maker_accessors),
+            taker_accessors: RwLock::new(taker_accessors),
         }
     }
 
-    async fn setup_directories(identifier: impl AsRef<str>) {
-        // Create directories to data and manager with identifier if not already exist
-        let result: Result<(), N3xbError> = async {
-            let maker_dir = format!("data/{}/maker", identifier.as_ref());
-            tokio::fs::create_dir_all(maker_dir).await?;
+    fn maker_data_dir_path(identifier: impl AsRef<str>) -> String {
+        format!("data/{}/makers", identifier.as_ref())
+    }
 
-            let taker_dir = format!("data/{}/taker", identifier.as_ref());
-            tokio::fs::create_dir_all(taker_dir).await?;
-            Ok(())
+    fn taker_data_dir_path(identifier: impl AsRef<str>) -> String {
+        format!("data/{}/takers", identifier.as_ref())
+    }
+
+    async fn setup_and_restore(
+        communicator_accessor: &CommunicatorAccess,
+        identifier: impl AsRef<str>,
+    ) -> (HashMap<Uuid, Maker>, HashMap<Uuid, Taker>) {
+        let result: Result<(HashMap<Uuid, Maker>, HashMap<Uuid, Taker>), N3xbError> = async {
+            // Create directories to data and manager with identifier if not already exist
+            let maker_dir_path = Self::maker_data_dir_path(&identifier);
+            tokio::fs::create_dir_all(&maker_dir_path).await?;
+
+            // Restore Makers from files in maker directory
+            let makers = Self::restore_makers(communicator_accessor, &maker_dir_path).await;
+
+            // Do the same for Takers
+            let taker_dir_path = Self::taker_data_dir_path(&identifier);
+            tokio::fs::create_dir_all(&taker_dir_path).await?;
+
+            let takers = HashMap::new();
+            Ok((makers, takers))
         }
         .await;
 
-        if let Some(err) = result.err() {
-            panic!("Error setting up data directories - {}", err);
+        match result {
+            Ok((makers, takers)) => {
+                debug!(
+                    "Manager w/ pubkey {} restored {} Makers and {} Takers",
+                    identifier.as_ref(),
+                    makers.len(),
+                    takers.len()
+                );
+                (makers, takers)
+            }
+            Err(err) => {
+                warn!("Error setting up & restoring from data directory - {}", err);
+                (HashMap::new(), HashMap::new())
+            }
         }
+    }
+
+    async fn restore_makers(
+        communicator_accessor: &CommunicatorAccess,
+        maker_dir_path: impl AsRef<Path>,
+    ) -> HashMap<Uuid, Maker> {
+        // Go through all files in maker directory and restore each file as a new Maker
+        let mut makers = HashMap::new();
+        let mut maker_files = tokio::fs::read_dir(maker_dir_path).await.unwrap();
+        while let Some(maker_file) = maker_files.next_entry().await.unwrap() {
+            let maker_file_path = maker_file.path();
+            let (trade_uuid, maker) =
+                match Maker::restore(communicator_accessor.clone(), &maker_file_path).await {
+                    Ok((trade_uuid, maker)) => (trade_uuid, maker),
+                    Err(err) => {
+                        warn!(
+                            "Error restoring Maker from file {:?} - {}",
+                            maker_file_path, err
+                        );
+                        continue;
+                    }
+                };
+            makers.insert(trade_uuid, maker);
+        }
+        makers
     }
 
     // Nostr Management
@@ -125,7 +183,12 @@ impl Manager {
     // Order Management
     pub async fn new_maker(&self, order: Order) -> MakerAccess {
         let trade_uuid = order.trade_uuid;
-        let maker = Maker::new(self.communicator.new_accessor(), order).await;
+        let maker = Maker::new(
+            self.communicator.new_accessor(),
+            order,
+            Self::maker_data_dir_path(self.pubkey.to_string()),
+        )
+        .await;
         let maker_my_accessor = maker.new_accessor().await;
         let maker_returned_accessor = maker.new_accessor().await;
 
@@ -179,7 +242,13 @@ impl Manager {
         offer.validate_against(&order_envelope.order)?;
 
         let trade_uuid = order_envelope.order.trade_uuid;
-        let taker = Taker::new(self.communicator.new_accessor(), order_envelope, offer).await;
+        let taker = Taker::new(
+            self.communicator.new_accessor(),
+            order_envelope,
+            offer,
+            Self::taker_data_dir_path(self.pubkey.to_string()),
+        )
+        .await;
         let taker_my_accessor = taker.new_accessor().await;
         let taker_returned_accessor = taker.new_accessor().await;
 
@@ -196,11 +265,6 @@ impl Manager {
         taker_accessors.insert(trade_uuid, taker_my_accessor);
 
         Ok(taker_returned_accessor)
-    }
-
-    fn load_settings() {
-        // TODO: Read all files from relevant directories, scan for settings, and load into memory
-        // Settings should be applied later as applicable from the memory location
     }
 
     pub async fn shutdown(self) -> Result<(), JoinError> {

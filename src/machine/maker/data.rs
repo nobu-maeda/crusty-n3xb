@@ -1,8 +1,10 @@
 use log::{error, trace};
 use std::{
     collections::{HashMap, HashSet},
+    path::Path,
     sync::Arc,
 };
+use uuid::Uuid;
 
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -36,17 +38,21 @@ struct MakerActorDataStore {
 
 impl MakerActorDataStore {
     // TODO: Optional - Encrypt with private key before persisting data
-    async fn persist(&self, manager_id: impl AsRef<str>) -> Result<(), N3xbError> {
+    async fn persist(&self, dir_path: impl AsRef<Path>) -> Result<(), N3xbError> {
         let data_json = serde_json::to_string(&self)?;
-        let data_path = format!(
-            "data/{}/maker/{}.json",
-            manager_id.as_ref().to_owned(),
-            self.order.trade_uuid
-        );
+        let data_path = dir_path
+            .as_ref()
+            .join(format!("{}.json", self.order.trade_uuid));
         let mut data_file = tokio::fs::File::create(data_path).await?;
         data_file.write_all(data_json.as_bytes()).await?;
         data_file.sync_all().await?;
         Ok(())
+    }
+
+    async fn restore(data_path: impl AsRef<Path>) -> Result<Self, N3xbError> {
+        let maker_json = tokio::fs::read_to_string(data_path).await?;
+        let maker_data: Self = serde_json::from_str(&maker_json)?;
+        Ok(maker_data)
     }
 }
 
@@ -57,7 +63,7 @@ pub(crate) struct MakerActorData {
 
 impl MakerActorData {
     pub(crate) fn new(
-        manager_id: impl AsRef<str>,
+        dir_path: impl AsRef<Path>,
         order: Order,
         reject_invalid_offers_silently: bool,
     ) -> Self {
@@ -75,21 +81,43 @@ impl MakerActorData {
         let store = Arc::new(RwLock::new(store));
 
         Self {
-            persist_tx: Self::setup_persistance(store.clone(), manager_id),
+            persist_tx: Self::setup_persistance(store.clone(), &dir_path),
             store,
         }
     }
 
+    pub(crate) async fn restore(data_path: impl AsRef<Path>) -> Result<(Uuid, Self), N3xbError> {
+        let store = MakerActorDataStore::restore(&data_path).await?;
+        let trade_uuid = store.order.trade_uuid;
+
+        let store = Arc::new(RwLock::new(store));
+        let data = Self {
+            persist_tx: Self::setup_persistance(store.clone(), &data_path),
+            store,
+        };
+        Ok((trade_uuid, data))
+    }
+
     fn setup_persistance(
         store: Arc<RwLock<MakerActorDataStore>>,
-        manager_id: impl AsRef<str>,
+        dir_path: impl AsRef<Path>,
     ) -> mpsc::Sender<()> {
         let (persist_tx, mut persist_rx) = mpsc::channel(1);
-        let manager_id = manager_id.as_ref().to_owned();
+        let dir_path_buf = dir_path.as_ref().to_path_buf();
+
         tokio::spawn(async move {
             loop {
                 persist_rx.recv().await;
-                store.write().await.persist(&manager_id).await.unwrap();
+                match store.write().await.persist(dir_path_buf.clone()).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        error!(
+                            "Error persisting Maker data for TradeUUID: {} - {}",
+                            store.read().await.order.trade_uuid,
+                            err
+                        );
+                    }
+                }
             }
         });
         persist_tx

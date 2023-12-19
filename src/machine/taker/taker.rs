@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use log::{debug, error, info, warn};
 
 use serde::{Deserialize, Serialize};
@@ -91,6 +93,7 @@ impl Taker {
         communicator_accessor: CommunicatorAccess,
         order_envelope: OrderEnvelope,
         offer: Offer,
+        taker_dir_path: impl AsRef<Path>,
     ) -> Self {
         let (tx, rx) = mpsc::channel::<TakerRequest>(Self::TAKER_REQUEST_CHANNEL_SIZE);
         let mut actor = TakerActor::new(rx, communicator_accessor, order_envelope, offer).await;
