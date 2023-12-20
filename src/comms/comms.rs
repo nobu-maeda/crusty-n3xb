@@ -86,7 +86,7 @@ impl CommsAccess {
     }
 
     pub(crate) async fn register_peer_message_tx(
-        &mut self,
+        &self,
         trade_uuid: Uuid,
         tx: mpsc::Sender<PeerEnvelope>,
     ) -> Result<(), N3xbError> {
@@ -101,7 +101,7 @@ impl CommsAccess {
     }
 
     pub(crate) async fn unregister_peer_message_tx(
-        &mut self,
+        &self,
         trade_uuid: Uuid,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
@@ -111,7 +111,7 @@ impl CommsAccess {
     }
 
     pub(crate) async fn register_peer_message_fallback_tx(
-        &mut self,
+        &self,
         tx: mpsc::Sender<PeerEnvelope>,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
@@ -120,7 +120,7 @@ impl CommsAccess {
         rsp_rx.await.unwrap()
     }
 
-    pub(crate) async fn unregister_peer_message_fallback_tx(&mut self) -> Result<(), N3xbError> {
+    pub(crate) async fn unregister_peer_message_fallback_tx(&self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = CommsRequest::UnregisterFallbackTx { rsp_tx };
         self.tx.send(request).await.unwrap();

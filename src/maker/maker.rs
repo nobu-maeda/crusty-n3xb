@@ -222,7 +222,7 @@ impl MakerActor {
         Ok((trade_uuid, actor))
     }
 
-    async fn run(&mut self) {
+    async fn run(mut self) {
         let (tx, mut rx) = mpsc::channel::<PeerEnvelope>(20);
 
         if let Some(error) = self
@@ -252,6 +252,7 @@ impl MakerActor {
             }
         }
         info!("Maker w/ TradeUUID {} terminating", self.data.trade_uuid);
+        self.data.terminate().await.unwrap();
     }
 
     // Top-down Request Handling

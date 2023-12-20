@@ -1,8 +1,11 @@
+use log::{error, trace};
 use std::{path::Path, sync::Arc};
 
-use log::{error, trace};
 use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc, RwLock};
+use tokio::{
+    select,
+    sync::{mpsc, RwLock},
+};
 use uuid::Uuid;
 
 use crate::{
@@ -38,10 +41,16 @@ impl TakerActorDataStore {
     }
 }
 
+enum TakerActorDataMsg {
+    Persist,
+    Close,
+}
+
 pub(crate) struct TakerActorData {
     pub(crate) trade_uuid: Uuid,
-    persist_tx: mpsc::Sender<()>,
+    persist_tx: mpsc::Sender<TakerActorDataMsg>,
     store: Arc<RwLock<TakerActorDataStore>>,
+    task_handle: tokio::task::JoinHandle<()>,
 }
 
 impl TakerActorData {
@@ -59,11 +68,14 @@ impl TakerActorData {
             trade_completed: false,
         };
         let store = Arc::new(RwLock::new(store));
+        let (persist_tx, task_handle) =
+            Self::setup_persistance(store.clone(), trade_uuid, &dir_path);
 
         Self {
-            persist_tx: Self::setup_persistance(store.clone(), trade_uuid, &dir_path),
+            persist_tx,
             trade_uuid,
             store,
+            task_handle,
         }
     }
 
@@ -72,10 +84,16 @@ impl TakerActorData {
         let trade_uuid = store.order_envelope.order.trade_uuid;
 
         let store = Arc::new(RwLock::new(store));
+        let dir_path = data_path.as_ref().parent().unwrap();
+
+        let (persist_tx, task_handle) =
+            Self::setup_persistance(store.clone(), trade_uuid, &dir_path);
+
         let data = Self {
-            persist_tx: Self::setup_persistance(store.clone(), trade_uuid, &data_path),
+            persist_tx,
             trade_uuid,
             store,
+            task_handle,
         };
 
         Ok((trade_uuid, data))
@@ -85,32 +103,41 @@ impl TakerActorData {
         store: Arc<RwLock<TakerActorDataStore>>,
         trade_uuid: Uuid,
         dir_path: impl AsRef<Path>,
-    ) -> mpsc::Sender<()> {
+    ) -> (mpsc::Sender<TakerActorDataMsg>, tokio::task::JoinHandle<()>) {
         // No more than 1 persistance request is allowed nor needed.
         // This is essentilaly a debounce mechanism
         let (persist_tx, mut persist_rx) = mpsc::channel(1);
         let dir_path_buf = dir_path.as_ref().to_path_buf();
 
-        tokio::spawn(async move {
+        let task_handle = tokio::spawn(async move {
             let dir_path_buf = dir_path_buf.clone();
             loop {
-                persist_rx.recv().await;
-                match store.read().await.persist(&dir_path_buf).await {
-                    Ok(_) => {}
-                    Err(err) => {
-                        error!(
-                            "Taker w/ Trade UUID {} - Error persisting data: {}",
-                            trade_uuid, err
-                        );
-                    }
+                select! {
+                    Some(msg) = persist_rx.recv() => {
+                        match msg {
+                            TakerActorDataMsg::Persist => {
+                                if let Some(err) = store.read().await.persist(&dir_path_buf).await.err() {
+                                    error!(
+                                        "Taker w/ TradeUUID {} - Error persisting data: {}",
+                                        trade_uuid, err
+                                    );
+                                }
+                            }
+                            TakerActorDataMsg::Close => {
+                                break;
+                            }
+                        }
+
+                    },
+                    else => break,
                 }
             }
         });
-        persist_tx
+        (persist_tx, task_handle)
     }
 
     fn queue_persistance(&self) {
-        match self.persist_tx.try_send(()) {
+        match self.persist_tx.try_send(TakerActorDataMsg::Persist) {
             Ok(_) => {}
             Err(error) => match error {
                 mpsc::error::TrySendError::Full(_) => {
@@ -166,5 +193,11 @@ impl TakerActorData {
     pub(crate) async fn set_trade_completed(&self, trade_completed: bool) {
         self.store.write().await.trade_completed = trade_completed;
         self.queue_persistance();
+    }
+
+    pub(crate) async fn terminate(self) -> Result<(), N3xbError> {
+        self.persist_tx.send(TakerActorDataMsg::Close).await?;
+        self.task_handle.await?;
+        Ok(())
     }
 }

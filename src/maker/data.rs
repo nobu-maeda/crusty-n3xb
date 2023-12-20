@@ -7,7 +7,10 @@ use std::{
 use uuid::Uuid;
 
 use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc, RwLock};
+use tokio::{
+    select,
+    sync::{mpsc, RwLock},
+};
 use url::Url;
 
 use crate::{
@@ -49,10 +52,16 @@ impl MakerActorDataStore {
     }
 }
 
+enum MakerActorDataMsg {
+    Persist,
+    Close,
+}
+
 pub(crate) struct MakerActorData {
     pub(crate) trade_uuid: Uuid,
-    persist_tx: mpsc::Sender<()>,
+    persist_tx: mpsc::Sender<MakerActorDataMsg>,
     store: Arc<RwLock<MakerActorDataStore>>,
+    task_handle: tokio::task::JoinHandle<()>,
 }
 
 impl MakerActorData {
@@ -74,11 +83,14 @@ impl MakerActorData {
             reject_invalid_offers_silently,
         };
         let store = Arc::new(RwLock::new(store));
+        let (persist_tx, task_handle) =
+            Self::setup_persistance(store.clone(), trade_uuid, &dir_path);
 
         Self {
-            persist_tx: Self::setup_persistance(store.clone(), trade_uuid, &dir_path),
+            persist_tx,
             trade_uuid,
             store,
+            task_handle,
         }
     }
 
@@ -87,10 +99,16 @@ impl MakerActorData {
         let trade_uuid = store.order.trade_uuid;
 
         let store = Arc::new(RwLock::new(store));
+        let dir_path = data_path.as_ref().parent().unwrap();
+
+        let (persist_tx, task_handle) =
+            Self::setup_persistance(store.clone(), trade_uuid, &dir_path);
+
         let data = Self {
-            persist_tx: Self::setup_persistance(store.clone(), trade_uuid, &data_path),
+            persist_tx,
             trade_uuid,
             store,
+            task_handle,
         };
         Ok((trade_uuid, data))
     }
@@ -99,32 +117,41 @@ impl MakerActorData {
         store: Arc<RwLock<MakerActorDataStore>>,
         trade_uuid: Uuid,
         dir_path: impl AsRef<Path>,
-    ) -> mpsc::Sender<()> {
+    ) -> (mpsc::Sender<MakerActorDataMsg>, tokio::task::JoinHandle<()>) {
         // No more than 1 persistance request is allowed nor needed.
         // This is essentilaly a debounce mechanism
         let (persist_tx, mut persist_rx) = mpsc::channel(1);
         let dir_path_buf = dir_path.as_ref().to_path_buf();
 
-        tokio::spawn(async move {
+        let task_handle = tokio::spawn(async move {
             let dir_path_buf = dir_path_buf.clone();
             loop {
-                persist_rx.recv().await;
-                match store.read().await.persist(&dir_path_buf).await {
-                    Ok(_) => {}
-                    Err(err) => {
-                        error!(
-                            "Maker w/ TradeUUID {} - Error persisting data: {}",
-                            trade_uuid, err
-                        );
-                    }
+                select! {
+                    Some(msg) = persist_rx.recv() => {
+                        match msg {
+                            MakerActorDataMsg::Persist => {
+                                if let Some(err) = store.read().await.persist(&dir_path_buf).await.err() {
+                                    error!(
+                                        "Maker w/ TradeUUID {} - Error persisting data: {}",
+                                        trade_uuid, err
+                                    );
+                                }
+                            }
+                            MakerActorDataMsg::Close => {
+                                break;
+                            }
+                        }
+
+                    },
+                    else => break,
                 }
             }
         });
-        persist_tx
+        (persist_tx, task_handle)
     }
 
     fn queue_persistance(&self) {
-        match self.persist_tx.try_send(()) {
+        match self.persist_tx.try_send(MakerActorDataMsg::Persist) {
             Ok(_) => {}
             Err(error) => match error {
                 mpsc::error::TrySendError::Full(_) => {
@@ -239,5 +266,11 @@ impl MakerActorData {
     ) {
         self.store.write().await.reject_invalid_offers_silently = reject_invalid_offers_silently;
         self.queue_persistance();
+    }
+
+    pub(crate) async fn terminate(self) -> Result<(), N3xbError> {
+        self.persist_tx.send(MakerActorDataMsg::Close).await?;
+        self.task_handle.await?;
+        Ok(())
     }
 }
