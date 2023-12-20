@@ -7,14 +7,11 @@ use std::{
 use uuid::Uuid;
 
 use serde::{Deserialize, Serialize};
-use tokio::{
-    io::AsyncWriteExt,
-    sync::{mpsc, RwLock},
-};
+use tokio::sync::{mpsc, RwLock};
 use url::Url;
 
 use crate::{
-    common::{error::N3xbError, types::EventIdString},
+    common::{error::N3xbError, types::EventIdString, utils},
     offer::OfferEnvelope,
     order::Order,
     trade_rsp::TradeResponse,
@@ -37,20 +34,16 @@ struct MakerActorDataStore {
 }
 
 impl MakerActorDataStore {
-    // TODO: Optional - Encrypt with private key before persisting data
     async fn persist(&self, dir_path: impl AsRef<Path>) -> Result<(), N3xbError> {
         let data_json = serde_json::to_string(&self)?;
         let data_path = dir_path
             .as_ref()
             .join(format!("{}.json", self.order.trade_uuid));
-        let mut data_file = tokio::fs::File::create(data_path).await?;
-        data_file.write_all(data_json.as_bytes()).await?;
-        data_file.sync_all().await?;
-        Ok(())
+        utils::persist(data_json, data_path).await
     }
 
     async fn restore(data_path: impl AsRef<Path>) -> Result<Self, N3xbError> {
-        let maker_json = tokio::fs::read_to_string(data_path).await?;
+        let maker_json = utils::restore(data_path).await?;
         let maker_data: Self = serde_json::from_str(&maker_json)?;
         Ok(maker_data)
     }
@@ -58,6 +51,7 @@ impl MakerActorDataStore {
 
 pub(crate) struct MakerActorData {
     persist_tx: mpsc::Sender<()>,
+    trade_uuid: Uuid,
     store: Arc<RwLock<MakerActorDataStore>>,
 }
 
@@ -67,6 +61,7 @@ impl MakerActorData {
         order: Order,
         reject_invalid_offers_silently: bool,
     ) -> Self {
+        let trade_uuid = order.trade_uuid;
         let store = MakerActorDataStore {
             order,
             relay_urls: HashSet::new(),
@@ -81,7 +76,8 @@ impl MakerActorData {
         let store = Arc::new(RwLock::new(store));
 
         Self {
-            persist_tx: Self::setup_persistance(store.clone(), &dir_path),
+            persist_tx: Self::setup_persistance(store.clone(), trade_uuid, &dir_path),
+            trade_uuid,
             store,
         }
     }
@@ -92,7 +88,8 @@ impl MakerActorData {
 
         let store = Arc::new(RwLock::new(store));
         let data = Self {
-            persist_tx: Self::setup_persistance(store.clone(), &data_path),
+            persist_tx: Self::setup_persistance(store.clone(), trade_uuid, &data_path),
+            trade_uuid,
             store,
         };
         Ok((trade_uuid, data))
@@ -100,6 +97,7 @@ impl MakerActorData {
 
     fn setup_persistance(
         store: Arc<RwLock<MakerActorDataStore>>,
+        trade_uuid: Uuid,
         dir_path: impl AsRef<Path>,
     ) -> mpsc::Sender<()> {
         let (persist_tx, mut persist_rx) = mpsc::channel(1);
@@ -112,9 +110,8 @@ impl MakerActorData {
                     Ok(_) => {}
                     Err(err) => {
                         error!(
-                            "Error persisting Maker data for TradeUUID: {} - {}",
-                            store.read().await.order.trade_uuid,
-                            err
+                            "Maker w/ TradeUUID {} - Error persisting data: {}",
+                            trade_uuid, err
                         );
                     }
                 }
@@ -128,10 +125,16 @@ impl MakerActorData {
             Ok(_) => {}
             Err(error) => match error {
                 mpsc::error::TrySendError::Full(_) => {
-                    trace!("Persistance channel full")
+                    trace!(
+                        "Maker w/ TradeUUID {} - Persistance channel full",
+                        self.trade_uuid
+                    )
                 }
                 mpsc::error::TrySendError::Closed(_) => {
-                    error!("Persistance channel closed")
+                    error!(
+                        "Maker w/ TradeUUID {} - Persistance channel closed",
+                        self.trade_uuid
+                    )
                 }
             },
         }
