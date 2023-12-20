@@ -69,6 +69,20 @@ impl CommunicatorAccess {
         rsp_rx.await.unwrap()
     }
 
+    pub(crate) async fn connect_relay(&self, relay: url::Url) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = CommunicatorRequest::ConnectRelay { relay, rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+
+    pub(crate) async fn connect_all_relays(&self) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = CommunicatorRequest::ConnectAllRelays { rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+
     pub(crate) async fn register_peer_message_tx(
         &mut self,
         trade_uuid: Uuid,
@@ -286,6 +300,13 @@ pub(super) enum CommunicatorRequest {
     GetRelays {
         rsp_tx: oneshot::Sender<Vec<url::Url>>,
     },
+    ConnectRelay {
+        relay: url::Url,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
+    ConnectAllRelays {
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
     RegisterTradeTx {
         trade_uuid: Uuid,
         tx: mpsc::Sender<PeerEnvelope>,
@@ -418,6 +439,14 @@ impl CommunicatorActor {
             }
 
             CommunicatorRequest::GetRelays { rsp_tx } => self.get_relays(rsp_tx).await,
+
+            CommunicatorRequest::ConnectRelay { relay, rsp_tx } => {
+                self.connect_relay(relay, rsp_tx).await
+            }
+
+            CommunicatorRequest::ConnectAllRelays { rsp_tx } => {
+                self.connect_all_relays(rsp_tx).await
+            }
 
             // Change subscription filters
 
@@ -667,6 +696,20 @@ impl CommunicatorActor {
             .map(|(url, _)| url::Url::from_str(url.as_str()).unwrap())
             .collect();
         rsp_tx.send(urls).unwrap(); // Oneshot should not fail
+    }
+
+    async fn connect_relay(&self, relay: url::Url, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+        let relay_string = relay.to_string();
+        let result = self.client.connect_relay(relay_string).await;
+        match result {
+            Ok(_) => rsp_tx.send(Ok(())).unwrap(),
+            Err(error) => rsp_tx.send(Err(error.into())).unwrap(),
+        };
+    }
+
+    async fn connect_all_relays(&self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+        self.client.connect().await;
+        rsp_tx.send(Ok(())).unwrap();
     }
 
     fn subscription_filters(&self, pubkey: XOnlyPublicKey) -> Vec<Filter> {

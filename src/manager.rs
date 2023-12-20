@@ -180,6 +180,25 @@ impl Manager {
         self.communicator_accessor.get_relays().await
     }
 
+    pub async fn connect_relay(&self, relay: Url) -> Result<(), N3xbError> {
+        debug!(
+            "Manager w/ pubkey {} connecting relay {:?}",
+            self.pubkey().await,
+            relay
+        );
+        self.communicator_accessor.connect_relay(relay).await?;
+        Ok(())
+    }
+
+    pub async fn connect_all_relays(&self) -> Result<(), N3xbError> {
+        debug!(
+            "Manager w/ pubkey {} connecting all relays",
+            self.pubkey().await
+        );
+        self.communicator_accessor.connect_all_relays().await?;
+        Ok(())
+    }
+
     // Order Management
     pub async fn new_maker(&self, order: Order) -> MakerAccess {
         let trade_uuid = order.trade_uuid;
@@ -265,6 +284,22 @@ impl Manager {
         taker_accessors.insert(trade_uuid, taker_my_accessor);
 
         Ok(taker_returned_accessor)
+    }
+
+    pub async fn get_makers(&self) -> Vec<(Uuid, MakerAccess)> {
+        let mut maker_accessors = self.maker_accessors.read().await.clone();
+        maker_accessors
+            .drain()
+            .map(|(uuid, maker_accessor)| (uuid, maker_accessor))
+            .collect()
+    }
+
+    pub async fn get_takers(&self) -> Vec<(Uuid, TakerAccess)> {
+        let mut taker_accessors = self.taker_accessors.read().await.clone();
+        taker_accessors
+            .drain()
+            .map(|(uuid, taker_accessor)| (uuid, taker_accessor))
+            .collect()
     }
 
     pub async fn shutdown(self) -> Result<(), JoinError> {
