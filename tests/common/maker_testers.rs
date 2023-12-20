@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crusty_n3xb::{
     common::error::N3xbError,
-    machine::maker::MakerNotif,
+    maker::MakerNotif,
     manager::Manager,
     order::Order,
     testing::{SomeTestOfferParams, SomeTestTradeRspParams, TESTING_DEFAULT_CHANNEL_SIZE},

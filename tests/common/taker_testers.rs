@@ -1,8 +1,8 @@
 use crusty_n3xb::{
     common::error::N3xbError,
-    machine::taker::TakerNotif,
     manager::Manager,
     order::{FilterTag, OrderEnvelope},
+    taker::TakerNotif,
     testing::{
         SomeTestOfferParams, SomeTestOrderParams, SomeTestTradeRspParams,
         TESTING_DEFAULT_CHANNEL_SIZE,

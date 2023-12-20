@@ -11,10 +11,10 @@ use uuid::Uuid;
 
 use crate::common::error::N3xbError;
 use crate::communicator::{Communicator, CommunicatorAccess};
-use crate::machine::maker::{Maker, MakerAccess};
-use crate::machine::taker::{Taker, TakerAccess};
+use crate::maker::{Maker, MakerAccess};
 use crate::offer::Offer;
 use crate::order::{FilterTag, Order, OrderEnvelope};
+use crate::taker::{Taker, TakerAccess};
 
 // At the moment we only support a single Trade Engine at a time.
 // Might need to change to a dyn Trait if mulitple is to be supported at a time

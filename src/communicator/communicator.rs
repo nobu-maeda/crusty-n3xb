@@ -3,10 +3,10 @@ use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::time::Duration;
-use tokio::select;
-use tokio::sync::{mpsc, oneshot};
 
 use secp256k1::{rand::rngs::OsRng, Secp256k1, SecretKey, XOnlyPublicKey};
+use tokio::select;
+use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
 use crate::common::error::N3xbError;
