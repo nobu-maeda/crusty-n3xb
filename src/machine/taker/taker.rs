@@ -1,18 +1,19 @@
+use log::{debug, error, info, warn};
 use std::path::Path;
 
-use log::{debug, error, info, warn};
-
-use serde::{Deserialize, Serialize};
 use strum_macros::{Display, IntoStaticStr};
 use tokio::{
     select,
     sync::{mpsc, oneshot},
 };
+use uuid::Uuid;
+
+use super::data::TakerActorData;
 
 use crate::{
     common::{
         error::N3xbError,
-        types::{EventIdString, SerdeGenericTrait, SerdeGenericType},
+        types::{SerdeGenericTrait, SerdeGenericType},
     },
     communicator::CommunicatorAccess,
     offer::Offer,
@@ -96,12 +97,29 @@ impl Taker {
         taker_dir_path: impl AsRef<Path>,
     ) -> Self {
         let (tx, rx) = mpsc::channel::<TakerRequest>(Self::TAKER_REQUEST_CHANNEL_SIZE);
-        let mut actor = TakerActor::new(rx, communicator_accessor, order_envelope, offer).await;
+        let mut actor = TakerActor::new(
+            rx,
+            communicator_accessor,
+            order_envelope,
+            offer,
+            taker_dir_path,
+        )
+        .await;
         let task_handle = tokio::spawn(async move { actor.run().await });
         Self { tx, task_handle }
     }
 
-    // Communicator Handle
+    pub(crate) async fn restore(
+        communicator_accessor: CommunicatorAccess,
+        taker_data_path: impl AsRef<Path>,
+    ) -> Result<(Uuid, Self), N3xbError> {
+        let (tx, rx) = mpsc::channel::<TakerRequest>(Self::TAKER_REQUEST_CHANNEL_SIZE);
+        let (trade_uuid, mut actor) =
+            TakerActor::restore(rx, communicator_accessor, taker_data_path).await?;
+        let task_handle = tokio::spawn(async move { actor.run().await });
+        let taker = Self { tx, task_handle };
+        Ok((trade_uuid, taker))
+    }
 
     pub(crate) async fn new_accessor(&self) -> TakerAccess {
         TakerAccess::new(self.tx.clone()).await
@@ -129,21 +147,10 @@ pub(super) enum TakerRequest {
     },
 }
 
-#[derive(Serialize, Deserialize)]
-struct TakerActorData {
-    order_envelope: OrderEnvelope,
-    offer: Offer,
-    offer_event_id: Option<EventIdString>,
-    trade_rsp_envelope: Option<TradeResponseEnvelope>,
-}
-
 struct TakerActor {
     rx: mpsc::Receiver<TakerRequest>,
     communicator_accessor: CommunicatorAccess,
-    order_envelope: OrderEnvelope,
-    offer: Offer,
-    offer_event_id: Option<EventIdString>,
-    trade_rsp_envelope: Option<TradeResponseEnvelope>,
+    data: TakerActorData,
     notif_tx: Option<mpsc::Sender<Result<TakerNotif, N3xbError>>>,
 }
 
@@ -153,31 +160,47 @@ impl TakerActor {
         communicator_accessor: CommunicatorAccess,
         order_envelope: OrderEnvelope,
         offer: Offer,
+        taker_dir_path: impl AsRef<Path>,
     ) -> Self {
+        let data = TakerActorData::new(taker_dir_path, order_envelope, offer);
+
         TakerActor {
             rx,
             communicator_accessor,
-            order_envelope,
-            offer,
-            offer_event_id: None,
-            trade_rsp_envelope: None,
+            data,
             notif_tx: None,
         }
     }
 
+    pub(crate) async fn restore(
+        rx: mpsc::Receiver<TakerRequest>,
+        communicator_accessor: CommunicatorAccess,
+        taker_data_path: impl AsRef<Path>,
+    ) -> Result<(Uuid, Self), N3xbError> {
+        let (trade_uuid, data) = TakerActorData::restore(taker_data_path).await?;
+
+        let actor = TakerActor {
+            rx,
+            communicator_accessor,
+            data,
+            notif_tx: None,
+        };
+
+        Ok((trade_uuid, actor))
+    }
+
     async fn run(&mut self) {
         let (tx, mut rx) = mpsc::channel::<PeerEnvelope>(20);
-        let trade_uuid = self.order_envelope.order.trade_uuid;
 
         if let Some(error) = self
             .communicator_accessor
-            .register_peer_message_tx(trade_uuid, tx)
+            .register_peer_message_tx(self.data.trade_uuid, tx)
             .await
             .err()
         {
             error!(
                 "Failed to register Taker for Peer Messages destined for TradeUUID {}. Taker will terminate. Error: {}",
-                trade_uuid,
+                self.data.trade_uuid,
                 error
             );
         }
@@ -196,7 +219,7 @@ impl TakerActor {
 
             }
         }
-        info!("Taker w/ TradeUUID {} terminating", trade_uuid)
+        info!("Taker w/ TradeUUID {} terminating", self.data.trade_uuid)
     }
 
     // Top-down Requests Handling
@@ -205,7 +228,7 @@ impl TakerActor {
         let mut terminate = false;
         debug!(
             "Taker w/ TradeUUID {} handle_request() of type {}",
-            self.order_envelope.order.trade_uuid, request
+            self.data.trade_uuid, request
         );
 
         match request {
@@ -228,8 +251,8 @@ impl TakerActor {
     }
 
     async fn send_taker_offer(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
-        let order_envelope = self.order_envelope.clone();
-        let offer = self.offer.clone();
+        let order_envelope = self.data.order_envelope().await;
+        let offer = self.data.offer().await;
 
         let result = self
             .communicator_accessor
@@ -244,7 +267,7 @@ impl TakerActor {
 
         match result {
             Ok(event_id) => {
-                self.offer_event_id = Some(event_id);
+                self.data.set_offer_event_id(event_id).await;
                 rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
             }
             Err(err) => {
@@ -258,13 +281,14 @@ impl TakerActor {
         message: Box<dyn SerdeGenericTrait>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
+        let order_envelope = self.data.order_envelope().await;
         let result = self
             .communicator_accessor
             .send_trade_engine_specific_message(
-                self.order_envelope.pubkey,
+                order_envelope.pubkey,
                 None,
-                self.order_envelope.event_id.clone(),
-                self.order_envelope.order.trade_uuid,
+                order_envelope.event_id,
+                order_envelope.order.trade_uuid,
                 message,
             )
             .await;
@@ -288,7 +312,7 @@ impl TakerActor {
         if self.notif_tx.is_some() {
             let error = N3xbError::Simple(format!(
                 "Taker w/ TradeUUID {} already have notif_tx registered",
-                self.order_envelope.order.trade_uuid
+                self.data.trade_uuid
             ));
             result = Err(error);
         }
@@ -301,7 +325,7 @@ impl TakerActor {
         if self.notif_tx.is_none() {
             let error = N3xbError::Simple(format!(
                 "Taker w/ TradeUUID {} does not have notif_tx registered",
-                self.order_envelope.order.trade_uuid
+                self.data.trade_uuid
             ));
             result = Err(error);
         }
@@ -311,6 +335,7 @@ impl TakerActor {
 
     async fn trade_complete(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         // TODO: What else to do for Trade Complete?
+        self.data.set_trade_completed(true).await;
         rsp_tx.send(Ok(())).unwrap();
     }
 
@@ -319,7 +344,7 @@ impl TakerActor {
     async fn handle_peer_message(&mut self, peer_envelope: PeerEnvelope) {
         debug!(
             "Taker w/ TradeUUID {} handle_peer_message() from pubkey {}, of event id {}, type {:?}",
-            self.order_envelope.order.trade_uuid,
+            self.data.trade_uuid,
             peer_envelope.pubkey.to_string(),
             peer_envelope.event_id.to_string(),
             peer_envelope.message_type
@@ -332,7 +357,7 @@ impl TakerActor {
                     .expect(
                         &format!(
                             "Taker w/ TradeUUID {} received peer message of SerdeGenericType::TakerOffer, but failed to downcast message into Offer",
-                            self.order_envelope.order.trade_uuid
+                            self.data.trade_uuid
                         )
                     )
                     .to_owned();
@@ -348,7 +373,7 @@ impl TakerActor {
             SerdeGenericType::TakerOffer => {
                 error!(
                     "Taker w/ TradeUUID {} received unexpected TakerOffer message",
-                    self.order_envelope.order.trade_uuid
+                    self.data.trade_uuid
                 );
             }
 
@@ -363,43 +388,47 @@ impl TakerActor {
         let mut notif_result: Result<TakerNotif, N3xbError> =
             Ok(TakerNotif::TradeRsp(trade_rsp_envelope.clone()));
 
-        if trade_rsp_envelope.pubkey != self.order_envelope.pubkey {
+        let order_envelope = self.data.order_envelope().await;
+        let offer_event_id = self.data.offer_event_id().await.expect(&format!(
+            "Taker w/ TradeUUID {} received TradeResponse message before Taker Offer has been sent",
+            self.data.trade_uuid
+        ));
+
+        if trade_rsp_envelope.pubkey != order_envelope.pubkey {
             notif_result = Err(
                 N3xbError::Simple(
                     format!(
                         "Taker w/ TradeUUID {} received TradeResponse message with unexpected pubkey. Expected pubkey: {}, Received pubkey: {}",
-                        self.order_envelope.order.trade_uuid,
-                        self.order_envelope.pubkey,
+                        self.data.trade_uuid,
+                        order_envelope.pubkey,
                         trade_rsp_envelope.pubkey
                     )
                 )
             );
-        } else if let Some(existing_trade_rsp_envelope) = &self.trade_rsp_envelope {
+        } else if let Some(existing_trade_rsp_envelope) = &self.data.trade_rsp_envelope().await {
             notif_result = Err(
                 N3xbError::Simple(
                     format!(
                         "Taker w/ TradeUUID {} received duplicate TradeResponse message. Previous TradeResponse: {:?}, New TradeResponse: {:?}",
-                        self.order_envelope.order.trade_uuid,
+                        self.data.trade_uuid,
                         existing_trade_rsp_envelope,
                         trade_rsp_envelope
                     )
                 )
             );
-        } else if trade_rsp_envelope.trade_rsp.offer_event_id
-            != self.offer_event_id.clone().unwrap()
-        {
+        } else if trade_rsp_envelope.trade_rsp.offer_event_id != offer_event_id {
             notif_result = Err(
                 N3xbError::Simple(
                     format!(
                         "Taker w/ TradeUUID {} received TradeResponse message with unexpected Offer Event ID. Expected EventId: {:?}, Received EventId: {:?}",
-                        self.order_envelope.order.trade_uuid,
-                        self.offer_event_id,
+                        self.data.trade_uuid,
+                        offer_event_id,
                         trade_rsp_envelope.trade_rsp.offer_event_id
                     )
                 )
             );
         } else {
-            self.trade_rsp_envelope = Some(trade_rsp_envelope.clone());
+            self.data.set_trade_rsp_envelope(trade_rsp_envelope).await;
         }
 
         // Notify user of new Trade Response recieved
@@ -407,25 +436,27 @@ impl TakerActor {
             if let Some(error) = tx.send(notif_result).await.err() {
                 error!(
                     "Taker w/ TradeUUID {} failed in notifying user with handle_trade_response - {}",
-                    self.order_envelope.order.trade_uuid,
+                    self.data.trade_uuid,
                     error
                 );
             }
         } else {
             warn!(
                 "Taker w/ TradeUUID {} do not have Offer notif_tx registered",
-                self.order_envelope.order.trade_uuid
+                self.data.trade_uuid
             );
         }
     }
 
     async fn handle_engine_specific_peer_message(&mut self, envelope: PeerEnvelope) {
+        let order_envelope = self.data.order_envelope().await;
+
         // Verify peer message is signed by the expected pubkey before passing to Trade Engine
-        if envelope.pubkey != self.order_envelope.pubkey {
+        if envelope.pubkey != order_envelope.pubkey {
             error!(
                 "Taker w/ TradeUUID {} received TradeEngineSpecific message with unexpected pubkey. Expected pubkey: {}, Received pubkey: {}",
-                self.order_envelope.order.trade_uuid,
-                self.order_envelope.pubkey,
+                self.data.trade_uuid,
+                order_envelope.pubkey,
                 envelope.pubkey
             );
             return;
@@ -436,13 +467,13 @@ impl TakerActor {
             if let Some(error) = tx.send(Ok(TakerNotif::Peer(envelope))).await.err() {
                 error!(
                     "Maker w/ TradeUUID {} failed in notifying user with handle_peer_message - {}",
-                    self.order_envelope.order.trade_uuid, error
+                    self.data.trade_uuid, error
                 );
             }
         } else {
             warn!(
                 "Maker w/ TradeUUID {} do not have notif_tx registered",
-                self.order_envelope.order.trade_uuid
+                self.data.trade_uuid
             );
         }
     }

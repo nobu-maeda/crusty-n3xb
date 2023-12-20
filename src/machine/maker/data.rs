@@ -100,6 +100,8 @@ impl MakerActorData {
         trade_uuid: Uuid,
         dir_path: impl AsRef<Path>,
     ) -> mpsc::Sender<()> {
+        // No more than 1 persistance request is allowed nor needed.
+        // This is essentilaly a debounce mechanism
         let (persist_tx, mut persist_rx) = mpsc::channel(1);
         let dir_path_buf = dir_path.as_ref().to_path_buf();
 

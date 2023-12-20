@@ -141,8 +141,6 @@ impl Maker {
         Ok((trade_uuid, maker))
     }
 
-    // Communicator Handle
-
     pub(crate) async fn new_accessor(&self) -> MakerAccess {
         MakerAccess::new(self.tx.clone()).await
     }

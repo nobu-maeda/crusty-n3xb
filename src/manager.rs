@@ -97,7 +97,7 @@ impl Manager {
             let taker_dir_path = Self::taker_data_dir_path(&identifier);
             tokio::fs::create_dir_all(&taker_dir_path).await?;
 
-            let takers = HashMap::new();
+            let takers = Self::restore_takers(communicator_accessor, &taker_dir_path).await?;
             Ok((makers, takers))
         }
         .await;
@@ -142,6 +142,31 @@ impl Manager {
             makers.insert(trade_uuid, maker);
         }
         makers
+    }
+
+    async fn restore_takers(
+        communicator_accessor: &CommunicatorAccess,
+        taker_dir_path: impl AsRef<Path>,
+    ) -> Result<HashMap<Uuid, Taker>, N3xbError> {
+        // Go through all files in taker directory and restore each file as a new Taker
+        let mut takers = HashMap::new();
+        let mut taker_files = tokio::fs::read_dir(taker_dir_path).await?;
+        while let Some(taker_file) = taker_files.next_entry().await? {
+            let taker_file_path = taker_file.path();
+            let (trade_uuid, taker) =
+                match Taker::restore(communicator_accessor.clone(), &taker_file_path).await {
+                    Ok((trade_uuid, taker)) => (trade_uuid, taker),
+                    Err(err) => {
+                        warn!(
+                            "Error restoring Taker from file {:?} - {}",
+                            taker_file_path, err
+                        );
+                        continue;
+                    }
+                };
+            takers.insert(trade_uuid, taker);
+        }
+        Ok(takers)
     }
 
     // Nostr Management
