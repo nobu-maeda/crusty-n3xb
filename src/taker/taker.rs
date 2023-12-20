@@ -15,7 +15,7 @@ use crate::{
         error::N3xbError,
         types::{SerdeGenericTrait, SerdeGenericType},
     },
-    communicator::CommunicatorAccess,
+    comms::CommsAccess,
     offer::Offer,
     order::OrderEnvelope,
     peer_msg::PeerEnvelope,
@@ -91,31 +91,25 @@ impl Taker {
     const TAKER_REQUEST_CHANNEL_SIZE: usize = 10;
 
     pub(crate) async fn new(
-        communicator_accessor: CommunicatorAccess,
+        comms_accessor: CommsAccess,
         order_envelope: OrderEnvelope,
         offer: Offer,
         taker_dir_path: impl AsRef<Path>,
     ) -> Self {
         let (tx, rx) = mpsc::channel::<TakerRequest>(Self::TAKER_REQUEST_CHANNEL_SIZE);
-        let mut actor = TakerActor::new(
-            rx,
-            communicator_accessor,
-            order_envelope,
-            offer,
-            taker_dir_path,
-        )
-        .await;
+        let mut actor =
+            TakerActor::new(rx, comms_accessor, order_envelope, offer, taker_dir_path).await;
         let task_handle = tokio::spawn(async move { actor.run().await });
         Self { tx, task_handle }
     }
 
     pub(crate) async fn restore(
-        communicator_accessor: CommunicatorAccess,
+        comms_accessor: CommsAccess,
         taker_data_path: impl AsRef<Path>,
     ) -> Result<(Uuid, Self), N3xbError> {
         let (tx, rx) = mpsc::channel::<TakerRequest>(Self::TAKER_REQUEST_CHANNEL_SIZE);
         let (trade_uuid, mut actor) =
-            TakerActor::restore(rx, communicator_accessor, taker_data_path).await?;
+            TakerActor::restore(rx, comms_accessor, taker_data_path).await?;
         let task_handle = tokio::spawn(async move { actor.run().await });
         let taker = Self { tx, task_handle };
         Ok((trade_uuid, taker))
@@ -149,7 +143,7 @@ pub(super) enum TakerRequest {
 
 struct TakerActor {
     rx: mpsc::Receiver<TakerRequest>,
-    communicator_accessor: CommunicatorAccess,
+    comms_accessor: CommsAccess,
     data: TakerActorData,
     notif_tx: Option<mpsc::Sender<Result<TakerNotif, N3xbError>>>,
 }
@@ -157,7 +151,7 @@ struct TakerActor {
 impl TakerActor {
     pub(crate) async fn new(
         rx: mpsc::Receiver<TakerRequest>,
-        communicator_accessor: CommunicatorAccess,
+        comms_accessor: CommsAccess,
         order_envelope: OrderEnvelope,
         offer: Offer,
         taker_dir_path: impl AsRef<Path>,
@@ -166,7 +160,7 @@ impl TakerActor {
 
         TakerActor {
             rx,
-            communicator_accessor,
+            comms_accessor,
             data,
             notif_tx: None,
         }
@@ -174,14 +168,14 @@ impl TakerActor {
 
     pub(crate) async fn restore(
         rx: mpsc::Receiver<TakerRequest>,
-        communicator_accessor: CommunicatorAccess,
+        comms_accessor: CommsAccess,
         taker_data_path: impl AsRef<Path>,
     ) -> Result<(Uuid, Self), N3xbError> {
         let (trade_uuid, data) = TakerActorData::restore(taker_data_path).await?;
 
         let actor = TakerActor {
             rx,
-            communicator_accessor,
+            comms_accessor,
             data,
             notif_tx: None,
         };
@@ -193,7 +187,7 @@ impl TakerActor {
         let (tx, mut rx) = mpsc::channel::<PeerEnvelope>(20);
 
         if let Some(error) = self
-            .communicator_accessor
+            .comms_accessor
             .register_peer_message_tx(self.data.trade_uuid, tx)
             .await
             .err()
@@ -255,7 +249,7 @@ impl TakerActor {
         let offer = self.data.offer().await;
 
         let result = self
-            .communicator_accessor
+            .comms_accessor
             .send_taker_offer_message(
                 order_envelope.pubkey,
                 Some(order_envelope.event_id.clone()),
@@ -283,7 +277,7 @@ impl TakerActor {
     ) {
         let order_envelope = self.data.order_envelope().await;
         let result = self
-            .communicator_accessor
+            .comms_accessor
             .send_trade_engine_specific_message(
                 order_envelope.pubkey,
                 None,

@@ -15,7 +15,7 @@ use crate::{
         error::{N3xbError, OfferInvalidReason},
         types::{EventIdString, SerdeGenericTrait, SerdeGenericType},
     },
-    communicator::CommunicatorAccess,
+    comms::CommsAccess,
     offer::{Offer, OfferEnvelope},
     order::Order,
     peer_msg::PeerEnvelope,
@@ -119,23 +119,23 @@ impl Maker {
     const MAKER_REQUEST_CHANNEL_SIZE: usize = 10;
 
     pub(crate) async fn new(
-        communicator_accessor: CommunicatorAccess,
+        comms_accessor: CommsAccess,
         order: Order,
         maker_dir_path: impl AsRef<Path>,
     ) -> Self {
         let (tx, rx) = mpsc::channel::<MakerRequest>(Self::MAKER_REQUEST_CHANNEL_SIZE);
-        let mut actor = MakerActor::new(rx, communicator_accessor, order, maker_dir_path).await;
+        let mut actor = MakerActor::new(rx, comms_accessor, order, maker_dir_path).await;
         let task_handle = tokio::spawn(async move { actor.run().await });
         Self { tx, task_handle }
     }
 
     pub(crate) async fn restore(
-        communicator_accessor: CommunicatorAccess,
+        comms_accessor: CommsAccess,
         maker_data_path: impl AsRef<Path>,
     ) -> Result<(Uuid, Self), N3xbError> {
         let (tx, rx) = mpsc::channel::<MakerRequest>(Self::MAKER_REQUEST_CHANNEL_SIZE);
         let (trade_uuid, mut actor) =
-            MakerActor::restore(rx, communicator_accessor, maker_data_path).await?;
+            MakerActor::restore(rx, comms_accessor, maker_data_path).await?;
         let task_handle = tokio::spawn(async move { actor.run().await });
         let maker = Self { tx, task_handle };
         Ok((trade_uuid, maker))
@@ -183,7 +183,7 @@ pub(super) enum MakerRequest {
 
 struct MakerActor {
     rx: mpsc::Receiver<MakerRequest>,
-    communicator_accessor: CommunicatorAccess,
+    comms_accessor: CommsAccess,
     data: MakerActorData,
     notif_tx: Option<mpsc::Sender<Result<MakerNotif, N3xbError>>>,
 }
@@ -191,7 +191,7 @@ struct MakerActor {
 impl MakerActor {
     pub(crate) async fn new(
         rx: mpsc::Receiver<MakerRequest>,
-        communicator_accessor: CommunicatorAccess,
+        comms_accessor: CommsAccess,
         order: Order,
         maker_dir_path: impl AsRef<Path>,
     ) -> Self {
@@ -199,7 +199,7 @@ impl MakerActor {
 
         MakerActor {
             rx,
-            communicator_accessor,
+            comms_accessor,
             data,
             notif_tx: None,
         }
@@ -207,14 +207,14 @@ impl MakerActor {
 
     pub(crate) async fn restore(
         rx: mpsc::Receiver<MakerRequest>,
-        communicator_accessor: CommunicatorAccess,
+        comms_accessor: CommsAccess,
         maker_data_path: impl AsRef<Path>,
     ) -> Result<(Uuid, Self), N3xbError> {
         let (trade_uuid, data) = MakerActorData::restore(maker_data_path).await?;
 
         let actor = MakerActor {
             rx,
-            communicator_accessor,
+            comms_accessor,
             data,
             notif_tx: None,
         };
@@ -226,7 +226,7 @@ impl MakerActor {
         let (tx, mut rx) = mpsc::channel::<PeerEnvelope>(20);
 
         if let Some(error) = self
-            .communicator_accessor
+            .comms_accessor
             .register_peer_message_tx(self.data.trade_uuid, tx)
             .await
             .err()
@@ -296,10 +296,7 @@ impl MakerActor {
 
     async fn send_maker_order(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         let order = self.data.order().await;
-        let result = self
-            .communicator_accessor
-            .send_maker_order_note(order)
-            .await;
+        let result = self.comms_accessor.send_maker_order_note(order).await;
         match result {
             Ok(order_envelope) => {
                 self.data
@@ -415,7 +412,7 @@ impl MakerActor {
         let trade_rsp_clone = trade_rsp.clone();
 
         let result = self
-            .communicator_accessor
+            .comms_accessor
             .send_trade_response(
                 pubkey,
                 Some(accepted_offer_event_id),
@@ -469,7 +466,7 @@ impl MakerActor {
             //     .unwrap();
 
             // let result = self
-            //     .communicator_accessor
+            //     .comms_accessor
             //     .send_trade_response(
             //         pubkey,
             //         Some(offer_event_id.clone()),
@@ -492,7 +489,7 @@ impl MakerActor {
 
         // Delete Order Note
         let result = self
-            .communicator_accessor
+            .comms_accessor
             .delete_maker_order_note(maker_order_note_id.clone())
             .await;
 
@@ -556,7 +553,7 @@ impl MakerActor {
         };
 
         let result = self
-            .communicator_accessor
+            .comms_accessor
             .send_trade_engine_specific_message(
                 pubkey,
                 None,
@@ -596,7 +593,7 @@ impl MakerActor {
 
         // Delete Order Note
         let result = self
-            .communicator_accessor
+            .comms_accessor
             .delete_maker_order_note(maker_order_note_id.clone())
             .await;
 
@@ -778,7 +775,7 @@ impl MakerActor {
             .build()
             .unwrap();
 
-        self.communicator_accessor
+        self.comms_accessor
             .send_trade_response(
                 pubkey,
                 Some(offer_envelope.event_id.clone()),

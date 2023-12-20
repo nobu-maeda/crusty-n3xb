@@ -10,7 +10,7 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::common::error::N3xbError;
-use crate::communicator::{Communicator, CommunicatorAccess};
+use crate::comms::{Comms, CommsAccess};
 use crate::maker::{Maker, MakerAccess};
 use crate::offer::Offer;
 use crate::order::{FilterTag, Order, OrderEnvelope};
@@ -21,8 +21,8 @@ use crate::taker::{Taker, TakerAccess};
 pub struct Manager {
     trade_engine_name: String,
     pubkey: XOnlyPublicKey,
-    communicator: Communicator,
-    communicator_accessor: CommunicatorAccess,
+    comms: Comms,
+    comms_accessor: CommsAccess,
     makers: RwLock<HashMap<Uuid, Maker>>,
     takers: RwLock<HashMap<Uuid, Taker>>,
     maker_accessors: RwLock<HashMap<Uuid, MakerAccess>>,
@@ -34,24 +34,20 @@ impl Manager {
     // TODO: Should also take in custom path for n3xB file locations
 
     pub async fn new(trade_engine_name: impl AsRef<str>) -> Manager {
-        let communicator = Communicator::new(trade_engine_name.as_ref()).await;
-        Self::new_with_communicator(communicator, trade_engine_name).await
+        let comms = Comms::new(trade_engine_name.as_ref()).await;
+        Self::new_with_comms(comms, trade_engine_name).await
     }
 
     pub async fn new_with_key(key: SecretKey, trade_engine_name: impl AsRef<str>) -> Manager {
-        let communicator = Communicator::new_with_key(key, trade_engine_name.as_ref()).await;
-        Self::new_with_communicator(communicator, trade_engine_name).await
+        let comms = Comms::new_with_key(key, trade_engine_name.as_ref()).await;
+        Self::new_with_comms(comms, trade_engine_name).await
     }
 
-    async fn new_with_communicator(
-        communicator: Communicator,
-        trade_engine_name: impl AsRef<str>,
-    ) -> Manager {
-        let communicator_accessor = communicator.new_accessor();
-        let pubkey = communicator_accessor.get_pubkey().await;
+    async fn new_with_comms(comms: Comms, trade_engine_name: impl AsRef<str>) -> Manager {
+        let comms_accessor = comms.new_accessor();
+        let pubkey = comms_accessor.get_pubkey().await;
 
-        let (makers, takers) =
-            Self::setup_and_restore(&communicator_accessor, pubkey.to_string()).await;
+        let (makers, takers) = Self::setup_and_restore(&comms_accessor, pubkey.to_string()).await;
         let mut maker_accessors = HashMap::new();
         for maker in &makers {
             maker_accessors.insert(maker.0.clone(), maker.1.new_accessor().await);
@@ -64,8 +60,8 @@ impl Manager {
         Manager {
             trade_engine_name: trade_engine_name.as_ref().to_string(),
             pubkey,
-            communicator,
-            communicator_accessor,
+            comms,
+            comms_accessor,
             makers: RwLock::new(makers),
             takers: RwLock::new(takers),
             maker_accessors: RwLock::new(maker_accessors),
@@ -82,7 +78,7 @@ impl Manager {
     }
 
     async fn setup_and_restore(
-        communicator_accessor: &CommunicatorAccess,
+        comms_accessor: &CommsAccess,
         identifier: impl AsRef<str>,
     ) -> (HashMap<Uuid, Maker>, HashMap<Uuid, Taker>) {
         let result: Result<(HashMap<Uuid, Maker>, HashMap<Uuid, Taker>), N3xbError> = async {
@@ -91,13 +87,13 @@ impl Manager {
             tokio::fs::create_dir_all(&maker_dir_path).await?;
 
             // Restore Makers from files in maker directory
-            let makers = Self::restore_makers(communicator_accessor, &maker_dir_path).await;
+            let makers = Self::restore_makers(comms_accessor, &maker_dir_path).await;
 
             // Do the same for Takers
             let taker_dir_path = Self::taker_data_dir_path(&identifier);
             tokio::fs::create_dir_all(&taker_dir_path).await?;
 
-            let takers = Self::restore_takers(communicator_accessor, &taker_dir_path).await?;
+            let takers = Self::restore_takers(comms_accessor, &taker_dir_path).await?;
             Ok((makers, takers))
         }
         .await;
@@ -120,7 +116,7 @@ impl Manager {
     }
 
     async fn restore_makers(
-        communicator_accessor: &CommunicatorAccess,
+        comms_accessor: &CommsAccess,
         maker_dir_path: impl AsRef<Path>,
     ) -> HashMap<Uuid, Maker> {
         // Go through all files in maker directory and restore each file as a new Maker
@@ -129,7 +125,7 @@ impl Manager {
         while let Some(maker_file) = maker_files.next_entry().await.unwrap() {
             let maker_file_path = maker_file.path();
             let (trade_uuid, maker) =
-                match Maker::restore(communicator_accessor.clone(), &maker_file_path).await {
+                match Maker::restore(comms_accessor.clone(), &maker_file_path).await {
                     Ok((trade_uuid, maker)) => (trade_uuid, maker),
                     Err(err) => {
                         warn!(
@@ -145,7 +141,7 @@ impl Manager {
     }
 
     async fn restore_takers(
-        communicator_accessor: &CommunicatorAccess,
+        comms_accessor: &CommsAccess,
         taker_dir_path: impl AsRef<Path>,
     ) -> Result<HashMap<Uuid, Taker>, N3xbError> {
         // Go through all files in taker directory and restore each file as a new Taker
@@ -154,7 +150,7 @@ impl Manager {
         while let Some(taker_file) = taker_files.next_entry().await? {
             let taker_file_path = taker_file.path();
             let (trade_uuid, taker) =
-                match Taker::restore(communicator_accessor.clone(), &taker_file_path).await {
+                match Taker::restore(comms_accessor.clone(), &taker_file_path).await {
                     Ok((trade_uuid, taker)) => (trade_uuid, taker),
                     Err(err) => {
                         warn!(
@@ -171,7 +167,7 @@ impl Manager {
 
     // Nostr Management
     pub async fn pubkey(&self) -> XOnlyPublicKey {
-        self.communicator_accessor.get_pubkey().await
+        self.comms_accessor.get_pubkey().await
     }
 
     pub async fn add_relays(
@@ -184,9 +180,7 @@ impl Manager {
             self.pubkey().await,
             relays
         );
-        self.communicator_accessor
-            .add_relays(relays, connect)
-            .await?;
+        self.comms_accessor.add_relays(relays, connect).await?;
         Ok(())
     }
 
@@ -196,13 +190,13 @@ impl Manager {
             self.pubkey().await,
             relay
         );
-        self.communicator_accessor.remove_relay(relay).await?;
+        self.comms_accessor.remove_relay(relay).await?;
         Ok(())
     }
 
     pub async fn get_relays(&self) -> Vec<Url> {
         debug!("Manager w/ pubkey {} getting relays", self.pubkey().await);
-        self.communicator_accessor.get_relays().await
+        self.comms_accessor.get_relays().await
     }
 
     pub async fn connect_relay(&self, relay: Url) -> Result<(), N3xbError> {
@@ -211,7 +205,7 @@ impl Manager {
             self.pubkey().await,
             relay
         );
-        self.communicator_accessor.connect_relay(relay).await?;
+        self.comms_accessor.connect_relay(relay).await?;
         Ok(())
     }
 
@@ -220,7 +214,7 @@ impl Manager {
             "Manager w/ pubkey {} connecting all relays",
             self.pubkey().await
         );
-        self.communicator_accessor.connect_all_relays().await?;
+        self.comms_accessor.connect_all_relays().await?;
         Ok(())
     }
 
@@ -228,7 +222,7 @@ impl Manager {
     pub async fn new_maker(&self, order: Order) -> MakerAccess {
         let trade_uuid = order.trade_uuid;
         let maker = Maker::new(
-            self.communicator.new_accessor(),
+            self.comms.new_accessor(),
             order,
             Self::maker_data_dir_path(self.pubkey.to_string()),
         )
@@ -255,7 +249,7 @@ impl Manager {
         &self,
         filter_tags: Vec<FilterTag>,
     ) -> Result<Vec<OrderEnvelope>, N3xbError> {
-        let mut order_envelopes = self.communicator_accessor.query_orders(filter_tags).await?;
+        let mut order_envelopes = self.comms_accessor.query_orders(filter_tags).await?;
         let queried_length = order_envelopes.len();
 
         let valid_order_envelopes: Vec<OrderEnvelope> = order_envelopes
@@ -287,7 +281,7 @@ impl Manager {
 
         let trade_uuid = order_envelope.order.trade_uuid;
         let taker = Taker::new(
-            self.communicator.new_accessor(),
+            self.comms.new_accessor(),
             order_envelope,
             offer,
             Self::taker_data_dir_path(self.pubkey.to_string()),
@@ -330,10 +324,10 @@ impl Manager {
     pub async fn shutdown(self) -> Result<(), JoinError> {
         debug!("Manager w/ pubkey {} shutting down", self.pubkey().await);
 
-        if let Some(error) = self.communicator_accessor.shutdown().await.err() {
-            warn!("Manager error shutting down Communicator: {}", error);
+        if let Some(error) = self.comms_accessor.shutdown().await.err() {
+            warn!("Manager error shutting down Comms: {}", error);
         }
-        self.communicator.task_handle.await?;
+        self.comms.task_handle.await?;
         let mut makers = self.makers.write().await;
         for (_uuid, maker) in makers.drain() {
             maker.task_handle.await?;

@@ -8,4 +8,4 @@ pub mod taker;
 pub mod testing;
 pub mod trade_rsp;
 
-mod communicator;
+mod comms;

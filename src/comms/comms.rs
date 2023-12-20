@@ -24,18 +24,18 @@ use super::nostr::*;
 use super::router::Router;
 
 #[derive(Clone)]
-pub(crate) struct CommunicatorAccess {
-    tx: mpsc::Sender<CommunicatorRequest>,
+pub(crate) struct CommsAccess {
+    tx: mpsc::Sender<CommsRequest>,
 }
 
-impl CommunicatorAccess {
-    pub(super) fn new(tx: mpsc::Sender<CommunicatorRequest>) -> Self {
+impl CommsAccess {
+    pub(super) fn new(tx: mpsc::Sender<CommsRequest>) -> Self {
         Self { tx }
     }
 
     pub(crate) async fn get_pubkey(&self) -> XOnlyPublicKey {
         let (rsp_tx, rsp_rx) = oneshot::channel::<XOnlyPublicKey>();
-        let request = CommunicatorRequest::GetPublicKey { rsp_tx };
+        let request = CommsRequest::GetPublicKey { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -46,7 +46,7 @@ impl CommunicatorAccess {
         connect: bool,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = CommunicatorRequest::AddRelays {
+        let request = CommsRequest::AddRelays {
             relays,
             connect,
             rsp_tx,
@@ -57,28 +57,28 @@ impl CommunicatorAccess {
 
     pub(crate) async fn remove_relay(&self, relay: url::Url) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = CommunicatorRequest::RemoveRelay { relay, rsp_tx };
+        let request = CommsRequest::RemoveRelay { relay, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
 
     pub(crate) async fn get_relays(&self) -> Vec<url::Url> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Vec<url::Url>>();
-        let request = CommunicatorRequest::GetRelays { rsp_tx };
+        let request = CommsRequest::GetRelays { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
 
     pub(crate) async fn connect_relay(&self, relay: url::Url) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = CommunicatorRequest::ConnectRelay { relay, rsp_tx };
+        let request = CommsRequest::ConnectRelay { relay, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
 
     pub(crate) async fn connect_all_relays(&self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = CommunicatorRequest::ConnectAllRelays { rsp_tx };
+        let request = CommsRequest::ConnectAllRelays { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -89,7 +89,7 @@ impl CommunicatorAccess {
         tx: mpsc::Sender<PeerEnvelope>,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = CommunicatorRequest::RegisterTradeTx {
+        let request = CommsRequest::RegisterTradeTx {
             trade_uuid,
             tx,
             rsp_tx,
@@ -103,7 +103,7 @@ impl CommunicatorAccess {
         trade_uuid: Uuid,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = CommunicatorRequest::UnregisterTradeTx { trade_uuid, rsp_tx };
+        let request = CommsRequest::UnregisterTradeTx { trade_uuid, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -113,14 +113,14 @@ impl CommunicatorAccess {
         tx: mpsc::Sender<PeerEnvelope>,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = CommunicatorRequest::RegisterFallbackTx { tx, rsp_tx };
+        let request = CommsRequest::RegisterFallbackTx { tx, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
 
     pub(crate) async fn unregister_peer_message_fallback_tx(&mut self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = CommunicatorRequest::UnregisterFallbackTx { rsp_tx };
+        let request = CommsRequest::UnregisterFallbackTx { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -130,7 +130,7 @@ impl CommunicatorAccess {
         order: Order,
     ) -> Result<OrderEnvelope, N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<OrderEnvelope, N3xbError>>();
-        let request = CommunicatorRequest::SendMakerOrderNote { order, rsp_tx };
+        let request = CommsRequest::SendMakerOrderNote { order, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -140,7 +140,7 @@ impl CommunicatorAccess {
         filter_tags: Vec<FilterTag>,
     ) -> Result<Vec<OrderEnvelope>, N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<Vec<OrderEnvelope>, N3xbError>>();
-        let request = CommunicatorRequest::QueryOrders {
+        let request = CommsRequest::QueryOrders {
             filter_tags,
             rsp_tx,
         };
@@ -157,7 +157,7 @@ impl CommunicatorAccess {
         offer: Offer,
     ) -> Result<EventIdString, N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<EventIdString, N3xbError>>();
-        let request = CommunicatorRequest::SendTakerOfferMessage {
+        let request = CommsRequest::SendTakerOfferMessage {
             pubkey,
             responding_to_id,
             maker_order_note_id,
@@ -178,7 +178,7 @@ impl CommunicatorAccess {
         trade_rsp: TradeResponse,
     ) -> Result<EventIdString, N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<EventIdString, N3xbError>>();
-        let request = CommunicatorRequest::SendTradeResponse {
+        let request = CommsRequest::SendTradeResponse {
             pubkey,
             responding_to_id,
             maker_order_note_id,
@@ -199,7 +199,7 @@ impl CommunicatorAccess {
         message: Box<dyn SerdeGenericTrait>,
     ) -> Result<EventIdString, N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<EventIdString, N3xbError>>();
-        let request = CommunicatorRequest::SendTradeEngineSpecificMessage {
+        let request = CommsRequest::SendTradeEngineSpecificMessage {
             pubkey,
             responding_to_id,
             maker_order_note_id,
@@ -216,25 +216,25 @@ impl CommunicatorAccess {
         event_id: EventIdString,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = CommunicatorRequest::DeletMakerOrderNote { event_id, rsp_tx };
+        let request = CommsRequest::DeletMakerOrderNote { event_id, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
 
     pub(crate) async fn shutdown(&self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = CommunicatorRequest::Shutdown { rsp_tx };
+        let request = CommsRequest::Shutdown { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
 }
 
-pub(crate) struct Communicator {
-    tx: mpsc::Sender<CommunicatorRequest>,
+pub(crate) struct Comms {
+    tx: mpsc::Sender<CommsRequest>,
     pub task_handle: tokio::task::JoinHandle<()>,
 }
 
-impl Communicator {
+impl Comms {
     const INTEFACER_REQUEST_CHANNEL_SIZE: usize = 100;
     const NOSTR_EVENT_DEFAULT_POW_DIFFICULTY: u8 = 8;
 
@@ -258,8 +258,8 @@ impl Communicator {
         client: Client,
         trade_engine_name: impl Into<String>,
     ) -> Self {
-        let (tx, rx) = mpsc::channel::<CommunicatorRequest>(Self::INTEFACER_REQUEST_CHANNEL_SIZE);
-        let actor = CommunicatorActor::new(rx, trade_engine_name, client).await;
+        let (tx, rx) = mpsc::channel::<CommsRequest>(Self::INTEFACER_REQUEST_CHANNEL_SIZE);
+        let actor = CommsActor::new(rx, trade_engine_name, client).await;
         let task_handle = tokio::spawn(async move { actor.run().await });
         Self { tx, task_handle }
     }
@@ -276,14 +276,14 @@ impl Communicator {
         client
     }
 
-    // Communicator Handle
+    // Comms Handle
 
-    pub(crate) fn new_accessor(&self) -> CommunicatorAccess {
-        CommunicatorAccess::new(self.tx.clone())
+    pub(crate) fn new_accessor(&self) -> CommsAccess {
+        CommsAccess::new(self.tx.clone())
     }
 }
 
-pub(super) enum CommunicatorRequest {
+pub(super) enum CommsRequest {
     // Requests & Arguments
     GetPublicKey {
         rsp_tx: oneshot::Sender<XOnlyPublicKey>,
@@ -364,22 +364,22 @@ pub(super) enum CommunicatorRequest {
     },
 }
 
-pub(super) struct CommunicatorActor {
-    rx: mpsc::Receiver<CommunicatorRequest>,
+pub(super) struct CommsActor {
+    rx: mpsc::Receiver<CommsRequest>,
     trade_engine_name: String,
     client: Client,
     router: Router,
 }
 
-impl CommunicatorActor {
+impl CommsActor {
     const MAKER_ORDER_NOTE_KIND: Kind = Kind::ParameterizedReplaceable(30078);
 
     pub(super) async fn new(
-        rx: mpsc::Receiver<CommunicatorRequest>,
+        rx: mpsc::Receiver<CommsRequest>,
         trade_engine_name: impl Into<String>,
         client: Client,
     ) -> Self {
-        CommunicatorActor {
+        CommsActor {
             rx,
             trade_engine_name: trade_engine_name.into(),
             client,
@@ -410,48 +410,42 @@ impl CommunicatorActor {
                 result = event_rx.recv() => {
                     match result {
                         Ok(notification) => self.handle_notification(notification).await,
-                        Err(error) => error!("Communicator event RX receive error - {}", error),
+                        Err(error) => error!("Comms event RX receive error - {}", error),
                     }
                 },
                 else => break,
             }
         }
 
-        info!("Communicator w/ pubkey {} terminating", pubkey.to_string());
+        info!("Comms w/ pubkey {} terminating", pubkey.to_string());
         self.client.shutdown().await.unwrap();
     }
 
-    async fn handle_request(&mut self, request: CommunicatorRequest) -> bool {
+    async fn handle_request(&mut self, request: CommsRequest) -> bool {
         let mut terminate = false;
 
         match request {
-            CommunicatorRequest::GetPublicKey { rsp_tx } => self.get_pubkey(rsp_tx).await,
+            CommsRequest::GetPublicKey { rsp_tx } => self.get_pubkey(rsp_tx).await,
 
             // Relays Management
-            CommunicatorRequest::AddRelays {
+            CommsRequest::AddRelays {
                 relays,
                 connect,
                 rsp_tx,
             } => self.add_relays(relays, connect, rsp_tx).await,
 
-            CommunicatorRequest::RemoveRelay { relay, rsp_tx } => {
-                self.remove_relay(relay, rsp_tx).await
-            }
+            CommsRequest::RemoveRelay { relay, rsp_tx } => self.remove_relay(relay, rsp_tx).await,
 
-            CommunicatorRequest::GetRelays { rsp_tx } => self.get_relays(rsp_tx).await,
+            CommsRequest::GetRelays { rsp_tx } => self.get_relays(rsp_tx).await,
 
-            CommunicatorRequest::ConnectRelay { relay, rsp_tx } => {
-                self.connect_relay(relay, rsp_tx).await
-            }
+            CommsRequest::ConnectRelay { relay, rsp_tx } => self.connect_relay(relay, rsp_tx).await,
 
-            CommunicatorRequest::ConnectAllRelays { rsp_tx } => {
-                self.connect_all_relays(rsp_tx).await
-            }
+            CommsRequest::ConnectAllRelays { rsp_tx } => self.connect_all_relays(rsp_tx).await,
 
             // Change subscription filters
 
             // Router management
-            CommunicatorRequest::RegisterTradeTx {
+            CommsRequest::RegisterTradeTx {
                 trade_uuid,
                 tx,
                 rsp_tx,
@@ -460,34 +454,34 @@ impl CommunicatorActor {
                 rsp_tx.send(result).unwrap(); // oneshot should never fail
             }
 
-            CommunicatorRequest::UnregisterTradeTx { trade_uuid, rsp_tx } => {
+            CommsRequest::UnregisterTradeTx { trade_uuid, rsp_tx } => {
                 let result = self.router.unregister_peer_message_tx(trade_uuid);
                 rsp_tx.send(result).unwrap(); // oneshot should never fail
             }
 
-            CommunicatorRequest::RegisterFallbackTx { tx, rsp_tx } => {
+            CommsRequest::RegisterFallbackTx { tx, rsp_tx } => {
                 let result = self.router.register_peer_message_fallback_tx(tx);
                 rsp_tx.send(result).unwrap(); // oneshot should never fail
             }
 
-            CommunicatorRequest::UnregisterFallbackTx { rsp_tx } => {
+            CommsRequest::UnregisterFallbackTx { rsp_tx } => {
                 let result = self.router.unregister_peer_message_fallback_tx();
                 rsp_tx.send(result).unwrap(); // oneshot should never fail
             }
 
             // Send Maker Order Notes
-            CommunicatorRequest::SendMakerOrderNote { order, rsp_tx } => {
+            CommsRequest::SendMakerOrderNote { order, rsp_tx } => {
                 self.send_maker_order_note(order, rsp_tx).await
             }
 
             // Query Order Notes
-            CommunicatorRequest::QueryOrders {
+            CommsRequest::QueryOrders {
                 filter_tags,
                 rsp_tx,
             } => self.query_orders(filter_tags, rsp_tx).await,
 
             // Send Taker Offer Message
-            CommunicatorRequest::SendTakerOfferMessage {
+            CommsRequest::SendTakerOfferMessage {
                 pubkey,
                 responding_to_id,
                 maker_order_note_id,
@@ -507,7 +501,7 @@ impl CommunicatorActor {
             }
 
             // Send Trade Response
-            CommunicatorRequest::SendTradeResponse {
+            CommsRequest::SendTradeResponse {
                 pubkey,
                 responding_to_id,
                 maker_order_note_id,
@@ -527,7 +521,7 @@ impl CommunicatorActor {
             }
 
             // Send Trade Engine Specific Peer Message
-            CommunicatorRequest::SendTradeEngineSpecificMessage {
+            CommsRequest::SendTradeEngineSpecificMessage {
                 pubkey,
                 responding_to_id,
                 maker_order_note_id,
@@ -546,12 +540,12 @@ impl CommunicatorActor {
                 .await;
             }
             // Delete an Maker Order Note
-            CommunicatorRequest::DeletMakerOrderNote { event_id, rsp_tx } => {
+            CommsRequest::DeletMakerOrderNote { event_id, rsp_tx } => {
                 self.delete_maker_order_note(event_id, rsp_tx).await;
             }
 
             // Shutdown
-            CommunicatorRequest::Shutdown { rsp_tx } => {
+            CommsRequest::Shutdown { rsp_tx } => {
                 self.shutdown(rsp_tx).await;
                 terminate = true;
             }
@@ -567,20 +561,20 @@ impl CommunicatorActor {
             }
             RelayPoolNotification::Message(url, _relay_message) => {
                 trace!(
-                    "Communicator w/ pubkey {} handle_notification(), dropping Relay Message from url {}",
+                    "Comms w/ pubkey {} handle_notification(), dropping Relay Message from url {}",
                     self.client.keys().await.public_key().to_string(),
                     url.to_string()
                 );
             }
             RelayPoolNotification::Shutdown => {
                 info!(
-                    "Communicator w/ pubkey {} handle_notification() Shutdown",
+                    "Comms w/ pubkey {} handle_notification() Shutdown",
                     self.client.keys().await.public_key().to_string()
                 );
             }
             RelayPoolNotification::RelayStatus { url, status: _ } => {
                 trace!(
-                    "Communicator w/ pubkey {} handle_notification(), dropping Relay Status from url {}",
+                    "Comms w/ pubkey {} handle_notification(), dropping Relay Status from url {}",
                     self.client.keys().await.public_key().to_string(),
                     url.to_string()
                 );
@@ -594,7 +588,7 @@ impl CommunicatorActor {
             self.handle_direct_message(url, event).await;
         } else {
             debug!(
-                "Communicator w/ pubkey {} handle_notification_event() Event kind Fallthrough",
+                "Comms w/ pubkey {} handle_notification_event() Event kind Fallthrough",
                 self.client.keys().await.public_key().to_string()
             );
         }
@@ -606,7 +600,7 @@ impl CommunicatorActor {
             Ok(content) => content,
             Err(error) => {
                 error!(
-                    "Communicator w/ pubkey {} handle_direct_message() failed to decrypt - {}",
+                    "Comms w/ pubkey {} handle_direct_message() failed to decrypt - {}",
                     self.client.keys().await.public_key().to_string(),
                     error
                 );
@@ -623,7 +617,7 @@ impl CommunicatorActor {
                     .err()
                 {
                     error!(
-                        "Communicator w/ pubkey {} handle_direct_message() failed in router.handle_peer_message() - {}",
+                        "Comms w/ pubkey {} handle_direct_message() failed in router.handle_peer_message() - {}",
                         self.client.keys().await.public_key().to_string(),
                         error
                     );
@@ -632,7 +626,7 @@ impl CommunicatorActor {
             }
             Err(error) => {
                 error!(
-                    "Communicator w/ pubkey {} handle_direct_message() failed to deserialize content as PeerMessage - {}",
+                    "Comms w/ pubkey {} handle_direct_message() failed to deserialize content as PeerMessage - {}",
                     self.client.keys().await.public_key().to_string(),
                     error
                 );
@@ -1206,7 +1200,7 @@ impl CommunicatorActor {
 
     async fn shutdown(&self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         info!(
-            "Communicator w/ pubkey {} Shutdown",
+            "Comms w/ pubkey {} Shutdown",
             self.client.keys().await.public_key().to_string()
         );
         // TODO: Any other shutdown logic needed?
