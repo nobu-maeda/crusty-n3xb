@@ -50,8 +50,8 @@ impl MakerActorDataStore {
 }
 
 pub(crate) struct MakerActorData {
+    pub(crate) trade_uuid: Uuid,
     persist_tx: mpsc::Sender<()>,
-    trade_uuid: Uuid,
     store: Arc<RwLock<MakerActorDataStore>>,
 }
 
