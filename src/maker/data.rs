@@ -38,7 +38,7 @@ impl MakerActorDataStore {
         let data_json = serde_json::to_string(&self)?;
         let data_path = dir_path
             .as_ref()
-            .join(format!("{}.json", self.order.trade_uuid));
+            .join(format!("{}-maker.json", self.order.trade_uuid));
         utils::persist(data_json, data_path).await
     }
 
@@ -106,9 +106,10 @@ impl MakerActorData {
         let dir_path_buf = dir_path.as_ref().to_path_buf();
 
         tokio::spawn(async move {
+            let dir_path_buf = dir_path_buf.clone();
             loop {
                 persist_rx.recv().await;
-                match store.write().await.persist(dir_path_buf.clone()).await {
+                match store.read().await.persist(&dir_path_buf).await {
                     Ok(_) => {}
                     Err(err) => {
                         error!(

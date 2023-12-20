@@ -17,6 +17,7 @@ pub enum N3xbError {
     SerdesJson(serde_json::Error),
     MpscSend(String),
     Io(io::Error),
+    JoinError(tokio::task::JoinError),
 }
 
 impl Error for N3xbError {}
@@ -50,6 +51,9 @@ impl fmt::Display for N3xbError {
                 format!("n3xB-Error | MpscSendError - {}", err.to_string())
             }
             N3xbError::Io(err) => format!("n3xB-Error | IoError - {}", err.to_string()),
+            N3xbError::JoinError(err) => {
+                format!("n3xB-Error | JoinError - {}", err.to_string())
+            }
         };
         write!(f, "{}", error_string)
     }
@@ -100,6 +104,12 @@ impl From<OfferInvalidReason> for N3xbError {
 impl From<io::Error> for N3xbError {
     fn from(e: io::Error) -> N3xbError {
         N3xbError::Io(e)
+    }
+}
+
+impl From<tokio::task::JoinError> for N3xbError {
+    fn from(e: tokio::task::JoinError) -> N3xbError {
+        N3xbError::JoinError(e)
     }
 }
 

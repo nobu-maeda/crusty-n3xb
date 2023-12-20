@@ -29,17 +29,20 @@ pub struct Manager {
     taker_accessors: RwLock<HashMap<Uuid, TakerAccess>>,
 }
 
+const DATA_DIR_PATH_STR: &str = "n3xb_data/";
+
 impl Manager {
     // Constructors
-    // TODO: Should also take in custom path for n3xB file locations
 
     pub async fn new(trade_engine_name: impl AsRef<str>) -> Manager {
-        let comms = Comms::new(trade_engine_name.as_ref()).await;
+        // This will always create a new Comms with a randomly generated key pair
+        let comms = Comms::new(trade_engine_name.as_ref(), DATA_DIR_PATH_STR).await;
         Self::new_with_comms(comms, trade_engine_name).await
     }
 
     pub async fn new_with_key(key: SecretKey, trade_engine_name: impl AsRef<str>) -> Manager {
-        let comms = Comms::new_with_key(key, trade_engine_name.as_ref()).await;
+        // Will try to look for Comms data that matches the pubkey and restore relays if found. New Comms is created otherwise
+        let comms = Comms::new_with_key(key, trade_engine_name.as_ref(), DATA_DIR_PATH_STR).await;
         Self::new_with_comms(comms, trade_engine_name).await
     }
 
@@ -47,7 +50,8 @@ impl Manager {
         let comms_accessor = comms.new_accessor();
         let pubkey = comms_accessor.get_pubkey().await;
 
-        let (makers, takers) = Self::setup_and_restore(&comms_accessor, pubkey.to_string()).await;
+        let (makers, takers) =
+            Self::maker_taker_setup_restore(&comms_accessor, pubkey.to_string()).await;
         let mut maker_accessors = HashMap::new();
         for maker in &makers {
             maker_accessors.insert(maker.0.clone(), maker.1.new_accessor().await);
@@ -70,27 +74,27 @@ impl Manager {
     }
 
     fn maker_data_dir_path(identifier: impl AsRef<str>) -> String {
-        format!("data/{}/makers", identifier.as_ref())
+        format!("{}/{}/makers", DATA_DIR_PATH_STR, identifier.as_ref())
     }
 
     fn taker_data_dir_path(identifier: impl AsRef<str>) -> String {
-        format!("data/{}/takers", identifier.as_ref())
+        format!("{}/{}/takers", DATA_DIR_PATH_STR, identifier.as_ref())
     }
 
-    async fn setup_and_restore(
+    async fn maker_taker_setup_restore(
         comms_accessor: &CommsAccess,
-        identifier: impl AsRef<str>,
+        pubkey_string: impl AsRef<str>,
     ) -> (HashMap<Uuid, Maker>, HashMap<Uuid, Taker>) {
         let result: Result<(HashMap<Uuid, Maker>, HashMap<Uuid, Taker>), N3xbError> = async {
             // Create directories to data and manager with identifier if not already exist
-            let maker_dir_path = Self::maker_data_dir_path(&identifier);
+            let maker_dir_path = Self::maker_data_dir_path(&pubkey_string);
             tokio::fs::create_dir_all(&maker_dir_path).await?;
 
             // Restore Makers from files in maker directory
             let makers = Self::restore_makers(comms_accessor, &maker_dir_path).await;
 
             // Do the same for Takers
-            let taker_dir_path = Self::taker_data_dir_path(&identifier);
+            let taker_dir_path = Self::taker_data_dir_path(&pubkey_string);
             tokio::fs::create_dir_all(&taker_dir_path).await?;
 
             let takers = Self::restore_takers(comms_accessor, &taker_dir_path).await?;
@@ -102,7 +106,7 @@ impl Manager {
             Ok((makers, takers)) => {
                 debug!(
                     "Manager w/ pubkey {} restored {} Makers and {} Takers",
-                    identifier.as_ref(),
+                    pubkey_string.as_ref(),
                     makers.len(),
                     takers.len()
                 );

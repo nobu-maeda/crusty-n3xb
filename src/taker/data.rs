@@ -24,9 +24,10 @@ struct TakerActorDataStore {
 impl TakerActorDataStore {
     async fn persist(&self, dir_path: impl AsRef<Path>) -> Result<(), N3xbError> {
         let data_json = serde_json::to_string(&self)?;
-        let data_path = dir_path
-            .as_ref()
-            .join(format!("{}.json", self.order_envelope.order.trade_uuid));
+        let data_path = dir_path.as_ref().join(format!(
+            "{}-taker.json",
+            self.order_envelope.order.trade_uuid
+        ));
         utils::persist(data_json, data_path).await
     }
 
@@ -91,13 +92,14 @@ impl TakerActorData {
         let dir_path_buf = dir_path.as_ref().to_path_buf();
 
         tokio::spawn(async move {
+            let dir_path_buf = dir_path_buf.clone();
             loop {
                 persist_rx.recv().await;
-                match store.write().await.persist(dir_path_buf.clone()).await {
+                match store.read().await.persist(&dir_path_buf).await {
                     Ok(_) => {}
                     Err(err) => {
                         error!(
-                            "Error persisting Taker data for TradeUUID: {} - {}",
+                            "Taker w/ Trade UUID {} - Error persisting data: {}",
                             trade_uuid, err
                         );
                     }

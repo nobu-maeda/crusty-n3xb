@@ -1,4 +1,5 @@
 mod comms;
+mod data;
 mod maker_order_note;
 mod nostr;
 mod router;

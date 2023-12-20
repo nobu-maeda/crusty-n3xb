@@ -1,6 +1,7 @@
 use log::{debug, error, info, trace, warn};
 use std::collections::HashSet;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -19,6 +20,7 @@ use crate::order::{
 use crate::peer_msg::{PeerEnvelope, PeerMessage};
 use crate::trade_rsp::TradeResponse;
 
+use super::data::CommsData;
 use super::maker_order_note::MakerOrderNote;
 use super::nostr::*;
 use super::router::Router;
@@ -240,26 +242,31 @@ impl Comms {
 
     // Constructors
 
-    pub(crate) async fn new(trade_engine_name: impl Into<String>) -> Self {
+    pub(crate) async fn new(
+        trade_engine_name: impl Into<String>,
+        data_dir_path: impl AsRef<Path>,
+    ) -> Self {
         let secp = Secp256k1::new();
         let (secret_key, _) = secp.generate_keypair(&mut OsRng);
-        Self::new_with_key(secret_key, trade_engine_name).await
+        Self::new_with_key(secret_key, trade_engine_name, data_dir_path).await
     }
 
     pub(crate) async fn new_with_key(
         secret_key: SecretKey,
         trade_engine_name: impl Into<String>,
+        data_dir_path: impl AsRef<Path>,
     ) -> Self {
         let client = Self::new_nostr_client(secret_key).await;
-        Self::new_with_nostr_client(client, trade_engine_name).await
+        Self::new_with_nostr_client(client, trade_engine_name, data_dir_path).await
     }
 
     pub(super) async fn new_with_nostr_client(
         client: Client,
         trade_engine_name: impl Into<String>,
+        data_dir_path: impl AsRef<Path>,
     ) -> Self {
         let (tx, rx) = mpsc::channel::<CommsRequest>(Self::INTEFACER_REQUEST_CHANNEL_SIZE);
-        let actor = CommsActor::new(rx, trade_engine_name, client).await;
+        let actor = CommsActor::new(rx, trade_engine_name, client, data_dir_path).await;
         let task_handle = tokio::spawn(async move { actor.run().await });
         Self { tx, task_handle }
     }
@@ -270,13 +277,8 @@ impl Comms {
             .wait_for_connection(true)
             .wait_for_send(true)
             .difficulty(Self::NOSTR_EVENT_DEFAULT_POW_DIFFICULTY);
-        let client = Client::with_opts(&keys, opts);
-        // TODO: Add saved or default clients
-        client.connect().await;
-        client
+        Client::with_opts(&keys, opts)
     }
-
-    // Comms Handle
 
     pub(crate) fn new_accessor(&self) -> CommsAccess {
         CommsAccess::new(self.tx.clone())
@@ -367,6 +369,8 @@ pub(super) enum CommsRequest {
 pub(super) struct CommsActor {
     rx: mpsc::Receiver<CommsRequest>,
     trade_engine_name: String,
+    pubkey: XOnlyPublicKey,
+    data: CommsData,
     client: Client,
     router: Router,
 }
@@ -378,22 +382,28 @@ impl CommsActor {
         rx: mpsc::Receiver<CommsRequest>,
         trade_engine_name: impl Into<String>,
         client: Client,
+        data_dir_path: impl AsRef<Path>,
     ) -> Self {
-        CommsActor {
+        let pubkey = client.keys().await.public_key();
+        let data = CommsData::new(data_dir_path, pubkey).await.unwrap();
+        let relays = data.relays().await;
+
+        let actor = CommsActor {
             rx,
             trade_engine_name: trade_engine_name.into(),
+            pubkey,
+            data,
             client,
             router: Router::new(),
-        }
+        };
+        actor.add_relays_to_client(relays).await.unwrap();
+        actor
     }
-
-    // Event Loop Main
 
     async fn run(mut self) {
         // Nostr client initializaiton
-        let pubkey = self.client.keys().await.public_key();
         self.client
-            .subscribe(self.subscription_filters(pubkey))
+            .subscribe(self.subscription_filters(self.pubkey))
             .await;
 
         let mut event_rx = self.client.notifications();
@@ -417,8 +427,9 @@ impl CommsActor {
             }
         }
 
-        info!("Comms w/ pubkey {} terminating", pubkey.to_string());
+        info!("Comms w/ pubkey {} terminating", self.pubkey);
         self.client.shutdown().await.unwrap();
+        self.data.terminate().await.unwrap();
     }
 
     async fn handle_request(&mut self, request: CommsRequest) -> bool {
@@ -562,20 +573,20 @@ impl CommsActor {
             RelayPoolNotification::Message(url, _relay_message) => {
                 trace!(
                     "Comms w/ pubkey {} handle_notification(), dropping Relay Message from url {}",
-                    self.client.keys().await.public_key().to_string(),
+                    self.pubkey,
                     url.to_string()
                 );
             }
             RelayPoolNotification::Shutdown => {
                 info!(
                     "Comms w/ pubkey {} handle_notification() Shutdown",
-                    self.client.keys().await.public_key().to_string()
+                    self.pubkey
                 );
             }
             RelayPoolNotification::RelayStatus { url, status: _ } => {
                 trace!(
                     "Comms w/ pubkey {} handle_notification(), dropping Relay Status from url {}",
-                    self.client.keys().await.public_key().to_string(),
+                    self.pubkey,
                     url.to_string()
                 );
             }
@@ -589,7 +600,7 @@ impl CommsActor {
         } else {
             debug!(
                 "Comms w/ pubkey {} handle_notification_event() Event kind Fallthrough",
-                self.client.keys().await.public_key().to_string()
+                self.pubkey
             );
         }
     }
@@ -601,8 +612,7 @@ impl CommsActor {
             Err(error) => {
                 error!(
                     "Comms w/ pubkey {} handle_direct_message() failed to decrypt - {}",
-                    self.client.keys().await.public_key().to_string(),
-                    error
+                    self.pubkey, error
                 );
                 return;
             }
@@ -618,7 +628,7 @@ impl CommsActor {
                 {
                     error!(
                         "Comms w/ pubkey {} handle_direct_message() failed in router.handle_peer_message() - {}",
-                        self.client.keys().await.public_key().to_string(),
+                        self.pubkey,
                         error
                     );
                     return;
@@ -627,7 +637,7 @@ impl CommsActor {
             Err(error) => {
                 error!(
                     "Comms w/ pubkey {} handle_direct_message() failed to deserialize content as PeerMessage - {}",
-                    self.client.keys().await.public_key().to_string(),
+                    self.pubkey,
                     error
                 );
                 return;
@@ -638,32 +648,41 @@ impl CommsActor {
     // Nostr Client Management
 
     async fn get_pubkey(&self, rsp_tx: oneshot::Sender<XOnlyPublicKey>) {
-        let pubkey = self.client.keys().await.public_key();
-        rsp_tx.send(pubkey).unwrap(); // Oneshot should not fail
+        rsp_tx.send(self.pubkey).unwrap(); // Oneshot should not fail
     }
 
-    async fn add_relays(
-        &mut self,
+    async fn add_relays_to_client(
+        &self,
         relays: Vec<(url::Url, Option<SocketAddr>)>,
-        connect: bool,
-        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
-    ) {
+    ) -> Result<(), N3xbError> {
         let into_relays: Vec<(String, Option<SocketAddr>)> = relays
+            .clone()
             .into_iter()
             .map(|(url, addr)| {
                 let url = url.into();
                 (url, addr)
             })
             .collect();
-        if let Some(error) = self.client.add_relays(into_relays).await.err() {
+        self.client.add_relays(into_relays).await?;
+        Ok(())
+    }
+
+    async fn add_relays(
+        &self,
+        relays: Vec<(url::Url, Option<SocketAddr>)>,
+        connect: bool,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    ) {
+        if let Some(error) = self.add_relays_to_client(relays.clone()).await.err() {
             rsp_tx.send(Err(error.into())).unwrap(); // Oneshot should not fail
             return;
         }
 
+        self.data.add_relays(relays).await;
+
         if connect {
-            let pubkey = self.client.keys().await.public_key();
             self.client
-                .subscribe(self.subscription_filters(pubkey))
+                .subscribe(self.subscription_filters(self.pubkey))
                 .await;
             self.client.connect().await;
         }
@@ -675,10 +694,13 @@ impl CommsActor {
         relay: url::Url,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
-        let relay_string: String = relay.into();
+        let relay_string: String = relay.clone().into();
         let result = self.client.remove_relay(relay_string).await;
         match result {
-            Ok(_) => rsp_tx.send(Ok(())).unwrap(),
+            Ok(_) => {
+                rsp_tx.send(Ok(())).unwrap();
+                self.data.remove_relay(&relay).await;
+            }
             Err(error) => rsp_tx.send(Err(error.into())).unwrap(),
         };
     }
@@ -1199,10 +1221,7 @@ impl CommsActor {
     }
 
     async fn shutdown(&self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
-        info!(
-            "Comms w/ pubkey {} Shutdown",
-            self.client.keys().await.public_key().to_string()
-        );
+        info!("Comms w/ pubkey {} Shutdown", self.pubkey);
         // TODO: Any other shutdown logic needed?
         rsp_tx.send(Ok(())).unwrap();
     }
