@@ -124,7 +124,7 @@ impl Maker {
         maker_dir_path: impl AsRef<Path>,
     ) -> Self {
         let (tx, rx) = mpsc::channel::<MakerRequest>(Self::MAKER_REQUEST_CHANNEL_SIZE);
-        let mut actor = MakerActor::new(rx, comms_accessor, order, maker_dir_path).await;
+        let actor = MakerActor::new(rx, comms_accessor, order, maker_dir_path).await;
         let task_handle = tokio::spawn(async move { actor.run().await });
         Self { tx, task_handle }
     }
@@ -134,8 +134,7 @@ impl Maker {
         maker_data_path: impl AsRef<Path>,
     ) -> Result<(Uuid, Self), N3xbError> {
         let (tx, rx) = mpsc::channel::<MakerRequest>(Self::MAKER_REQUEST_CHANNEL_SIZE);
-        let (trade_uuid, mut actor) =
-            MakerActor::restore(rx, comms_accessor, maker_data_path).await?;
+        let (trade_uuid, actor) = MakerActor::restore(rx, comms_accessor, maker_data_path).await?;
         let task_handle = tokio::spawn(async move { actor.run().await });
         let maker = Self { tx, task_handle };
         Ok((trade_uuid, maker))

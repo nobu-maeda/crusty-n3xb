@@ -97,7 +97,7 @@ impl Taker {
         taker_dir_path: impl AsRef<Path>,
     ) -> Self {
         let (tx, rx) = mpsc::channel::<TakerRequest>(Self::TAKER_REQUEST_CHANNEL_SIZE);
-        let mut actor =
+        let actor =
             TakerActor::new(rx, comms_accessor, order_envelope, offer, taker_dir_path).await;
         let task_handle = tokio::spawn(async move { actor.run().await });
         Self { tx, task_handle }
@@ -108,8 +108,7 @@ impl Taker {
         taker_data_path: impl AsRef<Path>,
     ) -> Result<(Uuid, Self), N3xbError> {
         let (tx, rx) = mpsc::channel::<TakerRequest>(Self::TAKER_REQUEST_CHANNEL_SIZE);
-        let (trade_uuid, mut actor) =
-            TakerActor::restore(rx, comms_accessor, taker_data_path).await?;
+        let (trade_uuid, actor) = TakerActor::restore(rx, comms_accessor, taker_data_path).await?;
         let task_handle = tokio::spawn(async move { actor.run().await });
         let taker = Self { tx, task_handle };
         Ok((trade_uuid, taker))
