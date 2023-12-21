@@ -176,25 +176,25 @@ impl Manager {
 
     pub async fn add_relays(
         &self,
-        relays: Vec<(Url, Option<SocketAddr>)>,
+        relay_addrs: Vec<(Url, Option<SocketAddr>)>,
         connect: bool,
     ) -> Result<(), N3xbError> {
         debug!(
             "Manager w/ pubkey {} adding relays {:?}",
             self.pubkey().await,
-            relays
+            relay_addrs
         );
-        self.comms_accessor.add_relays(relays, connect).await?;
+        self.comms_accessor.add_relays(relay_addrs, connect).await?;
         Ok(())
     }
 
-    pub async fn remove_relay(&self, relay: Url) -> Result<(), N3xbError> {
+    pub async fn remove_relay(&self, relay_url: Url) -> Result<(), N3xbError> {
         debug!(
             "Manager w/ pubkey {} removing relay {:?}",
             self.pubkey().await,
-            relay
+            relay_url
         );
-        self.comms_accessor.remove_relay(relay).await?;
+        self.comms_accessor.remove_relay(relay_url).await?;
         Ok(())
     }
 
@@ -203,13 +203,13 @@ impl Manager {
         self.comms_accessor.get_relays().await
     }
 
-    pub async fn connect_relay(&self, relay: Url) -> Result<(), N3xbError> {
+    pub async fn connect_relay(&self, relay_url: Url) -> Result<(), N3xbError> {
         debug!(
             "Manager w/ pubkey {} connecting relay {:?}",
             self.pubkey().await,
-            relay
+            relay_url
         );
-        self.comms_accessor.connect_relay(relay).await?;
+        self.comms_accessor.connect_relay(relay_url).await?;
         Ok(())
     }
 

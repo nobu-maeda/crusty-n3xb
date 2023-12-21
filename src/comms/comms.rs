@@ -1,10 +1,11 @@
 use log::{debug, error, info, trace, warn};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 
+use nostr_sdk::prelude::*;
 use secp256k1::{rand::rngs::OsRng, Secp256k1, SecretKey, XOnlyPublicKey};
 use tokio::select;
 use tokio::sync::{mpsc, oneshot};
@@ -22,7 +23,6 @@ use crate::trade_rsp::TradeResponse;
 
 use super::data::CommsData;
 use super::maker_order_note::MakerOrderNote;
-use super::nostr::*;
 use super::router::Router;
 
 #[derive(Clone)]
@@ -44,12 +44,12 @@ impl CommsAccess {
 
     pub(crate) async fn add_relays(
         &self,
-        relays: Vec<(url::Url, Option<SocketAddr>)>,
+        relay_addrs: Vec<(url::Url, Option<SocketAddr>)>,
         connect: bool,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = CommsRequest::AddRelays {
-            relays,
+            relay_addrs,
             connect,
             rsp_tx,
         };
@@ -57,9 +57,9 @@ impl CommsAccess {
         rsp_rx.await.unwrap()
     }
 
-    pub(crate) async fn remove_relay(&self, relay: url::Url) -> Result<(), N3xbError> {
+    pub(crate) async fn remove_relay(&self, relay_url: url::Url) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = CommsRequest::RemoveRelay { relay, rsp_tx };
+        let request = CommsRequest::RemoveRelay { relay_url, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -71,9 +71,9 @@ impl CommsAccess {
         rsp_rx.await.unwrap()
     }
 
-    pub(crate) async fn connect_relay(&self, relay: url::Url) -> Result<(), N3xbError> {
+    pub(crate) async fn connect_relay(&self, relay_url: url::Url) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = CommsRequest::ConnectRelay { relay, rsp_tx };
+        let request = CommsRequest::ConnectRelay { relay_url, rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -291,19 +291,19 @@ pub(super) enum CommsRequest {
         rsp_tx: oneshot::Sender<XOnlyPublicKey>,
     },
     AddRelays {
-        relays: Vec<(url::Url, Option<SocketAddr>)>,
+        relay_addrs: Vec<(url::Url, Option<SocketAddr>)>,
         connect: bool,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     RemoveRelay {
-        relay: url::Url,
+        relay_url: url::Url,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     GetRelays {
         rsp_tx: oneshot::Sender<Vec<url::Url>>,
     },
     ConnectRelay {
-        relay: url::Url,
+        relay_url: url::Url,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     ConnectAllRelays {
@@ -440,16 +440,20 @@ impl CommsActor {
 
             // Relays Management
             CommsRequest::AddRelays {
-                relays,
+                relay_addrs,
                 connect,
                 rsp_tx,
-            } => self.add_relays(relays, connect, rsp_tx).await,
+            } => self.add_relays(relay_addrs, connect, rsp_tx).await,
 
-            CommsRequest::RemoveRelay { relay, rsp_tx } => self.remove_relay(relay, rsp_tx).await,
+            CommsRequest::RemoveRelay { relay_url, rsp_tx } => {
+                self.remove_relay(relay_url, rsp_tx).await
+            }
 
             CommsRequest::GetRelays { rsp_tx } => self.get_relays(rsp_tx).await,
 
-            CommsRequest::ConnectRelay { relay, rsp_tx } => self.connect_relay(relay, rsp_tx).await,
+            CommsRequest::ConnectRelay { relay_url, rsp_tx } => {
+                self.connect_relay(relay_url, rsp_tx).await
+            }
 
             CommsRequest::ConnectAllRelays { rsp_tx } => self.connect_all_relays(rsp_tx).await,
 
@@ -669,37 +673,96 @@ impl CommsActor {
 
     async fn add_relays(
         &self,
-        relays: Vec<(url::Url, Option<SocketAddr>)>,
+        relay_addrs: Vec<(url::Url, Option<SocketAddr>)>,
         connect: bool,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
-        if let Some(error) = self.add_relays_to_client(relays.clone()).await.err() {
+        if relay_addrs.is_empty() {
+            let error = N3xbError::Simple(format!(
+                "Comms w/ pubkey {} add_relays() called with no relays",
+                self.pubkey
+            ));
+            rsp_tx.send(Err(error)).unwrap(); // Oneshot should not fail
+            return;
+        }
+        self.data.add_relays(relay_addrs.clone()).await;
+
+        let relay_urls: Vec<url::Url> = relay_addrs.iter().map(|(url, _)| url.clone()).collect();
+
+        if let Some(error) = self.add_relays_to_client(relay_addrs.clone()).await.err() {
             rsp_tx.send(Err(error.into())).unwrap(); // Oneshot should not fail
             return;
         }
 
-        self.data.add_relays(relays).await;
-
         if connect {
-            self.client
-                .subscribe(self.subscription_filters(self.pubkey))
-                .await;
-            self.client.connect().await;
+            let mut relay_error_strings = HashMap::<url::Url, String>::new();
+
+            for relay_url in relay_urls {
+                let relay = self.client.relay(relay_url.to_string()).await;
+
+                match relay {
+                    Ok(relay) => {
+                        if let Some(error) = relay
+                            .subscribe(self.subscription_filters(self.pubkey), None)
+                            .await
+                            .err()
+                        {
+                            relay_error_strings.insert(relay_url, error.to_string());
+                            continue;
+                        }
+                        relay.connect(true).await;
+
+                        let relay_status = relay.status().await;
+                        match relay_status {
+                            RelayStatus::Connected => {}
+                            _ => {
+                                relay_error_strings.insert(relay_url, relay_status.to_string());
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        relay_error_strings.insert(relay_url, error.to_string());
+                    }
+                }
+            }
+
+            let relay_errors_string = relay_error_strings
+                .iter()
+                .map(|(url, error)| format!("{} - {}", url.to_string(), error.to_string()))
+                .collect::<Vec<String>>()
+                .join(", ");
+
+            if relay_error_strings.len() == relay_addrs.len() {
+                let error = N3xbError::Simple(format!(
+                    "Comms w/ pubkey {} failed to connect to all relays - {}",
+                    self.pubkey, relay_errors_string
+                ));
+                rsp_tx.send(Err(error)).unwrap(); // Oneshot should not fail
+            } else if relay_error_strings.is_empty() {
+                rsp_tx.send(Ok(())).unwrap(); // Oneshot should not fail
+            } else {
+                let error = N3xbError::Simple(format!(
+                    "Comms w/ pubkey {} failed to connect to relays: {}",
+                    self.pubkey, relay_errors_string
+                ));
+                rsp_tx.send(Err(error)).unwrap(); // Oneshot should not fail
+            }
+        } else {
+            rsp_tx.send(Ok(())).unwrap(); // Oneshot should not fail
         }
-        rsp_tx.send(Ok(())).unwrap(); // Oneshot should not fail
     }
 
     async fn remove_relay(
         &mut self,
-        relay: url::Url,
+        relay_url: url::Url,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
-        let relay_string: String = relay.clone().into();
+        let relay_string: String = relay_url.clone().into();
         let result = self.client.remove_relay(relay_string).await;
         match result {
             Ok(_) => {
                 rsp_tx.send(Ok(())).unwrap();
-                self.data.remove_relay(&relay).await;
+                self.data.remove_relay(&relay_url).await;
             }
             Err(error) => rsp_tx.send(Err(error.into())).unwrap(),
         };
@@ -714,8 +777,12 @@ impl CommsActor {
         rsp_tx.send(urls).unwrap(); // Oneshot should not fail
     }
 
-    async fn connect_relay(&self, relay: url::Url, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
-        let relay_string = relay.to_string();
+    async fn connect_relay(
+        &self,
+        relay_url: url::Url,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    ) {
+        let relay_string = relay_url.to_string();
         let result = self.client.connect_relay(relay_string).await;
         match result {
             Ok(_) => rsp_tx.send(Ok(())).unwrap(),
