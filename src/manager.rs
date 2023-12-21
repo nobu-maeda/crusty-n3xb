@@ -29,7 +29,7 @@ pub struct Manager {
     taker_accessors: RwLock<HashMap<Uuid, TakerAccess>>,
 }
 
-const DATA_DIR_PATH_STR: &str = "n3xb_data/";
+const DATA_DIR_PATH_STR: &str = "n3xb_data";
 
 impl Manager {
     // Constructors
@@ -309,20 +309,12 @@ impl Manager {
         Ok(taker_returned_accessor)
     }
 
-    pub async fn get_makers(&self) -> Vec<(Uuid, MakerAccess)> {
-        let mut maker_accessors = self.maker_accessors.read().await.clone();
-        maker_accessors
-            .drain()
-            .map(|(uuid, maker_accessor)| (uuid, maker_accessor))
-            .collect()
+    pub async fn get_makers(&self) -> HashMap<Uuid, MakerAccess> {
+        self.maker_accessors.read().await.clone()
     }
 
-    pub async fn get_takers(&self) -> Vec<(Uuid, TakerAccess)> {
-        let mut taker_accessors = self.taker_accessors.read().await.clone();
-        taker_accessors
-            .drain()
-            .map(|(uuid, taker_accessor)| (uuid, taker_accessor))
-            .collect()
+    pub async fn get_takers(&self) -> HashMap<Uuid, TakerAccess> {
+        self.taker_accessors.read().await.clone()
     }
 
     pub async fn shutdown(self) -> Result<(), JoinError> {
