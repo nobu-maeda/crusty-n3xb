@@ -110,6 +110,8 @@ impl MakerActorData {
             store,
             task_handle,
         };
+        data.queue_persistance();
+
         Ok((trade_uuid, data))
     }
 
