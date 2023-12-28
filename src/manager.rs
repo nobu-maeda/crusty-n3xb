@@ -1,7 +1,7 @@
 use log::{debug, warn};
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use secp256k1::{SecretKey, XOnlyPublicKey};
 use tokio::sync::RwLock;
@@ -20,7 +20,7 @@ use crate::taker::{Taker, TakerAccess};
 // Might need to change to a dyn Trait if mulitple is to be supported at a time
 pub struct Manager {
     trade_engine_name: String,
-    pubkey: XOnlyPublicKey,
+    manager_dir_path: PathBuf,
     comms: Comms,
     comms_accessor: CommsAccess,
     makers: RwLock<HashMap<Uuid, Maker>>,
@@ -30,28 +30,45 @@ pub struct Manager {
 }
 
 const DATA_DIR_PATH_STR: &str = "n3xb_data";
+const MAKERS_DIR_STR: &str = "makers";
+const TAKERS_DIR_STR: &str = "takers";
 
 impl Manager {
     // Constructors
 
-    pub async fn new(trade_engine_name: impl AsRef<str>) -> Manager {
+    pub async fn new(
+        trade_engine_name: impl AsRef<str>,
+        root_dir_path: impl AsRef<Path>,
+    ) -> Manager {
+        let data_dir_path = root_dir_path.as_ref().join(DATA_DIR_PATH_STR);
         // This will always create a new Comms with a randomly generated key pair
-        let comms = Comms::new(trade_engine_name.as_ref(), DATA_DIR_PATH_STR).await;
-        Self::new_with_comms(comms, trade_engine_name).await
+        let comms = Comms::new(trade_engine_name.as_ref(), &data_dir_path).await;
+        Self::new_with_comms(comms, trade_engine_name, &data_dir_path).await
     }
 
-    pub async fn new_with_key(key: SecretKey, trade_engine_name: impl AsRef<str>) -> Manager {
+    pub async fn new_with_key(
+        key: SecretKey,
+        trade_engine_name: impl AsRef<str>,
+        root_dir_path: impl AsRef<Path>,
+    ) -> Manager {
+        let data_dir_path = root_dir_path.as_ref().join(DATA_DIR_PATH_STR);
         // Will try to look for Comms data that matches the pubkey and restore relays if found. New Comms is created otherwise
-        let comms = Comms::new_with_key(key, trade_engine_name.as_ref(), DATA_DIR_PATH_STR).await;
-        Self::new_with_comms(comms, trade_engine_name).await
+        let comms = Comms::new_with_key(key, trade_engine_name.as_ref(), &data_dir_path).await;
+        Self::new_with_comms(comms, trade_engine_name, &data_dir_path).await
     }
 
-    async fn new_with_comms(comms: Comms, trade_engine_name: impl AsRef<str>) -> Manager {
+    async fn new_with_comms(
+        comms: Comms,
+        trade_engine_name: impl AsRef<str>,
+        data_dir_path: impl AsRef<Path>,
+    ) -> Manager {
         let comms_accessor = comms.new_accessor();
         let pubkey = comms_accessor.get_pubkey().await;
+        let manager_dir_path = data_dir_path.as_ref().join(pubkey.to_string());
 
         let (makers, takers) =
-            Self::maker_taker_setup_restore(&comms_accessor, pubkey.to_string()).await;
+            Self::maker_taker_setup_restore(&comms_accessor, pubkey.to_string(), &manager_dir_path)
+                .await;
         let mut maker_accessors = HashMap::new();
         for maker in &makers {
             maker_accessors.insert(maker.0.clone(), maker.1.new_accessor().await);
@@ -63,7 +80,7 @@ impl Manager {
 
         Manager {
             trade_engine_name: trade_engine_name.as_ref().to_string(),
-            pubkey,
+            manager_dir_path,
             comms,
             comms_accessor,
             makers: RwLock::new(makers),
@@ -73,28 +90,21 @@ impl Manager {
         }
     }
 
-    fn maker_data_dir_path(identifier: impl AsRef<str>) -> String {
-        format!("{}/{}/makers", DATA_DIR_PATH_STR, identifier.as_ref())
-    }
-
-    fn taker_data_dir_path(identifier: impl AsRef<str>) -> String {
-        format!("{}/{}/takers", DATA_DIR_PATH_STR, identifier.as_ref())
-    }
-
     async fn maker_taker_setup_restore(
         comms_accessor: &CommsAccess,
         pubkey_string: impl AsRef<str>,
+        manager_dir_path: impl AsRef<Path>,
     ) -> (HashMap<Uuid, Maker>, HashMap<Uuid, Taker>) {
         let result: Result<(HashMap<Uuid, Maker>, HashMap<Uuid, Taker>), N3xbError> = async {
             // Create directories to data and manager with identifier if not already exist
-            let maker_dir_path = Self::maker_data_dir_path(&pubkey_string);
+            let maker_dir_path = manager_dir_path.as_ref().join(MAKERS_DIR_STR);
             tokio::fs::create_dir_all(&maker_dir_path).await?;
 
             // Restore Makers from files in maker directory
             let makers = Self::restore_makers(comms_accessor, &maker_dir_path).await;
 
             // Do the same for Takers
-            let taker_dir_path = Self::taker_data_dir_path(&pubkey_string);
+            let taker_dir_path = manager_dir_path.as_ref().join(TAKERS_DIR_STR);
             tokio::fs::create_dir_all(&taker_dir_path).await?;
 
             let takers = Self::restore_takers(comms_accessor, &taker_dir_path).await?;
@@ -228,7 +238,7 @@ impl Manager {
         let maker = Maker::new(
             self.comms.new_accessor(),
             order,
-            Self::maker_data_dir_path(self.pubkey.to_string()),
+            self.manager_dir_path.join(MAKERS_DIR_STR),
         )
         .await;
         let maker_my_accessor = maker.new_accessor().await;
@@ -288,7 +298,7 @@ impl Manager {
             self.comms.new_accessor(),
             order_envelope,
             offer,
-            Self::taker_data_dir_path(self.pubkey.to_string()),
+            self.manager_dir_path.join(TAKERS_DIR_STR),
         )
         .await;
         let taker_my_accessor = taker.new_accessor().await;

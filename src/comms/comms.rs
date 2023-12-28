@@ -385,7 +385,17 @@ impl CommsActor {
         data_dir_path: impl AsRef<Path>,
     ) -> Self {
         let pubkey = client.keys().await.public_key();
-        let data = CommsData::new(data_dir_path, pubkey).await.unwrap();
+        let data = match CommsData::new(&data_dir_path, pubkey).await {
+            Ok(data) => data,
+            Err(error) => {
+                panic!(
+                    "Comms w/ pubkey {} failed to initialize CommsData with path {} - {}",
+                    pubkey,
+                    data_dir_path.as_ref().display().to_string(),
+                    error
+                );
+            }
+        };
         let relays = data.relays().await;
 
         let actor = CommsActor {
@@ -396,7 +406,12 @@ impl CommsActor {
             client,
             router: Router::new(),
         };
-        actor.add_relays_to_client(relays).await.unwrap();
+        if let Some(error) = actor.add_relays_to_client(relays.clone()).await.err() {
+            error!(
+                "Comms w/ pubkey {} failed to add relays {:?} to client - {}",
+                pubkey, relays, error
+            );
+        }
         actor
     }
 

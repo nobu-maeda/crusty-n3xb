@@ -42,11 +42,11 @@ mod test_query {
         let test_engine_name1 = String::from("TestEngine1");
         let test_engine_name2 = String::from("TestEngine2");
 
-        let manager_m1 = Manager::new(&test_engine_name1).await;
-        let manager_m2 = Manager::new(&test_engine_name2).await;
-        let manager_m3 = Manager::new(&test_engine_name1).await;
-        let manager_t1 = Manager::new(&test_engine_name1).await;
-        let manager_t2 = Manager::new(&test_engine_name2).await;
+        let manager_m1 = Manager::new(&test_engine_name1, "").await;
+        let manager_m2 = Manager::new(&test_engine_name2, "").await;
+        let manager_m3 = Manager::new(&test_engine_name1, "").await;
+        let manager_t1 = Manager::new(&test_engine_name1, "").await;
+        let manager_t2 = Manager::new(&test_engine_name2, "").await;
 
         manager_m1
             .add_relays(
