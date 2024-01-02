@@ -70,13 +70,14 @@ impl TakerActorData {
         let store = Arc::new(RwLock::new(store));
         let (persist_tx, task_handle) =
             Self::setup_persistance(store.clone(), trade_uuid, &dir_path);
-
-        Self {
+        let data = Self {
             persist_tx,
             trade_uuid,
             store,
             task_handle,
-        }
+        };
+        data.queue_persistance();
+        data
     }
 
     pub(crate) async fn restore(data_path: impl AsRef<Path>) -> Result<(Uuid, Self), N3xbError> {
