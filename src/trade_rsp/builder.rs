@@ -1,6 +1,6 @@
 use crate::common::{
     error::{N3xbError, OfferInvalidReason},
-    types::{EventIdString, SerdeGenericTrait},
+    types::{EventIdString, SerdeGenericTrait, SerdeGenericsPlaceholder},
 };
 
 use super::{TradeResponse, TradeResponseStatus};
@@ -47,11 +47,13 @@ impl TradeResponseBuilder {
 
     pub fn build(&self) -> Result<TradeResponse, N3xbError> {
         let Some(offer_event_id) = self.offer_event_id.as_ref() else {
-            return Err(N3xbError::Simple("No Offer Event ID defined".to_string()));  // TODO: Error handling?
+            return Err(N3xbError::Simple("No Offer Event ID defined".to_string()));
+            // TODO: Error handling?
         };
 
         let Some(trade_response) = self.trade_response.as_ref() else {
-            return Err(N3xbError::Simple("No Trade Response defined".to_string()));  // TODO: Error handling?
+            return Err(N3xbError::Simple("No Trade Response defined".to_string()));
+            // TODO: Error handling?
         };
 
         let trade_response = trade_response.to_owned();
@@ -60,15 +62,18 @@ impl TradeResponseBuilder {
             // TODO: Error handling?
         }
 
-        let Some(trade_engine_specifics) = self.trade_engine_specifics.as_ref() else {
-            return Err(N3xbError::Simple("No Trade Engine Specifics defined".to_string()));
-        };
+        let trade_engine_specifics =
+            if let Some(trade_engine_specifics) = self.trade_engine_specifics.as_ref() {
+                trade_engine_specifics.to_owned()
+            } else {
+                Box::new(SerdeGenericsPlaceholder {})
+            };
 
         let trade_rsp = TradeResponse {
             offer_event_id: offer_event_id.to_owned(),
             trade_response: trade_response,
             reject_reason: self.reject_reason.to_owned(),
-            trade_engine_specifics: trade_engine_specifics.to_owned(),
+            trade_engine_specifics: trade_engine_specifics,
         };
 
         Ok(trade_rsp)

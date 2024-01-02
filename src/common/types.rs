@@ -36,6 +36,16 @@ impl dyn SerdeGenericTrait {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct SerdeGenericsPlaceholder {}
+
+#[typetag::serde(name = "n3xB-placeholder")]
+impl SerdeGenericTrait for SerdeGenericsPlaceholder {
+    fn any_ref(&self) -> &dyn Any {
+        self
+    }
+}
+
 #[derive(
     Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Debug, EnumString, Display, IntoStaticStr,
 )]
