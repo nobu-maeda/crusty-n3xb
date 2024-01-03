@@ -80,6 +80,13 @@ impl TakerAccess {
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
+
+    pub async fn shutdown(&self) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = TakerRequest::Shutdown { rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
 }
 
 pub(crate) struct Taker {
@@ -136,6 +143,9 @@ pub(super) enum TakerRequest {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     UnregisterNotifTx {
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
+    Shutdown {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
 }
@@ -240,6 +250,10 @@ impl TakerActor {
             TakerRequest::UnregisterNotifTx { rsp_tx } => {
                 self.unregister_notif_tx(rsp_tx).await;
             }
+            TakerRequest::Shutdown { rsp_tx } => {
+                self.shutdown(rsp_tx).await;
+                terminate = true;
+            }
         }
         terminate
     }
@@ -330,6 +344,10 @@ impl TakerActor {
     async fn trade_complete(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         // TODO: What else to do for Trade Complete?
         self.data.set_trade_completed(true).await;
+        rsp_tx.send(Ok(())).unwrap();
+    }
+
+    async fn shutdown(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         rsp_tx.send(Ok(())).unwrap();
     }
 

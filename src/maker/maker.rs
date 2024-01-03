@@ -108,6 +108,13 @@ impl MakerAccess {
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
+
+    pub async fn shutdown(&self) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = MakerRequest::Shutdown { rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
 }
 
 pub(crate) struct Maker {
@@ -176,6 +183,9 @@ pub(super) enum MakerRequest {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     UnregisterNotifTx {
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
+    Shutdown {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
 }
@@ -289,6 +299,10 @@ impl MakerActor {
             }
             MakerRequest::UnregisterNotifTx { rsp_tx } => {
                 self.unregister_notif_tx(rsp_tx).await;
+            }
+            MakerRequest::Shutdown { rsp_tx } => {
+                self.shutdown(rsp_tx).await;
+                terminate = true;
             }
         }
         terminate
@@ -636,6 +650,10 @@ impl MakerActor {
         }
         self.notif_tx = None;
         rsp_tx.send(result).unwrap();
+    }
+
+    async fn shutdown(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+        rsp_tx.send(Ok(())).unwrap();
     }
 
     // Bottom-up Peer Message Handling
