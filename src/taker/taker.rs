@@ -44,6 +44,14 @@ impl TakerAccess {
         rsp_rx.await.unwrap()
     }
 
+    pub async fn query_trade_rsp(&self) -> Result<Option<TradeResponseEnvelope>, N3xbError> {
+        let (rsp_tx, rsp_rx) =
+            oneshot::channel::<Result<Option<TradeResponseEnvelope>, N3xbError>>();
+        let request = TakerRequest::QueryTradeRsp { rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+
     pub async fn send_peer_message(
         &self,
         content: Box<dyn SerdeGenericTrait>,
@@ -130,6 +138,9 @@ impl Taker {
 pub(super) enum TakerRequest {
     SendTakerOffer {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
+    QueryTradeRsp {
+        rsp_tx: oneshot::Sender<Result<Option<TradeResponseEnvelope>, N3xbError>>,
     },
     PeerMessage {
         message: Box<dyn SerdeGenericTrait>,
@@ -237,12 +248,14 @@ impl TakerActor {
 
         match request {
             TakerRequest::SendTakerOffer { rsp_tx } => self.send_taker_offer(rsp_tx).await,
+            TakerRequest::QueryTradeRsp { rsp_tx } => {
+                self.query_trade_rsp(rsp_tx).await;
+            }
             TakerRequest::PeerMessage { message, rsp_tx } => {
                 self.send_peer_message(message, rsp_tx).await;
             }
             TakerRequest::TradeComplete { rsp_tx } => {
-                self.trade_complete(rsp_tx).await;
-                terminate = true;
+                terminate = self.trade_complete(rsp_tx).await;
             }
             TakerRequest::RegisterNotifTx { tx, rsp_tx } => {
                 self.register_notif_tx(tx, rsp_tx).await;
@@ -259,6 +272,11 @@ impl TakerActor {
     }
 
     async fn send_taker_offer(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+        if let Some(error) = self.check_trade_completed().await.err() {
+            rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+            return;
+        }
+
         let order_envelope = self.data.order_envelope().await;
         let offer = self.data.offer().await;
 
@@ -284,11 +302,24 @@ impl TakerActor {
         }
     }
 
+    async fn query_trade_rsp(
+        &mut self,
+        rsp_tx: oneshot::Sender<Result<Option<TradeResponseEnvelope>, N3xbError>>,
+    ) {
+        let trade_rsp = self.data.trade_rsp_envelope().await;
+        rsp_tx.send(Ok(trade_rsp)).unwrap(); // oneshot should not fail
+    }
+
     async fn send_peer_message(
         &mut self,
         message: Box<dyn SerdeGenericTrait>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
+        if let Some(error) = self.check_trade_completed().await.err() {
+            rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+            return;
+        }
+
         let order_envelope = self.data.order_envelope().await;
         let result = self
             .comms_accessor
@@ -341,10 +372,28 @@ impl TakerActor {
         rsp_tx.send(result).unwrap();
     }
 
-    async fn trade_complete(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+    async fn check_trade_completed(&self) -> Result<(), N3xbError> {
+        if self.data.trade_completed().await {
+            let error = N3xbError::Simple(format!(
+                "Maker w/ TradeUUID {} already marked as Trade Complete",
+                self.data.trade_uuid
+            ));
+            Err(error) // oneshot should not fail
+        } else {
+            Ok(())
+        }
+    }
+
+    async fn trade_complete(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) -> bool {
+        if let Some(error) = self.check_trade_completed().await.err() {
+            rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+            return false;
+        }
+
         // TODO: What else to do for Trade Complete?
         self.data.set_trade_completed(true).await;
         rsp_tx.send(Ok(())).unwrap();
+        return true;
     }
 
     async fn shutdown(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {

@@ -291,8 +291,7 @@ impl MakerActor {
                 self.send_peer_message(message, rsp_tx).await;
             }
             MakerRequest::TradeComplete { rsp_tx } => {
-                self.trade_complete(rsp_tx).await;
-                terminate = true;
+                terminate = self.trade_complete(rsp_tx).await;
             }
             MakerRequest::RegisterNotifTx { tx, rsp_tx } => {
                 self.register_notif_tx(tx, rsp_tx).await;
@@ -309,6 +308,11 @@ impl MakerActor {
     }
 
     async fn send_maker_order(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+        if let Some(error) = self.check_trade_completed().await.err() {
+            rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+            return;
+        }
+
         let order = self.data.order().await;
         let result = self.comms_accessor.send_maker_order_note(order).await;
         match result {
@@ -345,6 +349,11 @@ impl MakerActor {
         trade_rsp: TradeResponse,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
+        if let Some(error) = self.check_trade_completed().await.err() {
+            rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+            return;
+        }
+
         if let Some(event_id) = self.data.accepted_offer_event_id().await {
             let error = N3xbError::Simple(
                 format!(
@@ -448,6 +457,11 @@ impl MakerActor {
     }
 
     async fn cancel_order(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+        if let Some(error) = self.check_trade_completed().await.err() {
+            rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+            return;
+        }
+
         let maker_order_note_id = match self.data.order_event_id().await {
             Some(event_id) => event_id,
             None => {
@@ -523,6 +537,11 @@ impl MakerActor {
         message: Box<dyn SerdeGenericTrait>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
+        if let Some(error) = self.check_trade_completed().await.err() {
+            rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+            return;
+        }
+
         let accepted_offer_event_id = match self.data.accepted_offer_event_id().await {
             Some(event_id) => event_id,
             None => {
@@ -587,7 +606,24 @@ impl MakerActor {
         }
     }
 
-    async fn trade_complete(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+    async fn check_trade_completed(&self) -> Result<(), N3xbError> {
+        if self.data.trade_completed().await {
+            let error = N3xbError::Simple(format!(
+                "Maker w/ TradeUUID {} already marked as Trade Complete",
+                self.data.trade_uuid
+            ));
+            Err(error) // oneshot should not fail
+        } else {
+            Ok(())
+        }
+    }
+
+    async fn trade_complete(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) -> bool {
+        if let Some(error) = self.check_trade_completed().await.err() {
+            rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+            return false;
+        }
+
         // TODO: What else to do for Trade Complete?
         self.data.set_trade_completed(true).await;
 
@@ -596,12 +632,12 @@ impl MakerActor {
             None => {
                 let error = N3xbError::Simple(
                     format!(
-                        "Maker w/ TradeUUID {} expected to already have sent Maker Order Note and receive Event ID",
+                        "Maker w/ TradeUUID {} expected to already have sent Maker Order Note and received Event ID",
                         self.data.trade_uuid
                     )
                 );
                 rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
-                return;
+                return true;
             }
         };
 
@@ -620,6 +656,7 @@ impl MakerActor {
                 rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
             }
         }
+        return true;
     }
 
     async fn register_notif_tx(
