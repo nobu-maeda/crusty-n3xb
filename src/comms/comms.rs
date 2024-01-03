@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::path::Path;
 use std::str::FromStr;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use nostr_sdk::prelude::*;
 use secp256k1::{rand::rngs::OsRng, Secp256k1, SecretKey, XOnlyPublicKey};
@@ -614,6 +614,8 @@ impl CommsActor {
     }
 
     async fn handle_notification_event(&mut self, url: url::Url, event: Event) {
+        self.data.set_last_event(SystemTime::now()).await;
+
         if let Kind::EncryptedDirectMessage = event.kind {
             self.handle_direct_message(url, event).await;
         } else {
@@ -805,8 +807,9 @@ impl CommsActor {
         };
     }
 
-    async fn connect_all_relays(&self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+    async fn connect_all_relays(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         self.client.connect().await;
+        // self.resync_peer_messages().await.unwrap();
         rsp_tx.send(Ok(())).unwrap();
     }
 
@@ -926,6 +929,47 @@ impl CommsActor {
                 ),
             })
             .collect()
+    }
+
+    async fn resync_peer_messages(&mut self) -> Result<(), N3xbError> {
+        let pubkey = self.pubkey;
+        let unix_epoch_secs = self
+            .data
+            .last_event()
+            .await
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        println!("unix_epoch_secs: {}", unix_epoch_secs);
+        let timestamp = Timestamp::from(unix_epoch_secs);
+        let filters = vec![Filter::new().since(timestamp).pubkey(pubkey)];
+        let timeout = Duration::from_secs(1);
+
+        match self.client.get_events_of(filters, Some(timeout)).await {
+            Ok(events) => {
+                for event in events {
+                    // Get relays this event is seen in
+                    let relay_urls = self
+                        .client
+                        .database()
+                        .event_recently_seen_on_relays(event.id)
+                        .await
+                        .unwrap()
+                        .unwrap();
+
+                    let urls: Vec<url::Url> = relay_urls
+                        .iter()
+                        .map(|url| url::Url::parse(url.as_str()).unwrap())
+                        .collect();
+
+                    let url = urls.first().unwrap().to_owned();
+
+                    self.handle_notification_event(url, event).await;
+                }
+                Ok(())
+            }
+            Err(error) => Err(error.into()),
+        }
     }
 
     // Query Order Notes

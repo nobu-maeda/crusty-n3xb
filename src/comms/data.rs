@@ -3,6 +3,7 @@ use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
     sync::Arc,
+    time::SystemTime,
 };
 
 use log::{error, trace};
@@ -19,6 +20,7 @@ use crate::common::{error::N3xbError, utils};
 struct CommsDataStore {
     relays: HashMap<url::Url, Option<SocketAddr>>,
     // filters:
+    last_event: SystemTime,
 }
 
 impl CommsDataStore {
@@ -55,6 +57,7 @@ impl CommsData {
 
         let mut store = CommsDataStore {
             relays: HashMap::new(),
+            last_event: SystemTime::now(),
         };
 
         if data_path.exists() {
@@ -166,6 +169,16 @@ impl CommsData {
     pub(crate) async fn remove_relay(&self, url: &url::Url) {
         let mut store = self.store.write().await;
         store.relays.remove(url);
+        self.queue_persistance();
+    }
+
+    pub(crate) async fn last_event(&self) -> SystemTime {
+        self.store.read().await.last_event
+    }
+
+    pub(crate) async fn set_last_event(&self, last_event: SystemTime) {
+        let mut store = self.store.write().await;
+        store.last_event = last_event;
         self.queue_persistance();
     }
 
