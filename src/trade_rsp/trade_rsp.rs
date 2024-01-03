@@ -1,13 +1,15 @@
-use std::{any::Any, fmt::Debug};
+use std::{any::Any, collections::HashSet, fmt::Debug};
 
 use secp256k1::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use crate::common::{error::OfferInvalidReason, types::*};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TradeResponseEnvelope {
     pub pubkey: XOnlyPublicKey,
+    pub urls: HashSet<Url>,
     pub event_id: EventIdString,
     pub trade_rsp: TradeResponse,
     pub(crate) _private: (),

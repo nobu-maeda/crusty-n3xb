@@ -1,14 +1,18 @@
-use crate::common::types::{EventIdString, SerdeGenericTrait, SerdeGenericType};
+use std::{any::Any, collections::HashSet, fmt::Debug};
+
 use secp256k1::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};
-use std::{any::Any, fmt::Debug};
+use url::Url;
 use uuid::Uuid;
+
+use crate::common::types::{EventIdString, SerdeGenericTrait, SerdeGenericType};
 
 // Peer Messaging Data Structures
 
 #[derive(Clone, Debug)]
 pub struct PeerEnvelope {
     pub pubkey: XOnlyPublicKey,
+    pub urls: HashSet<Url>,
     pub event_id: EventIdString,
     pub(crate) message_type: SerdeGenericType,
     pub message: Box<dyn SerdeGenericTrait>,

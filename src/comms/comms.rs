@@ -586,7 +586,7 @@ impl CommsActor {
     async fn handle_notification(&mut self, notification: RelayPoolNotification) {
         match notification {
             RelayPoolNotification::Event(url, event) => {
-                self.handle_notification_event(Url::from_str(url.as_str()).unwrap(), event)
+                self.handle_notification_event(url::Url::from_str(url.as_str()).unwrap(), event)
                     .await;
             }
             RelayPoolNotification::Message(url, _relay_message) => {
@@ -613,7 +613,7 @@ impl CommsActor {
         };
     }
 
-    async fn handle_notification_event(&mut self, url: Url, event: Event) {
+    async fn handle_notification_event(&mut self, url: url::Url, event: Event) {
         if let Kind::EncryptedDirectMessage = event.kind {
             self.handle_direct_message(url, event).await;
         } else {
@@ -624,7 +624,7 @@ impl CommsActor {
         }
     }
 
-    async fn handle_direct_message(&mut self, _url: Url, event: Event) {
+    async fn handle_direct_message(&mut self, url: url::Url, event: Event) {
         let secret_key = self.client.keys().await.secret_key().unwrap();
         let content = match decrypt(&secret_key, &event.pubkey, &event.content) {
             Ok(content) => content,
@@ -641,7 +641,7 @@ impl CommsActor {
             Ok(peer_message) => {
                 if let Some(error) = self
                     .router
-                    .handle_peer_message(event.pubkey, event.id.to_string(), peer_message)
+                    .handle_peer_message(event.pubkey, url, event.id.to_string(), peer_message)
                     .await
                     .err()
                 {

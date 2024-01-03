@@ -1,7 +1,8 @@
+use std::{any::Any, collections::HashSet, fmt::Debug};
+
 use secp256k1::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};
-
-use std::{any::Any, fmt::Debug};
+use url::Url;
 
 use crate::{
     common::{error::OfferInvalidReason, types::*},
@@ -12,6 +13,7 @@ use crate::{
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OfferEnvelope {
     pub pubkey: XOnlyPublicKey,
+    pub urls: HashSet<Url>,
     pub event_id: EventIdString,
     pub offer: Offer,
     pub(crate) _private: (),

@@ -375,6 +375,7 @@ impl TakerActor {
                     .to_owned();
                 let trade_rsp_envelope = TradeResponseEnvelope {
                     pubkey: peer_envelope.pubkey,
+                    urls: peer_envelope.urls,
                     event_id: peer_envelope.event_id,
                     trade_rsp: trade_rsp,
                     _private: (),

@@ -680,6 +680,7 @@ impl MakerActor {
                     .to_owned();
                 let offer_envelope = OfferEnvelope {
                     pubkey: peer_envelope.pubkey,
+                    urls: peer_envelope.urls,
                     event_id: peer_envelope.event_id,
                     offer,
                     _private: (),

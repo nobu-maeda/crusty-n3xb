@@ -1,8 +1,9 @@
 use log::debug;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use secp256k1::XOnlyPublicKey;
 use tokio::sync::mpsc;
+use url::Url;
 use uuid::Uuid;
 
 use crate::{
@@ -87,11 +88,13 @@ impl Router {
     pub(super) async fn handle_peer_message(
         &mut self,
         pubkey: XOnlyPublicKey,
+        url: Url,
         event_id: EventIdString,
         peer_message: PeerMessage,
     ) -> Result<(), N3xbError> {
         let envelope = PeerEnvelope {
             pubkey,
+            urls: HashSet::from([url]),
             event_id,
             message_type: peer_message.message_type.clone(),
             message: peer_message.message.clone(),
@@ -115,6 +118,8 @@ impl Router {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
     use crate::{
         common::types::SerdeGenericType,
@@ -137,6 +142,8 @@ mod tests {
 
         let offer = SomeTestOfferParams::default_builder().build().unwrap();
 
+        let url = Url::from_str("ws://example.com").unwrap();
+
         let peer_message = PeerMessage {
             r#type: "n3xb-peer-message".to_string(),
             responding_to_id: Option::None,
@@ -149,6 +156,7 @@ mod tests {
         router
             .handle_peer_message(
                 SomeTestOfferParams::some_x_only_public_key(),
+                url,
                 "".to_string(),
                 peer_message,
             )
@@ -207,6 +215,8 @@ mod tests {
 
         let offer = SomeTestOfferParams::default_builder().build().unwrap();
 
+        let url = Url::from_str("ws://example.com").unwrap();
+
         let peer_message = PeerMessage {
             r#type: "n3xb-peer-message".to_string(),
             responding_to_id: Option::None,
@@ -219,6 +229,7 @@ mod tests {
         router
             .handle_peer_message(
                 SomeTestOfferParams::some_x_only_public_key(),
+                url,
                 "".to_string(),
                 peer_message,
             )
@@ -273,6 +284,8 @@ mod tests {
 
         let offer = SomeTestOfferParams::default_builder().build().unwrap();
 
+        let url = Url::from_str("ws://example.com").unwrap();
+
         let peer_message = PeerMessage {
             r#type: "n3xb-peer-message".to_string(),
             responding_to_id: Option::None,
@@ -285,6 +298,7 @@ mod tests {
         let result = router
             .handle_peer_message(
                 SomeTestOfferParams::some_x_only_public_key(),
+                url,
                 "".to_string(),
                 peer_message,
             )
