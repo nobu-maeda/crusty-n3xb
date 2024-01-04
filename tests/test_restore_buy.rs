@@ -3,19 +3,15 @@ mod common;
 #[cfg(test)]
 mod tests {
     use log::error;
-    use std::{fs, net::SocketAddr, str::FromStr, time::Duration};
-    use tokio::{
-        sync::mpsc,
-        time::{sleep, Sleep},
-    };
+    use std::{net::SocketAddr, str::FromStr, sync::Once, time::Duration};
+    use tokio::{fs, sync::mpsc, time::sleep};
 
     use crusty_n3xb::{
         common::error::N3xbError,
-        maker::{self, MakerNotif},
+        maker::MakerNotif,
         manager::Manager,
-        offer,
         order::FilterTag,
-        taker::{self, TakerNotif},
+        taker::TakerNotif,
         testing::{
             SomeTestOfferParams, SomeTestOrderParams, SomeTestParams, SomeTestTradeRspParams,
             TESTING_DEFAULT_CHANNEL_SIZE,
@@ -26,12 +22,14 @@ mod tests {
 
     use crate::common::test_trade_msgs::SomeTradeEngMsg;
 
-    use super::common::relay::Relay;
+    use super::common::{logger::setup as logger_setup, relay::Relay};
 
     #[tokio::test]
-    async fn test_buy_restores() {
+    async fn test_restore_buy() {
+        logger_setup();
+
         // Set up the initial state
-        if let Some(error) = fs::remove_dir_all("n3xb_data/").err() {
+        if let Some(error) = fs::remove_dir_all("n3xb_data/").await.err() {
             error!("Failed to remove /n3xb_data/ directory: {}", error);
         }
 
@@ -70,8 +68,6 @@ mod tests {
             maker_manager.shutdown().await.unwrap();
             taker_manager.shutdown().await.unwrap();
         }
-
-        sleep(Duration::from_secs(1)).await;
 
         // New Maker
         {
@@ -112,8 +108,6 @@ mod tests {
             SomeTestOrderParams::trade_parameters(),
         ));
 
-        sleep(Duration::from_secs(1)).await;
-
         // Post Order
         {
             let maker_manager =
@@ -123,7 +117,7 @@ mod tests {
             let makers = maker_manager.get_makers().await;
             let maker = makers.get(&SomeTestOrderParams::some_uuid()).unwrap();
 
-            let (notif_tx, mut notif_rx) =
+            let (notif_tx, mut _notif_rx) =
                 mpsc::channel::<Result<MakerNotif, N3xbError>>(TESTING_DEFAULT_CHANNEL_SIZE);
             maker.register_notif_tx(notif_tx).await.unwrap();
             maker_manager.connect_all_relays().await.unwrap();
@@ -156,8 +150,6 @@ mod tests {
             taker_manager.shutdown().await.unwrap();
         }
 
-        sleep(Duration::from_secs(1)).await;
-
         // Take Order
         {
             let taker_manager =
@@ -166,7 +158,7 @@ mod tests {
             let takers = taker_manager.get_takers().await;
             let taker = takers.get(&SomeTestOrderParams::some_uuid()).unwrap();
 
-            let (taker_notif_tx, mut taker_notif_rx) =
+            let (taker_notif_tx, mut _taker_notif_rx) =
                 mpsc::channel::<Result<TakerNotif, N3xbError>>(TESTING_DEFAULT_CHANNEL_SIZE);
             taker.register_notif_tx(taker_notif_tx).await.unwrap();
             taker_manager.connect_all_relays().await.unwrap();
@@ -215,6 +207,8 @@ mod tests {
             maker_manager.shutdown().await.unwrap();
         }
 
+        // Need to sleep a second here, otherwise subscription request will overlap with the previous restore,
+        // getting duplicate offers. Which is fine if not a test, because one of the two offers will get accepted.
         sleep(Duration::from_secs(1)).await;
 
         // Accept Offer
@@ -226,7 +220,7 @@ mod tests {
             let maker = makers.get(&SomeTestOrderParams::some_uuid()).unwrap();
 
             // Should find Offer again
-            let (maker_notif_tx, mut maker_notif_rx) =
+            let (maker_notif_tx, mut _maker_notif_rx) =
                 mpsc::channel::<Result<MakerNotif, N3xbError>>(TESTING_DEFAULT_CHANNEL_SIZE);
             maker.register_notif_tx(maker_notif_tx).await.unwrap();
             maker_manager.connect_all_relays().await.unwrap();
@@ -300,7 +294,7 @@ mod tests {
             let takers = taker_manager.get_takers().await;
             let taker = takers.get(&SomeTestOrderParams::some_uuid()).unwrap();
 
-            let (taker_notif_tx, mut taker_notif_rx) =
+            let (taker_notif_tx, mut _taker_notif_rx) =
                 mpsc::channel::<Result<TakerNotif, N3xbError>>(TESTING_DEFAULT_CHANNEL_SIZE);
             taker.register_notif_tx(taker_notif_tx).await.unwrap();
             taker_manager.connect_all_relays().await.unwrap();
@@ -372,7 +366,7 @@ mod tests {
             let makers = maker_manager.get_makers().await;
             let maker = makers.get(&SomeTestOrderParams::some_uuid()).unwrap();
 
-            let (maker_notif_tx, mut maker_notif_rx) =
+            let (maker_notif_tx, mut _maker_notif_rx) =
                 mpsc::channel::<Result<MakerNotif, N3xbError>>(TESTING_DEFAULT_CHANNEL_SIZE);
             maker.register_notif_tx(maker_notif_tx).await.unwrap();
             maker_manager.connect_all_relays().await.unwrap();
@@ -385,7 +379,7 @@ mod tests {
             let takers = taker_manager.get_takers().await;
             let taker = takers.get(&SomeTestOrderParams::some_uuid()).unwrap();
 
-            let (taker_notif_tx, mut taker_notif_rx) =
+            let (taker_notif_tx, mut _taker_notif_rx) =
                 mpsc::channel::<Result<TakerNotif, N3xbError>>(TESTING_DEFAULT_CHANNEL_SIZE);
             taker.register_notif_tx(taker_notif_tx).await.unwrap();
             taker_manager.connect_all_relays().await.unwrap();

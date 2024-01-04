@@ -767,6 +767,16 @@ impl MakerActor {
 
         let offer_envelope_clone = offer_envelope.clone();
 
+        let accepted_offer_string =
+            if let Some(offer_event_id) = self.data.accepted_offer_event_id().await {
+                offer_event_id.to_string()
+            } else {
+                "N/A".to_string()
+            };
+
+        debug!("Maker w/ TradeUUID {} handling Taker Offer with Event ID {} Accepted ID? {} - reason: {:?}", 
+                 self.data.trade_uuid, offer_envelope.event_id, accepted_offer_string, reason);
+
         if let Some(reason) = reason {
             notif_result = Err(N3xbError::InvalidOffer(reason.clone()));
             if let Some(reject_err) = self
