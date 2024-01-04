@@ -3,8 +3,10 @@ mod common;
 #[cfg(test)]
 mod tests {
     use log::error;
-    use std::{net::SocketAddr, str::FromStr, sync::Once, time::Duration};
+    use std::{net::SocketAddr, str::FromStr, time::Duration};
+
     use tokio::{fs, sync::mpsc, time::sleep};
+    use url::Url;
 
     use crusty_n3xb::{
         common::error::N3xbError,
@@ -18,11 +20,10 @@ mod tests {
         },
         trade_rsp::TradeResponseStatus,
     };
-    use url::Url;
 
-    use crate::common::test_trade_msgs::SomeTradeEngMsg;
-
-    use super::common::{logger::setup as logger_setup, relay::Relay};
+    use super::common::{
+        logger::setup as logger_setup, relay::Relay, test_trade_msgs::SomeTradeEngMsg,
+    };
 
     #[tokio::test]
     async fn test_restore_buy() {
