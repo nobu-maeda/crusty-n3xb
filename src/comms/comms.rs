@@ -653,6 +653,11 @@ impl CommsActor {
                         error
                     );
                     return;
+                } else {
+                    debug!(
+                        "Comms w/ pubkey {} handle_direct_message() handled PeerMessage w/ EventID {}",
+                        self.pubkey, event.id
+                    );
                 }
             }
             Err(error) => {
@@ -809,7 +814,7 @@ impl CommsActor {
 
     async fn connect_all_relays(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         self.client.connect().await;
-        // self.resync_peer_messages().await.unwrap();
+        self.resync_peer_messages().await.unwrap();
         rsp_tx.send(Ok(())).unwrap();
     }
 
@@ -931,6 +936,28 @@ impl CommsActor {
             .collect()
     }
 
+    async fn handle_resync_events(&mut self, events: Vec<Event>) {
+        for event in events {
+            // Get relays this event is seen in
+            let relay_urls = self
+                .client
+                .database()
+                .event_recently_seen_on_relays(event.id)
+                .await
+                .unwrap()
+                .unwrap();
+
+            let urls: Vec<url::Url> = relay_urls
+                .iter()
+                .map(|url| url::Url::parse(url.as_str()).unwrap())
+                .collect();
+
+            let url = urls.first().unwrap().to_owned();
+
+            self.handle_notification_event(url, event).await;
+        }
+    }
+
     async fn resync_peer_messages(&mut self) -> Result<(), N3xbError> {
         let pubkey = self.pubkey;
         let unix_epoch_secs = self
@@ -947,25 +974,15 @@ impl CommsActor {
 
         match self.client.get_events_of(filters, Some(timeout)).await {
             Ok(events) => {
-                for event in events {
-                    // Get relays this event is seen in
-                    let relay_urls = self
-                        .client
-                        .database()
-                        .event_recently_seen_on_relays(event.id)
-                        .await
-                        .unwrap()
-                        .unwrap();
-
-                    let urls: Vec<url::Url> = relay_urls
-                        .iter()
-                        .map(|url| url::Url::parse(url.as_str()).unwrap())
-                        .collect();
-
-                    let url = urls.first().unwrap().to_owned();
-
-                    self.handle_notification_event(url, event).await;
-                }
+                debug!(
+                    "Comms w/ pubkey {} got {} events on resync_peer_messages()",
+                    pubkey,
+                    events.len()
+                );
+                // These events somehow also get caught in the subscription filter,
+                // but only if get_events_of is called. If we handle these here also,
+                // we end up with duplicate event notifications
+                // self.handle_resync_events(events).await;
                 Ok(())
             }
             Err(error) => Err(error.into()),

@@ -153,6 +153,7 @@ mod tests {
 
         // Take Order
         {
+            println!("Take Order");
             let taker_manager =
                 Manager::new_with_key(test_taker_private_key, &test_engine_name, "").await;
 
@@ -168,7 +169,10 @@ mod tests {
             taker.shutdown().await.unwrap();
             taker_manager.shutdown().await.unwrap();
 
+            sleep(Duration::from_secs(1)).await;
+
             // Expect Offer notify
+            println!("Expect Offer notify");
             let maker_manager =
                 Manager::new_with_key(test_maker_private_key, &test_engine_name, "").await;
 
@@ -188,6 +192,7 @@ mod tests {
             };
 
             // Query Offer
+            println!("Query Offer");
             let offer_envelopes = maker.query_offers().await;
             assert!(offer_envelopes.len() >= 1);
             let offer_envelope = offer_envelopes.values().next().unwrap().to_owned();
@@ -214,6 +219,7 @@ mod tests {
 
         // Accept Offer
         {
+            println!("Accept Offer - Restore Maker");
             let maker_manager =
                 Manager::new_with_key(test_maker_private_key, &test_engine_name, "").await;
 
@@ -244,6 +250,7 @@ mod tests {
             );
 
             // Accept Offer
+            println!("Accept Offer - Trade Response");
             let mut trade_rsp_builder = SomeTestTradeRspParams::default_builder();
             trade_rsp_builder.offer_event_id(offer_envelope.event_id);
             let trade_rsp = trade_rsp_builder.build().unwrap();
