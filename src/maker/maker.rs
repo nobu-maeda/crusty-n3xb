@@ -112,8 +112,8 @@ impl MakerAccess {
     pub async fn shutdown(&self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = MakerRequest::Shutdown { rsp_tx };
-        self.tx.send(request).await.unwrap();
-        rsp_rx.await.unwrap()
+        self.tx.send(request).await?; // Shutdown is allowed to fail if already shutdown
+        rsp_rx.await?
     }
 }
 

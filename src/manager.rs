@@ -14,7 +14,7 @@ use crate::comms::{Comms, CommsAccess};
 use crate::maker::{Maker, MakerAccess};
 use crate::offer::Offer;
 use crate::order::{FilterTag, Order, OrderEnvelope};
-use crate::taker::{Taker, TakerAccess};
+use crate::taker::{self, Taker, TakerAccess};
 
 // At the moment we only support a single Trade Engine at a time.
 // Might need to change to a dyn Trait if mulitple is to be supported at a time
@@ -334,6 +334,21 @@ impl Manager {
             warn!("Manager error shutting down Comms: {}", error);
         }
         self.comms.task_handle.await?;
+
+        let maker_accessors = self.maker_accessors.read().await;
+        for (_uuid, maker_accessor) in maker_accessors.iter() {
+            if let Some(error) = maker_accessor.shutdown().await.err() {
+                warn!("Manager error shutting down Maker: {}", error);
+            }
+        }
+
+        let taker_accessors = self.taker_accessors.read().await;
+        for (_uuid, taker_accessor) in taker_accessors.iter() {
+            if let Some(error) = taker_accessor.shutdown().await.err() {
+                warn!("Manager error shutting down Taker: {}", error);
+            }
+        }
+
         let mut makers = self.makers.write().await;
         for (_uuid, maker) in makers.drain() {
             maker.task_handle.await?;
