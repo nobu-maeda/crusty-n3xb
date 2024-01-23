@@ -18,7 +18,7 @@ pub enum N3xbError {
     MpscSend(String),
     Io(io::Error),
     JoinError(tokio::task::JoinError),
-    RecvError(tokio::sync::oneshot::error::RecvError),
+    OneshotRecv(tokio::sync::oneshot::error::RecvError),
 }
 
 impl Error for N3xbError {}
@@ -55,7 +55,7 @@ impl fmt::Display for N3xbError {
             N3xbError::JoinError(err) => {
                 format!("n3xB-Error | JoinError - {}", err.to_string())
             }
-            N3xbError::RecvError(err) => {
+            N3xbError::OneshotRecv(err) => {
                 format!("n3xB-Error | RecvError - {}", err.to_string())
             }
         };
@@ -119,7 +119,7 @@ impl From<tokio::task::JoinError> for N3xbError {
 
 impl From<tokio::sync::oneshot::error::RecvError> for N3xbError {
     fn from(e: tokio::sync::oneshot::error::RecvError) -> N3xbError {
-        N3xbError::RecvError(e)
+        N3xbError::OneshotRecv(e)
     }
 }
 

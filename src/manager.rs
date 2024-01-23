@@ -14,7 +14,7 @@ use crate::comms::{Comms, CommsAccess};
 use crate::maker::{Maker, MakerAccess};
 use crate::offer::Offer;
 use crate::order::{FilterTag, Order, OrderEnvelope};
-use crate::taker::{self, Taker, TakerAccess};
+use crate::taker::{Taker, TakerAccess};
 
 // At the moment we only support a single Trade Engine at a time.
 // Might need to change to a dyn Trait if mulitple is to be supported at a time
