@@ -298,7 +298,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_order_tag_from_order() {
-        let order = SomeTestOrderParams::default_builder().build().unwrap();
+        let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
         let trade_engine_name = SomeTestParams::engine_name_str();
         let order_tags = OrderTag::from_order(order.clone(), trade_engine_name.clone());
         assert_eq!(order_tags.len(), 7);

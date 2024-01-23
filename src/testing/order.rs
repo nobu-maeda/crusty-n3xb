@@ -51,7 +51,7 @@ impl SomeTestOrderParams {
 
     pub fn obligation_fiat_eur_kinds() -> HashSet<ObligationKind> {
         HashSet::from([ObligationKind::Fiat(
-            Currency::USD,
+            Currency::EUR,
             Some(FiatPaymentMethod::Revolut),
         )])
     }
@@ -203,7 +203,7 @@ impl SomeTestOrderParams {
         "{\"maker_obligation\":{\"amount\":35000,\"amount_min\":null},\"taker_obligation\":{\"limit_rate\":285.71,\"market_offset_pct\":null,\"market_oracles\":null},\"trade_details\":{\"maker_bond_pct\":10,\"taker_bond_pct\":10,\"trade_timeout\":null},\"trade_engine_specifics\":{\"type\":\"some-trade-engine-maker-order-specifics\",\"test_specific_field\":\"some-test-specific-info\"},\"pow_difficulty\":8}".to_string()
     }
 
-    pub fn default_builder() -> OrderBuilder {
+    pub fn default_buy_builder() -> OrderBuilder {
         let mut builder: OrderBuilder = OrderBuilder::new();
         builder.trade_uuid(Self::some_uuid());
 
@@ -217,6 +217,41 @@ impl SomeTestOrderParams {
         let taker_obligation = TakerObligation {
             kinds: Self::obligation_bitcoin_lightning_kinds(),
             content: Self::taker_obligation_bitcoin_rmb_content(),
+        };
+
+        builder.taker_obligation(taker_obligation);
+
+        let trade_details = TradeDetails {
+            parameters: Self::trade_parameters(),
+            content: Self::trade_details_content(),
+        };
+
+        builder.trade_details(trade_details);
+
+        let trade_engine_specifics = Box::new(SomeTradeEngineMakerOrderSpecifics {
+            test_specific_field: SomeTestParams::engine_specific_str(),
+        });
+        builder.trade_engine_specifics(trade_engine_specifics);
+
+        builder.pow_difficulty(Self::pow_difficulty());
+
+        builder
+    }
+
+    pub fn default_sell_builder() -> OrderBuilder {
+        let mut builder: OrderBuilder = OrderBuilder::new();
+        builder.trade_uuid(Self::some_uuid());
+
+        let maker_obligation = MakerObligation {
+            kinds: Self::obligation_bitcoin_both_kinds(),
+            content: Self::maker_obligation_bitcoin_content(),
+        };
+
+        builder.maker_obligation(maker_obligation);
+
+        let taker_obligation = TakerObligation {
+            kinds: Self::obligation_fiat_eur_kinds(),
+            content: Self::taker_obligation_fiat_eur_content(),
         };
 
         builder.taker_obligation(taker_obligation);

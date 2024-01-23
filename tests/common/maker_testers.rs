@@ -94,7 +94,7 @@ impl MakerTesterActor {
 
         SomeTestOfferParams::check(
             &offer,
-            &SomeTestOfferParams::default_builder().build().unwrap(),
+            &SomeTestOfferParams::default_buy_builder().build().unwrap(),
         );
 
         // Accept Offer

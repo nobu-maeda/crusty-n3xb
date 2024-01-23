@@ -243,7 +243,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_order() {
-        _ = SomeTestOrderParams::default_builder().build().unwrap();
+        _ = SomeTestOrderParams::default_buy_builder().build().unwrap();
     }
 
     #[tokio::test]
@@ -257,7 +257,7 @@ mod tests {
             content: SomeTestOrderParams::maker_obligation_fiat_cny_content(),
         };
 
-        let result = SomeTestOrderParams::default_builder()
+        let result = SomeTestOrderParams::default_buy_builder()
             .maker_obligation(maker_obligation)
             .build();
         assert!(result.is_err());
@@ -271,7 +271,7 @@ mod tests {
             content: SomeTestOrderParams::maker_obligation_fiat_cny_content(),
         };
 
-        let result = SomeTestOrderParams::default_builder()
+        let result = SomeTestOrderParams::default_buy_builder()
             .maker_obligation(maker_obligation)
             .build();
         assert!(result.is_err());
@@ -289,7 +289,7 @@ mod tests {
             content: SomeTestOrderParams::maker_obligation_fiat_cny_content(),
         };
 
-        let result = SomeTestOrderParams::default_builder()
+        let result = SomeTestOrderParams::default_buy_builder()
             .maker_obligation(maker_obligation)
             .build();
         assert!(result.is_err());
@@ -307,7 +307,7 @@ mod tests {
             content: maker_obligation_content,
         };
 
-        let result = SomeTestOrderParams::default_builder()
+        let result = SomeTestOrderParams::default_buy_builder()
             .maker_obligation(maker_obligation)
             .build();
         assert!(result.is_err());
@@ -325,7 +325,7 @@ mod tests {
             content: maker_obligation_content,
         };
 
-        let result = SomeTestOrderParams::default_builder()
+        let result = SomeTestOrderParams::default_buy_builder()
             .maker_obligation(maker_obligation)
             .build();
         assert!(result.is_err());
@@ -342,7 +342,7 @@ mod tests {
             content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         };
 
-        let result = SomeTestOrderParams::default_builder()
+        let result = SomeTestOrderParams::default_buy_builder()
             .taker_obligation(taker_obligation)
             .build();
         assert!(result.is_err());
@@ -356,7 +356,7 @@ mod tests {
             content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         };
 
-        let result = SomeTestOrderParams::default_builder()
+        let result = SomeTestOrderParams::default_buy_builder()
             .taker_obligation(taker_obligation)
             .build();
         assert!(result.is_err());
@@ -374,7 +374,7 @@ mod tests {
             content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         };
 
-        let result = SomeTestOrderParams::default_builder()
+        let result = SomeTestOrderParams::default_buy_builder()
             .taker_obligation(taker_obligation)
             .build();
         assert!(result.is_err());
@@ -393,7 +393,7 @@ mod tests {
             content: taker_obligation_content,
         };
 
-        let result = SomeTestOrderParams::default_builder()
+        let result = SomeTestOrderParams::default_buy_builder()
             .taker_obligation(taker_obligation)
             .build();
         assert!(result.is_err());
@@ -412,7 +412,7 @@ mod tests {
             content: taker_obligation_content,
         };
 
-        let result = SomeTestOrderParams::default_builder()
+        let result = SomeTestOrderParams::default_buy_builder()
             .taker_obligation(taker_obligation)
             .build();
         assert!(result.is_err());
@@ -431,7 +431,7 @@ mod tests {
             content: taker_obligation_content,
         };
 
-        let result = SomeTestOrderParams::default_builder()
+        let result = SomeTestOrderParams::default_buy_builder()
             .taker_obligation(taker_obligation)
             .build();
         assert!(result.is_err());
@@ -454,7 +454,7 @@ mod tests {
             content: taker_obligation_content,
         };
 
-        let result = SomeTestOrderParams::default_builder()
+        let result = SomeTestOrderParams::default_buy_builder()
             .taker_obligation(taker_obligation)
             .build();
         assert!(result.is_err());
@@ -481,7 +481,7 @@ mod tests {
             content: trade_details_content,
         };
 
-        let result = SomeTestOrderParams::default_builder()
+        let result = SomeTestOrderParams::default_buy_builder()
             .trade_details(trade_details)
             .build();
         assert!(result.is_err());
@@ -508,7 +508,7 @@ mod tests {
             content: trade_details_content,
         };
 
-        let result = SomeTestOrderParams::default_builder()
+        let result = SomeTestOrderParams::default_buy_builder()
             .trade_details(trade_details)
             .build();
         assert!(result.is_err());
@@ -535,7 +535,7 @@ mod tests {
             content: trade_details_content,
         };
 
-        let result = SomeTestOrderParams::default_builder()
+        let result = SomeTestOrderParams::default_buy_builder()
             .trade_details(trade_details)
             .build();
         assert!(result.is_err());

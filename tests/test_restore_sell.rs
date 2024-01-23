@@ -1,6 +1,7 @@
 mod common;
 
 #[cfg(test)]
+
 mod tests {
     use log::error;
     use std::{net::SocketAddr, str::FromStr, time::Duration};
@@ -26,12 +27,12 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn test_restore_buy() {
+    async fn test_restore_sell() {
         //logger_setup();
 
-        // Set up the initial state
+        // Setup the initial state
         if let Some(error) = fs::remove_dir_all("n3xb_data/").await.err() {
-            error!("Failed to remove /n3xb_data/ directory: {}", error);
+            error!("Failed to remove n3xb_data directory: {}", error);
         }
 
         let mut relays: Vec<Relay> = Vec::new();
@@ -90,7 +91,7 @@ mod tests {
                 assert_eq!(urls.len(), relay_addrs.len());
             });
 
-            let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
+            let order = SomeTestOrderParams::default_sell_builder().build().unwrap();
             let maker = maker_manager.new_maker(order).await;
             maker.shutdown().await.unwrap();
             maker_manager.shutdown().await.unwrap();
@@ -100,10 +101,10 @@ mod tests {
         let mut query_filter = Vec::new();
         query_filter.push(FilterTag::TradeUuid(SomeTestOrderParams::some_uuid()));
         query_filter.push(FilterTag::MakerObligations(
-            SomeTestOrderParams::obligation_fiat_cny_kinds(),
+            SomeTestOrderParams::obligation_bitcoin_both_kinds(),
         ));
         query_filter.push(FilterTag::TakerObligations(
-            SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            SomeTestOrderParams::obligation_fiat_eur_kinds(),
         ));
         query_filter.push(FilterTag::TradeDetailParameters(
             SomeTestOrderParams::trade_parameters(),
@@ -141,7 +142,7 @@ mod tests {
                 SomeTestOrderParams::some_uuid()
             );
 
-            let offer = SomeTestOfferParams::default_buy_builder().build().unwrap();
+            let offer = SomeTestOfferParams::default_sell_builder().build().unwrap();
 
             let taker = taker_manager
                 .new_taker(order_envelope, offer)
@@ -202,12 +203,12 @@ mod tests {
                 .await
                 .unwrap()
                 .offer;
-            let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
+            let order = SomeTestOrderParams::default_sell_builder().build().unwrap();
             offer.validate_against(&order).unwrap();
 
             SomeTestOfferParams::check(
                 &offer,
-                &SomeTestOfferParams::default_buy_builder().build().unwrap(),
+                &SomeTestOfferParams::default_sell_builder().build().unwrap(),
             );
             maker.shutdown().await.unwrap();
             maker_manager.shutdown().await.unwrap();
@@ -237,12 +238,12 @@ mod tests {
                 .await
                 .unwrap()
                 .offer;
-            let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
+            let order = SomeTestOrderParams::default_sell_builder().build().unwrap();
             offer.validate_against(&order).unwrap();
 
             SomeTestOfferParams::check(
                 &offer,
-                &SomeTestOfferParams::default_buy_builder().build().unwrap(),
+                &SomeTestOfferParams::default_sell_builder().build().unwrap(),
             );
 
             // Accept Offer

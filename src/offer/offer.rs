@@ -180,8 +180,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer() {
-        let order = SomeTestOrderParams::default_builder().build().unwrap();
-        let offer = SomeTestOfferParams::default_builder().build().unwrap();
+        let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
+        let offer = SomeTestOfferParams::default_buy_builder().build().unwrap();
         offer.validate_against(&order).unwrap();
     }
 
@@ -197,15 +197,15 @@ mod tests {
             content: maker_obligation_content,
         };
 
-        let mut builder = SomeTestOrderParams::default_builder();
+        let mut builder = SomeTestOrderParams::default_buy_builder();
         let order = builder.maker_obligation(maker_obligation).build().unwrap();
-        let offer = SomeTestOfferParams::default_builder().build().unwrap();
+        let offer = SomeTestOfferParams::default_buy_builder().build().unwrap();
         offer.validate_against(&order).unwrap();
     }
 
     #[tokio::test]
     async fn test_validate_offer_maker_kind_not_found() {
-        let order = SomeTestOrderParams::default_builder().build().unwrap();
+        let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
 
         let maker_obligation = Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::FaceToFace)),
@@ -213,7 +213,7 @@ mod tests {
             bond_amount: Some(4000000.0),
         };
 
-        let mut builder = SomeTestOfferParams::default_builder();
+        let mut builder = SomeTestOfferParams::default_buy_builder();
         builder.maker_obligation(maker_obligation);
         let offer = builder.build().unwrap();
 
@@ -233,9 +233,9 @@ mod tests {
             content: maker_obligation_content,
         };
 
-        let mut builder = SomeTestOrderParams::default_builder();
+        let mut builder = SomeTestOrderParams::default_buy_builder();
         let order = builder.maker_obligation(maker_obligation).build().unwrap();
-        let offer = SomeTestOfferParams::default_builder().build().unwrap();
+        let offer = SomeTestOfferParams::default_buy_builder().build().unwrap();
 
         let result = offer.validate_against(&order);
         assert!(result.is_err());
@@ -253,10 +253,10 @@ mod tests {
             content: maker_obligation_content,
         };
 
-        let mut builder = SomeTestOrderParams::default_builder();
+        let mut builder = SomeTestOrderParams::default_buy_builder();
         let order = builder.maker_obligation(maker_obligation).build().unwrap();
 
-        let offer = SomeTestOfferParams::default_builder().build().unwrap();
+        let offer = SomeTestOfferParams::default_buy_builder().build().unwrap();
         offer.validate_against(&order).unwrap();
     }
 
@@ -272,10 +272,10 @@ mod tests {
             content: maker_obligation_content,
         };
 
-        let mut builder = SomeTestOrderParams::default_builder();
+        let mut builder = SomeTestOrderParams::default_buy_builder();
         let order = builder.maker_obligation(maker_obligation).build().unwrap();
 
-        let offer = SomeTestOfferParams::default_builder().build().unwrap();
+        let offer = SomeTestOfferParams::default_buy_builder().build().unwrap();
         offer.validate_against(&order).unwrap();
     }
 
@@ -291,17 +291,17 @@ mod tests {
             content: maker_obligation_content,
         };
 
-        let mut builder = SomeTestOrderParams::default_builder();
+        let mut builder = SomeTestOrderParams::default_buy_builder();
         let order = builder.maker_obligation(maker_obligation).build().unwrap();
 
-        let offer = SomeTestOfferParams::default_builder().build().unwrap();
+        let offer = SomeTestOfferParams::default_buy_builder().build().unwrap();
         let result = offer.validate_against(&order);
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn test_validate_offer_maker_f64_amount_overflow() {
-        let order = SomeTestOrderParams::default_builder().build().unwrap();
+        let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
 
         let maker_obligation = Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
@@ -309,7 +309,7 @@ mod tests {
             bond_amount: Some(4000000.0),
         };
 
-        let mut builder = SomeTestOfferParams::default_builder();
+        let mut builder = SomeTestOfferParams::default_buy_builder();
         builder.maker_obligation(maker_obligation);
         let offer = builder.build().unwrap();
 
@@ -319,7 +319,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer_maker_bond_mismatch() {
-        let order = SomeTestOrderParams::default_builder().build().unwrap();
+        let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
 
         let maker_obligation = Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
@@ -327,7 +327,7 @@ mod tests {
             bond_amount: Some(3000000.0),
         };
 
-        let mut builder = SomeTestOfferParams::default_builder();
+        let mut builder = SomeTestOfferParams::default_buy_builder();
         builder.maker_obligation(maker_obligation);
         let offer = builder.build().unwrap();
 
@@ -337,7 +337,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer_maker_bond_not_found() {
-        let order = SomeTestOrderParams::default_builder().build().unwrap();
+        let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
 
         let maker_obligation = Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
@@ -345,7 +345,7 @@ mod tests {
             bond_amount: None,
         };
 
-        let mut builder = SomeTestOfferParams::default_builder();
+        let mut builder = SomeTestOfferParams::default_buy_builder();
         builder.maker_obligation(maker_obligation);
         let offer = builder.build().unwrap();
 
@@ -364,9 +364,9 @@ mod tests {
             },
         };
 
-        let mut builder = SomeTestOrderParams::default_builder();
+        let mut builder = SomeTestOrderParams::default_buy_builder();
         let order = builder.trade_details(trade_details).build().unwrap();
-        let offer = SomeTestOfferParams::default_builder().build().unwrap();
+        let offer = SomeTestOfferParams::default_buy_builder().build().unwrap();
 
         let result = offer.validate_against(&order);
         assert!(result.is_err());
@@ -374,7 +374,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer_taker_kind_not_found() {
-        let order = SomeTestOrderParams::default_builder().build().unwrap();
+        let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
 
         let taker_obligation = Obligation {
             kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Onchain)),
@@ -382,7 +382,7 @@ mod tests {
             bond_amount: Some(4000000.0),
         };
 
-        let mut builder = SomeTestOfferParams::default_builder();
+        let mut builder = SomeTestOfferParams::default_buy_builder();
         builder.taker_obligation(taker_obligation);
         let offer = builder.build().unwrap();
 
@@ -392,7 +392,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer_taker_amount_not_as_expected() {
-        let order = SomeTestOrderParams::default_builder().build().unwrap();
+        let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
 
         let maker_obligation = Obligation {
             kind: ObligationKind::Fiat(Currency::CNY, Some(FiatPaymentMethod::WeChatPay)),
@@ -406,7 +406,7 @@ mod tests {
             bond_amount: Some(4200000.0),
         };
 
-        let mut builder = SomeTestOfferParams::default_builder();
+        let mut builder = SomeTestOfferParams::default_buy_builder();
         builder.maker_obligation(maker_obligation);
         builder.taker_obligation(taker_obligation);
         let offer = builder.build().unwrap();
@@ -417,7 +417,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer_taker_bond_mismatch() {
-        let order = SomeTestOrderParams::default_builder().build().unwrap();
+        let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
 
         let taker_obligation = Obligation {
             kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
@@ -425,7 +425,7 @@ mod tests {
             bond_amount: Some(3000000.0),
         };
 
-        let mut builder = SomeTestOfferParams::default_builder();
+        let mut builder = SomeTestOfferParams::default_buy_builder();
         builder.taker_obligation(taker_obligation);
         let offer = builder.build().unwrap();
 
@@ -435,7 +435,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer_taker_bond_not_found() {
-        let order = SomeTestOrderParams::default_builder().build().unwrap();
+        let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
 
         let taker_obligation = Obligation {
             kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
@@ -443,7 +443,7 @@ mod tests {
             bond_amount: None,
         };
 
-        let mut builder = SomeTestOfferParams::default_builder();
+        let mut builder = SomeTestOfferParams::default_buy_builder();
         builder.taker_obligation(taker_obligation);
         let offer = builder.build().unwrap();
 
@@ -462,9 +462,9 @@ mod tests {
             },
         };
 
-        let mut builder = SomeTestOrderParams::default_builder();
+        let mut builder = SomeTestOrderParams::default_buy_builder();
         let order = builder.trade_details(trade_details).build().unwrap();
-        let offer = SomeTestOfferParams::default_builder().build().unwrap();
+        let offer = SomeTestOfferParams::default_buy_builder().build().unwrap();
 
         let result = offer.validate_against(&order);
         assert!(result.is_err());
@@ -472,9 +472,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_offer_market_oracle_not_yet_supported() {
-        let order = SomeTestOrderParams::default_builder().build().unwrap();
+        let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
 
-        let mut builder = SomeTestOfferParams::default_builder();
+        let mut builder = SomeTestOfferParams::default_buy_builder();
         builder.market_oracle_used("https://www.bitstamp.com/api/".to_string());
         let offer = builder.build().unwrap();
 

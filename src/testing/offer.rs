@@ -121,10 +121,22 @@ impl SomeTestOfferParams {
         }
     }
 
-    pub fn default_builder() -> OfferBuilder {
+    pub fn default_buy_builder() -> OfferBuilder {
         let mut builder: OfferBuilder = OfferBuilder::new();
         builder.maker_obligation(Self::maker_obligation_rmb_wechat());
         builder.taker_obligation(Self::taker_obligation_bitcoin_lightning());
+
+        let trade_engine_specifics = Box::new(SomeTradeEngineTakerOfferSpecifics {
+            test_specific_field: SomeTestParams::engine_specific_str(),
+        });
+        builder.trade_engine_specifics(trade_engine_specifics);
+        builder
+    }
+
+    pub fn default_sell_builder() -> OfferBuilder {
+        let mut builder: OfferBuilder = OfferBuilder::new();
+        builder.maker_obligation(Self::maker_obligation_bitcoin_onchain());
+        builder.taker_obligation(Self::taker_obligation_eur_revolut());
 
         let trade_engine_specifics = Box::new(SomeTradeEngineTakerOfferSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),

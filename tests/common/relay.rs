@@ -50,7 +50,7 @@ impl Relay {
     }
 
     // check if the server is healthy via HTTP request
-    pub async fn server_ready(&self) -> Result<bool> {
+    async fn server_ready(&self) -> Result<bool> {
         let uri: String = format!("http://127.0.0.1:{}/", self.port);
         let client = Client::new();
         let uri: Uri = uri.parse().unwrap();

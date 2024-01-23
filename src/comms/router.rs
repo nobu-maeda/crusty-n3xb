@@ -140,7 +140,7 @@ mod tests {
             .register_peer_message_fallback_tx(peer_message_fallback_tx)
             .unwrap();
 
-        let offer = SomeTestOfferParams::default_builder().build().unwrap();
+        let offer = SomeTestOfferParams::default_buy_builder().build().unwrap();
 
         let url = Url::from_str("ws://example.com").unwrap();
 
@@ -213,7 +213,7 @@ mod tests {
             .register_peer_message_fallback_tx(peer_message_fallback_tx)
             .unwrap();
 
-        let offer = SomeTestOfferParams::default_builder().build().unwrap();
+        let offer = SomeTestOfferParams::default_buy_builder().build().unwrap();
 
         let url = Url::from_str("ws://example.com").unwrap();
 
@@ -282,7 +282,7 @@ mod tests {
             .register_peer_message_tx(Uuid::new_v4(), event_tx)
             .unwrap();
 
-        let offer = SomeTestOfferParams::default_builder().build().unwrap();
+        let offer = SomeTestOfferParams::default_buy_builder().build().unwrap();
 
         let url = Url::from_str("ws://example.com").unwrap();
 

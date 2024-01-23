@@ -106,7 +106,7 @@ mod test_query {
             kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
             content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         };
-        let order1 = SomeTestOrderParams::default_builder()
+        let order1 = SomeTestOrderParams::default_buy_builder()
             .trade_uuid(uuid1)
             .maker_obligation(maker_obligation1)
             .taker_obligation(taker_obligation1)
@@ -125,7 +125,7 @@ mod test_query {
             kinds: SomeTestOrderParams::obligation_bitcoin_both_kinds(),
             content: SomeTestOrderParams::taker_obligation_bitcoin_usd_content(),
         };
-        let order2 = SomeTestOrderParams::default_builder()
+        let order2 = SomeTestOrderParams::default_buy_builder()
             .trade_uuid(uuid2)
             .maker_obligation(maker_obligation2)
             .taker_obligation(taker_obligation2)
@@ -144,7 +144,7 @@ mod test_query {
             kinds: SomeTestOrderParams::obligation_fiat_eur_kinds(),
             content: SomeTestOrderParams::taker_obligation_fiat_eur_content(),
         };
-        let order3 = SomeTestOrderParams::default_builder()
+        let order3 = SomeTestOrderParams::default_buy_builder()
             .trade_uuid(uuid3)
             .maker_obligation(maker_obligation3)
             .taker_obligation(taker_obligation3)

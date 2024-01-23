@@ -60,7 +60,7 @@ mod test_simple {
             .unwrap();
         taker_manager.add_relays(relay_addrs, true).await.unwrap();
 
-        let order = SomeTestOrderParams::default_builder().build().unwrap();
+        let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
         let trade_uuid = order.trade_uuid.clone();
 
         let maker_tester = MakerTester::start(maker_manager, order, true).await;
