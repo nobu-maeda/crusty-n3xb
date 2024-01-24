@@ -9,7 +9,7 @@ use crate::common::types::{EventIdString, SerdeGenericTrait, SerdeGenericType};
 
 // Peer Messaging Data Structures
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PeerEnvelope {
     pub pubkey: XOnlyPublicKey,
     pub urls: HashSet<Url>,
