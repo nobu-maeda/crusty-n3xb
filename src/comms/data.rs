@@ -2,19 +2,17 @@ use std::{
     collections::HashMap,
     net::SocketAddr,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        mpsc::{self, TrySendError},
+        Arc, RwLock, RwLockReadGuard, RwLockWriteGuard,
+    },
     time::SystemTime,
 };
 
+use crate::common::{error::N3xbError, utils};
 use log::{error, trace};
 use secp256k1::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};
-use tokio::{
-    select,
-    sync::{mpsc, RwLock},
-};
-
-use crate::common::{error::N3xbError, utils};
 
 #[derive(Serialize, Deserialize)]
 struct CommsDataStore {
@@ -24,13 +22,13 @@ struct CommsDataStore {
 }
 
 impl CommsDataStore {
-    async fn persist(&self, data_path: impl AsRef<Path>) -> Result<(), N3xbError> {
+    fn persist(&self, data_path: impl AsRef<Path>) -> Result<(), N3xbError> {
         let data_json = serde_json::to_string(&self)?;
-        utils::persist(data_json, data_path).await
+        utils::persist(data_json, data_path)
     }
 
-    async fn restore(data_path: impl AsRef<Path>) -> Result<Self, N3xbError> {
-        let comms_json = utils::restore(data_path).await?;
+    fn restore(data_path: impl AsRef<Path>) -> Result<Self, N3xbError> {
+        let comms_json = utils::restore(data_path)?;
         let comms_data: Self = serde_json::from_str(&comms_json)?;
         Ok(comms_data)
     }
@@ -42,10 +40,10 @@ enum CommsDataMsg {
 }
 
 pub(crate) struct CommsData {
-    persist_tx: mpsc::Sender<CommsDataMsg>,
+    persist_tx: mpsc::SyncSender<CommsDataMsg>,
     pubkey_string: String,
     store: Arc<RwLock<CommsDataStore>>,
-    task_handle: tokio::task::JoinHandle<()>,
+    task_handle: std::thread::JoinHandle<()>,
 }
 
 impl CommsData {
@@ -61,7 +59,7 @@ impl CommsData {
         };
 
         if data_path.exists() {
-            match CommsDataStore::restore(&data_path).await {
+            match CommsDataStore::restore(&data_path) {
                 Ok(restored_data) => {
                     store = restored_data;
                 }
@@ -102,31 +100,42 @@ impl CommsData {
         store: Arc<RwLock<CommsDataStore>>,
         data_path: impl AsRef<Path>,
         pubkey_string: String,
-    ) -> (mpsc::Sender<CommsDataMsg>, tokio::task::JoinHandle<()>) {
-        let (persist_tx, mut persist_rx) = mpsc::channel(1);
+    ) -> (mpsc::SyncSender<CommsDataMsg>, std::thread::JoinHandle<()>) {
+        let (persist_tx, persist_rx) = mpsc::sync_channel(1);
         let data_path_buf = data_path.as_ref().to_path_buf();
 
-        let task_handle = tokio::spawn(async move {
+        let task_handle = std::thread::spawn(move || {
             let data_path_buf = data_path_buf.clone();
             loop {
-                select! {
-                    Some(msg) = persist_rx.recv() => {
-                        match msg {
-                            CommsDataMsg::Persist => {
-                                if let Some(err) = store.read().await.persist(&data_path_buf).await.err() {
-                                    error!(
-                                        "Comms w/ Pubkey {} - Error persisting data: {}",
-                                        pubkey_string, err
-                                    );
+                match persist_rx.recv() {
+                    Ok(msg) => match msg {
+                        CommsDataMsg::Persist => {
+                            let store = match store.read() {
+                                Ok(store) => store,
+                                Err(error) => {
+                                    error!("Error reading store - {}", error);
+                                    continue;
                                 }
-                            }
-                            CommsDataMsg::Close => {
-                                break;
+                            };
+
+                            if let Some(err) = store.persist(&data_path_buf).err() {
+                                error!(
+                                    "Comms w/ Pubkey {} - Error persisting data: {}",
+                                    pubkey_string, err
+                                );
                             }
                         }
-
+                        CommsDataMsg::Close => {
+                            break;
+                        }
                     },
-                    else => break,
+                    Err(err) => {
+                        error!(
+                            "Comms w/ Pubkey {} - Error receiving persistance message: {}",
+                            pubkey_string, err
+                        );
+                        break;
+                    }
                 }
             }
         });
@@ -137,15 +146,15 @@ impl CommsData {
         match self.persist_tx.try_send(CommsDataMsg::Persist) {
             Ok(_) => {}
             Err(error) => match error {
-                mpsc::error::TrySendError::Full(_) => {
+                TrySendError::Full(_) => {
                     trace!(
                         "Comms w/ Pubkey {} - Persistance channel full",
                         self.pubkey_string
                     )
                 }
-                mpsc::error::TrySendError::Closed(_) => {
+                TrySendError::Disconnected(_) => {
                     error!(
-                        "Comms w/ Pubkey {} - Persistance channel closed",
+                        "Comms w/ Pubkey {} - Persistance channel disconnected",
                         self.pubkey_string
                     )
                 }
@@ -153,13 +162,31 @@ impl CommsData {
         }
     }
 
+    fn read_store(&self) -> RwLockReadGuard<'_, CommsDataStore> {
+        match self.store.read() {
+            Ok(store) => store,
+            Err(error) => {
+                panic!("Error reading store - {}", error);
+            }
+        }
+    }
+
+    fn write_store(&self) -> RwLockWriteGuard<'_, CommsDataStore> {
+        match self.store.write() {
+            Ok(store) => store,
+            Err(error) => {
+                panic!("Error writing store - {}", error);
+            }
+        }
+    }
+
     pub(crate) async fn relays(&self) -> Vec<(url::Url, Option<SocketAddr>)> {
-        let relays = self.store.read().await.relays.clone();
+        let relays = self.read_store().relays.clone();
         relays.into_iter().collect()
     }
 
     pub(crate) async fn add_relays(&self, relays: Vec<(url::Url, Option<SocketAddr>)>) {
-        let mut store = self.store.write().await;
+        let mut store = self.write_store();
         for (url, addr) in relays {
             store.relays.insert(url, addr);
         }
@@ -167,24 +194,25 @@ impl CommsData {
     }
 
     pub(crate) async fn remove_relay(&self, url: &url::Url) {
-        let mut store = self.store.write().await;
+        let mut store = self.write_store();
         store.relays.remove(url);
         self.queue_persistance();
     }
 
     pub(crate) async fn last_event(&self) -> SystemTime {
-        self.store.read().await.last_event
+        self.read_store().last_event
     }
 
     pub(crate) async fn set_last_event(&self, last_event: SystemTime) {
-        let mut store = self.store.write().await;
+        let mut store = self.write_store();
         store.last_event = last_event;
         self.queue_persistance();
     }
 
-    pub(crate) async fn terminate(self) -> Result<(), N3xbError> {
-        self.persist_tx.send(CommsDataMsg::Close).await?;
-        self.task_handle.await?;
-        Ok(())
+    pub(crate) fn terminate(self) {
+        self.persist_tx.send(CommsDataMsg::Close).unwrap();
+        if let Some(error) = self.task_handle.join().err() {
+            error!("Error terminating persistence thread - {:?}", error);
+        }
     }
 }

@@ -1,20 +1,13 @@
-use std::path::Path;
-
-use tokio::io::AsyncWriteExt;
-
 use crate::common::error::N3xbError;
+use std::{fs, path::Path};
 
 // TODO: Optional - Encrypt with private key before persisting data
-pub async fn persist(json: String, path: impl AsRef<Path>) -> Result<(), N3xbError> {
-    let path = path.as_ref();
-    let mut file = tokio::fs::File::create(path).await?;
-    file.write_all(json.as_bytes()).await?;
-    file.sync_all().await?;
+pub fn persist(json: String, path: impl AsRef<Path>) -> Result<(), N3xbError> {
+    fs::write(path.as_ref(), json)?;
     Ok(())
 }
 
-pub async fn restore(path: impl AsRef<Path>) -> Result<String, N3xbError> {
-    let path = path.as_ref();
-    let json = tokio::fs::read_to_string(path).await?;
+pub fn restore(path: impl AsRef<Path>) -> Result<String, N3xbError> {
+    let json = fs::read_to_string(path.as_ref())?;
     Ok(json)
 }

@@ -444,7 +444,7 @@ impl CommsActor {
 
         info!("Comms w/ pubkey {} terminating", self.pubkey);
         self.client.shutdown().await.unwrap();
-        self.data.terminate().await.unwrap();
+        self.data.terminate();
     }
 
     async fn handle_request(&mut self, request: CommsRequest) -> bool {

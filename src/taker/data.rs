@@ -31,11 +31,11 @@ impl TakerActorDataStore {
             "{}-taker.json",
             self.order_envelope.order.trade_uuid
         ));
-        utils::persist(data_json, data_path).await
+        utils::persist(data_json, data_path)
     }
 
     async fn restore(data_path: impl AsRef<Path>) -> Result<Self, N3xbError> {
-        let taker_json = utils::restore(data_path).await?;
+        let taker_json = utils::restore(data_path)?;
         let taker_data: Self = serde_json::from_str(&taker_json)?;
         Ok(taker_data)
     }

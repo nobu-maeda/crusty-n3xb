@@ -42,11 +42,11 @@ impl MakerActorDataStore {
         let data_path = dir_path
             .as_ref()
             .join(format!("{}-maker.json", self.order.trade_uuid));
-        utils::persist(data_json, data_path).await
+        utils::persist(data_json, data_path)
     }
 
     async fn restore(data_path: impl AsRef<Path>) -> Result<Self, N3xbError> {
-        let maker_json = utils::restore(data_path).await?;
+        let maker_json = utils::restore(data_path)?;
         let maker_data: Self = serde_json::from_str(&maker_json)?;
         Ok(maker_data)
     }
