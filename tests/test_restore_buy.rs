@@ -27,7 +27,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_restore_buy() {
-        //logger_setup();
+        logger_setup();
 
         // Set up the initial state
         if let Some(error) = fs::remove_dir_all("n3xb_data/").await.err() {

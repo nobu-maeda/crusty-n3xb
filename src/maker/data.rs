@@ -1,27 +1,26 @@
-use log::{error, trace};
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
-    sync::Arc,
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
-use uuid::Uuid;
 
 use serde::{Deserialize, Serialize};
-use tokio::{
-    select,
-    sync::{mpsc, RwLock},
-};
 use url::Url;
+use uuid::Uuid;
 
 use crate::{
-    common::{error::N3xbError, types::EventIdString, utils},
+    common::{
+        error::N3xbError,
+        persist::Persister,
+        types::{EventIdString, SerdeGenericTrait},
+    },
     offer::OfferEnvelope,
     order::Order,
     trade_rsp::TradeResponse,
 };
 
-#[derive(Serialize, Deserialize)]
-struct MakerActorDataStore {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct MakerDataStore {
     // Order state data
     order: Order,
     relay_urls: HashSet<Url>,
@@ -36,42 +35,29 @@ struct MakerActorDataStore {
     reject_invalid_offers_silently: bool,
 }
 
-impl MakerActorDataStore {
-    async fn persist(&self, dir_path: impl AsRef<Path>) -> Result<(), N3xbError> {
-        let data_json = serde_json::to_string(&self)?;
-        let data_path = dir_path
-            .as_ref()
-            .join(format!("{}-maker.json", self.order.trade_uuid));
-        utils::persist(data_json, data_path)
-    }
-
-    async fn restore(data_path: impl AsRef<Path>) -> Result<Self, N3xbError> {
-        let maker_json = utils::restore(data_path)?;
-        let maker_data: Self = serde_json::from_str(&maker_json)?;
-        Ok(maker_data)
+#[typetag::serde(name = "n3xb_maker_data")]
+impl SerdeGenericTrait for MakerDataStore {
+    fn any_ref(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
-enum MakerActorDataMsg {
-    Persist,
-    Close,
-}
-
-pub(crate) struct MakerActorData {
+pub(crate) struct MakerData {
     pub(crate) trade_uuid: Uuid,
-    persist_tx: mpsc::Sender<MakerActorDataMsg>,
-    store: Arc<RwLock<MakerActorDataStore>>,
-    task_handle: tokio::task::JoinHandle<()>,
+    store: Arc<RwLock<MakerDataStore>>,
+    persister: Persister,
 }
 
-impl MakerActorData {
+impl MakerData {
     pub(crate) fn new(
         dir_path: impl AsRef<Path>,
         order: Order,
         reject_invalid_offers_silently: bool,
     ) -> Self {
         let trade_uuid = order.trade_uuid;
-        let store = MakerActorDataStore {
+        let data_path = dir_path.as_ref().join(format!("{}-maker.json", trade_uuid));
+
+        let mut store = MakerDataStore {
             order,
             relay_urls: HashSet::new(),
             order_event_id: None,
@@ -82,198 +68,147 @@ impl MakerActorData {
             trade_completed: false,
             reject_invalid_offers_silently,
         };
+
         let store = Arc::new(RwLock::new(store));
-        let (persist_tx, task_handle) =
-            Self::setup_persistance(store.clone(), trade_uuid, &dir_path);
-        let data = Self {
-            persist_tx,
+        let generic_store: Arc<RwLock<dyn SerdeGenericTrait + 'static>> = store.clone();
+        let persister = Persister::new(generic_store, data_path);
+        persister.queue();
+
+        Self {
             trade_uuid,
             store,
-            task_handle,
-        };
-        data.queue_persistance();
-        data
+            persister,
+        }
     }
 
-    pub(crate) async fn restore(data_path: impl AsRef<Path>) -> Result<(Uuid, Self), N3xbError> {
-        let store = MakerActorDataStore::restore(&data_path).await?;
+    pub(crate) fn restore(data_path: impl AsRef<Path>) -> Result<(Uuid, Self), N3xbError> {
+        let json = Persister::restore(&data_path)?;
+        let store: MakerDataStore = serde_json::from_str(&json)?;
+
         let trade_uuid = store.order.trade_uuid;
 
         let store = Arc::new(RwLock::new(store));
-        let dir_path = data_path.as_ref().parent().unwrap();
-
-        let (persist_tx, task_handle) =
-            Self::setup_persistance(store.clone(), trade_uuid, &dir_path);
+        let generic_store: Arc<RwLock<dyn SerdeGenericTrait + 'static>> = store.clone();
+        let persister = Persister::new(generic_store, &data_path);
+        persister.queue();
 
         let data = Self {
-            persist_tx,
             trade_uuid,
             store,
-            task_handle,
+            persister,
         };
-        data.queue_persistance();
 
         Ok((trade_uuid, data))
     }
 
-    fn setup_persistance(
-        store: Arc<RwLock<MakerActorDataStore>>,
-        trade_uuid: Uuid,
-        dir_path: impl AsRef<Path>,
-    ) -> (mpsc::Sender<MakerActorDataMsg>, tokio::task::JoinHandle<()>) {
-        // No more than 1 persistance request is allowed nor needed.
-        // This is essentilaly a debounce mechanism
-        let (persist_tx, mut persist_rx) = mpsc::channel(1);
-        let dir_path_buf = dir_path.as_ref().to_path_buf();
-
-        let task_handle = tokio::spawn(async move {
-            let dir_path_buf = dir_path_buf.clone();
-            loop {
-                select! {
-                    Some(msg) = persist_rx.recv() => {
-                        match msg {
-                            MakerActorDataMsg::Persist => {
-                                if let Some(err) = store.read().await.persist(&dir_path_buf).await.err() {
-                                    error!(
-                                        "Maker w/ TradeUUID {} - Error persisting data: {}",
-                                        trade_uuid, err
-                                    );
-                                }
-                            }
-                            MakerActorDataMsg::Close => {
-                                break;
-                            }
-                        }
-
-                    },
-                    else => break,
-                }
+    fn read_store(&self) -> RwLockReadGuard<'_, MakerDataStore> {
+        match self.store.read() {
+            Ok(store) => store,
+            Err(error) => {
+                panic!("Error reading store - {}", error);
             }
-        });
-        (persist_tx, task_handle)
+        }
     }
 
-    fn queue_persistance(&self) {
-        match self.persist_tx.try_send(MakerActorDataMsg::Persist) {
-            Ok(_) => {}
-            Err(error) => match error {
-                mpsc::error::TrySendError::Full(_) => {
-                    trace!(
-                        "Maker w/ TradeUUID {} - Persistance channel full",
-                        self.trade_uuid
-                    )
-                }
-                mpsc::error::TrySendError::Closed(_) => {
-                    error!(
-                        "Maker w/ TradeUUID {} - Persistance channel closed",
-                        self.trade_uuid
-                    )
-                }
-            },
+    fn write_store(&self) -> RwLockWriteGuard<'_, MakerDataStore> {
+        match self.store.write() {
+            Ok(store) => store,
+            Err(error) => {
+                panic!("Error writing store - {}", error);
+            }
         }
     }
 
     // Getter methods
 
-    pub(crate) async fn order(&self) -> Order {
-        self.store.read().await.order.to_owned()
+    pub(crate) fn order(&self) -> Order {
+        self.read_store().order.to_owned()
     }
 
-    pub(crate) async fn relay_urls(&self) -> HashSet<Url> {
-        self.store.read().await.relay_urls.to_owned()
+    pub(crate) fn relay_urls(&self) -> HashSet<Url> {
+        self.read_store().relay_urls.to_owned()
     }
 
-    pub(crate) async fn order_event_id(&self) -> Option<EventIdString> {
-        self.store.read().await.order_event_id.to_owned()
+    pub(crate) fn order_event_id(&self) -> Option<EventIdString> {
+        self.read_store().order_event_id.to_owned()
     }
 
-    pub(crate) async fn offer_envelopes(&self) -> HashMap<EventIdString, OfferEnvelope> {
-        self.store.read().await.offer_envelopes.to_owned()
+    pub(crate) fn offer_envelopes(&self) -> HashMap<EventIdString, OfferEnvelope> {
+        self.read_store().offer_envelopes.to_owned()
     }
 
-    pub(crate) async fn accepted_offer_event_id(&self) -> Option<EventIdString> {
-        self.store.read().await.accepted_offer_event_id.to_owned()
+    pub(crate) fn accepted_offer_event_id(&self) -> Option<EventIdString> {
+        self.read_store().accepted_offer_event_id.to_owned()
     }
 
-    pub(crate) async fn trade_rsp(&self) -> Option<TradeResponse> {
-        self.store.read().await.trade_rsp.to_owned()
+    pub(crate) fn trade_rsp(&self) -> Option<TradeResponse> {
+        self.read_store().trade_rsp.to_owned()
     }
 
-    pub(crate) async fn trade_rsp_event_id(&self) -> Option<EventIdString> {
-        self.store.read().await.trade_rsp_event_id.to_owned()
+    pub(crate) fn trade_rsp_event_id(&self) -> Option<EventIdString> {
+        self.read_store().trade_rsp_event_id.to_owned()
     }
 
-    pub(crate) async fn trade_completed(&self) -> bool {
-        self.store.read().await.trade_completed
+    pub(crate) fn trade_completed(&self) -> bool {
+        self.read_store().trade_completed
     }
 
-    pub(crate) async fn reject_invalid_offers_silently(&self) -> bool {
-        self.store
-            .read()
-            .await
-            .reject_invalid_offers_silently
-            .to_owned()
+    pub(crate) fn reject_invalid_offers_silently(&self) -> bool {
+        self.read_store().reject_invalid_offers_silently.to_owned()
     }
 
     // Setter methods
 
-    pub(crate) async fn update_maker_order(
+    pub(crate) fn update_maker_order(
         &mut self,
         order_event_id: EventIdString,
         relay_urls: HashSet<Url>,
     ) {
-        self.store.write().await.order_event_id = Some(order_event_id);
-        self.store.write().await.relay_urls = relay_urls;
-        self.queue_persistance();
+        self.write_store().order_event_id = Some(order_event_id);
+        self.write_store().relay_urls = relay_urls;
+        self.persister.queue();
     }
 
-    pub(crate) async fn insert_offer_envelope(
+    pub(crate) fn insert_offer_envelope(
         &mut self,
         offer_event_id: EventIdString,
         offer_envelope: OfferEnvelope,
     ) {
-        self.store
-            .write()
-            .await
+        self.write_store()
             .offer_envelopes
             .insert(offer_event_id, offer_envelope);
-        self.queue_persistance();
+        self.persister.queue();
     }
 
-    pub(crate) async fn set_accepted_offer_event_id(
-        &mut self,
-        accepted_offer_event_id: EventIdString,
-    ) {
-        self.store.write().await.accepted_offer_event_id = Some(accepted_offer_event_id);
-        self.queue_persistance();
+    pub(crate) fn set_accepted_offer_event_id(&mut self, accepted_offer_event_id: EventIdString) {
+        self.write_store().accepted_offer_event_id = Some(accepted_offer_event_id);
+        self.persister.queue();
     }
 
-    pub(crate) async fn set_trade_rsp(
+    pub(crate) fn set_trade_rsp(
         &mut self,
         trade_rsp: TradeResponse,
         trade_rsp_event_id: EventIdString,
     ) {
-        self.store.write().await.trade_rsp = Some(trade_rsp);
-        self.store.write().await.trade_rsp_event_id = Some(trade_rsp_event_id);
-        self.queue_persistance();
+        self.write_store().trade_rsp = Some(trade_rsp);
+        self.write_store().trade_rsp_event_id = Some(trade_rsp_event_id);
+        self.persister.queue();
     }
 
-    pub(crate) async fn set_trade_completed(&mut self, trade_completed: bool) {
-        self.store.write().await.trade_completed = trade_completed;
-        self.queue_persistance();
+    pub(crate) fn set_trade_completed(&mut self, trade_completed: bool) {
+        self.write_store().trade_completed = trade_completed;
+        self.persister.queue();
     }
 
-    pub(crate) async fn set_reject_invalid_offers_silently(
+    pub(crate) fn set_reject_invalid_offers_silently(
         &mut self,
         reject_invalid_offers_silently: bool,
     ) {
-        self.store.write().await.reject_invalid_offers_silently = reject_invalid_offers_silently;
-        self.queue_persistance();
+        self.write_store().reject_invalid_offers_silently = reject_invalid_offers_silently;
+        self.persister.queue();
     }
 
-    pub(crate) async fn terminate(self) -> Result<(), N3xbError> {
-        self.persist_tx.send(MakerActorDataMsg::Close).await?;
-        self.task_handle.await?;
-        Ok(())
+    pub(crate) fn terminate(self) {
+        self.persister.terminate()
     }
 }

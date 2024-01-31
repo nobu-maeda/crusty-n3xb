@@ -8,7 +8,7 @@ use tokio::{
 };
 use uuid::Uuid;
 
-use super::data::TakerActorData;
+use super::data::TakerData;
 
 use crate::{
     common::{
@@ -33,7 +33,7 @@ pub struct TakerAccess {
 }
 
 impl TakerAccess {
-    pub(super) async fn new(tx: mpsc::Sender<TakerRequest>) -> Self {
+    pub(super) fn new(tx: mpsc::Sender<TakerRequest>) -> Self {
         Self { tx }
     }
 
@@ -105,32 +105,31 @@ pub(crate) struct Taker {
 impl Taker {
     const TAKER_REQUEST_CHANNEL_SIZE: usize = 10;
 
-    pub(crate) async fn new(
+    pub(crate) fn new(
         comms_accessor: CommsAccess,
         order_envelope: OrderEnvelope,
         offer: Offer,
         taker_dir_path: impl AsRef<Path>,
     ) -> Self {
         let (tx, rx) = mpsc::channel::<TakerRequest>(Self::TAKER_REQUEST_CHANNEL_SIZE);
-        let actor =
-            TakerActor::new(rx, comms_accessor, order_envelope, offer, taker_dir_path).await;
+        let actor = TakerActor::new(rx, comms_accessor, order_envelope, offer, taker_dir_path);
         let task_handle = tokio::spawn(async move { actor.run().await });
         Self { tx, task_handle }
     }
 
-    pub(crate) async fn restore(
+    pub(crate) fn restore(
         comms_accessor: CommsAccess,
         taker_data_path: impl AsRef<Path>,
     ) -> Result<(Uuid, Self), N3xbError> {
         let (tx, rx) = mpsc::channel::<TakerRequest>(Self::TAKER_REQUEST_CHANNEL_SIZE);
-        let (trade_uuid, actor) = TakerActor::restore(rx, comms_accessor, taker_data_path).await?;
+        let (trade_uuid, actor) = TakerActor::restore(rx, comms_accessor, taker_data_path)?;
         let task_handle = tokio::spawn(async move { actor.run().await });
         let taker = Self { tx, task_handle };
         Ok((trade_uuid, taker))
     }
 
-    pub(crate) async fn new_accessor(&self) -> TakerAccess {
-        TakerAccess::new(self.tx.clone()).await
+    pub(crate) fn new_accessor(&self) -> TakerAccess {
+        TakerAccess::new(self.tx.clone())
     }
 }
 
@@ -164,19 +163,19 @@ pub(super) enum TakerRequest {
 struct TakerActor {
     rx: mpsc::Receiver<TakerRequest>,
     comms_accessor: CommsAccess,
-    data: TakerActorData,
+    data: TakerData,
     notif_tx: Option<mpsc::Sender<Result<TakerNotif, N3xbError>>>,
 }
 
 impl TakerActor {
-    pub(crate) async fn new(
+    pub(crate) fn new(
         rx: mpsc::Receiver<TakerRequest>,
         comms_accessor: CommsAccess,
         order_envelope: OrderEnvelope,
         offer: Offer,
         taker_dir_path: impl AsRef<Path>,
     ) -> Self {
-        let data = TakerActorData::new(taker_dir_path, order_envelope, offer);
+        let data = TakerData::new(taker_dir_path, order_envelope, offer);
 
         TakerActor {
             rx,
@@ -186,12 +185,12 @@ impl TakerActor {
         }
     }
 
-    pub(crate) async fn restore(
+    pub(crate) fn restore(
         rx: mpsc::Receiver<TakerRequest>,
         comms_accessor: CommsAccess,
         taker_data_path: impl AsRef<Path>,
     ) -> Result<(Uuid, Self), N3xbError> {
-        let (trade_uuid, data) = TakerActorData::restore(taker_data_path).await?;
+        let (trade_uuid, data) = TakerData::restore(taker_data_path)?;
 
         let actor = TakerActor {
             rx,
@@ -234,7 +233,7 @@ impl TakerActor {
             }
         }
         info!("Taker w/ TradeUUID {} terminating", self.data.trade_uuid);
-        self.data.terminate().await.unwrap();
+        self.data.terminate();
     }
 
     // Top-down Requests Handling
@@ -249,22 +248,22 @@ impl TakerActor {
         match request {
             TakerRequest::SendTakerOffer { rsp_tx } => self.send_taker_offer(rsp_tx).await,
             TakerRequest::QueryTradeRsp { rsp_tx } => {
-                self.query_trade_rsp(rsp_tx).await;
+                self.query_trade_rsp(rsp_tx);
             }
             TakerRequest::PeerMessage { message, rsp_tx } => {
                 self.send_peer_message(message, rsp_tx).await;
             }
             TakerRequest::TradeComplete { rsp_tx } => {
-                terminate = self.trade_complete(rsp_tx).await;
+                terminate = self.trade_complete(rsp_tx);
             }
             TakerRequest::RegisterNotifTx { tx, rsp_tx } => {
-                self.register_notif_tx(tx, rsp_tx).await;
+                self.register_notif_tx(tx, rsp_tx);
             }
             TakerRequest::UnregisterNotifTx { rsp_tx } => {
-                self.unregister_notif_tx(rsp_tx).await;
+                self.unregister_notif_tx(rsp_tx);
             }
             TakerRequest::Shutdown { rsp_tx } => {
-                self.shutdown(rsp_tx).await;
+                self.shutdown(rsp_tx);
                 terminate = true;
             }
         }
@@ -272,13 +271,13 @@ impl TakerActor {
     }
 
     async fn send_taker_offer(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
-        if let Some(error) = self.check_trade_completed().await.err() {
+        if let Some(error) = self.check_trade_completed().err() {
             rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
             return;
         }
 
-        let order_envelope = self.data.order_envelope().await;
-        let offer = self.data.offer().await;
+        let order_envelope = self.data.order_envelope();
+        let offer = self.data.offer();
 
         let result = self
             .comms_accessor
@@ -293,7 +292,7 @@ impl TakerActor {
 
         match result {
             Ok(event_id) => {
-                self.data.set_offer_event_id(event_id).await;
+                self.data.set_offer_event_id(event_id);
                 rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
             }
             Err(err) => {
@@ -302,11 +301,11 @@ impl TakerActor {
         }
     }
 
-    async fn query_trade_rsp(
+    fn query_trade_rsp(
         &mut self,
         rsp_tx: oneshot::Sender<Result<Option<TradeResponseEnvelope>, N3xbError>>,
     ) {
-        let trade_rsp = self.data.trade_rsp_envelope().await;
+        let trade_rsp = self.data.trade_rsp_envelope();
         rsp_tx.send(Ok(trade_rsp)).unwrap(); // oneshot should not fail
     }
 
@@ -315,12 +314,12 @@ impl TakerActor {
         message: Box<dyn SerdeGenericTrait>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
-        if let Some(error) = self.check_trade_completed().await.err() {
+        if let Some(error) = self.check_trade_completed().err() {
             rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
             return;
         }
 
-        let order_envelope = self.data.order_envelope().await;
+        let order_envelope = self.data.order_envelope();
         let result = self
             .comms_accessor
             .send_trade_engine_specific_message(
@@ -342,7 +341,7 @@ impl TakerActor {
         }
     }
 
-    async fn register_notif_tx(
+    fn register_notif_tx(
         &mut self,
         tx: mpsc::Sender<Result<TakerNotif, N3xbError>>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
@@ -359,7 +358,7 @@ impl TakerActor {
         rsp_tx.send(result).unwrap();
     }
 
-    async fn unregister_notif_tx(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+    fn unregister_notif_tx(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         let mut result = Ok(());
         if self.notif_tx.is_none() {
             let error = N3xbError::Simple(format!(
@@ -372,8 +371,8 @@ impl TakerActor {
         rsp_tx.send(result).unwrap();
     }
 
-    async fn check_trade_completed(&self) -> Result<(), N3xbError> {
-        if self.data.trade_completed().await {
+    fn check_trade_completed(&self) -> Result<(), N3xbError> {
+        if self.data.trade_completed() {
             let error = N3xbError::Simple(format!(
                 "Maker w/ TradeUUID {} already marked as Trade Complete",
                 self.data.trade_uuid
@@ -384,19 +383,19 @@ impl TakerActor {
         }
     }
 
-    async fn trade_complete(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) -> bool {
-        if let Some(error) = self.check_trade_completed().await.err() {
+    fn trade_complete(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) -> bool {
+        if let Some(error) = self.check_trade_completed().err() {
             rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
             return false;
         }
 
         // TODO: What else to do for Trade Complete?
-        self.data.set_trade_completed(true).await;
+        self.data.set_trade_completed(true);
         rsp_tx.send(Ok(())).unwrap();
         return true;
     }
 
-    async fn shutdown(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+    fn shutdown(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         rsp_tx.send(Ok(())).unwrap();
     }
 
@@ -450,8 +449,8 @@ impl TakerActor {
         let mut notif_result: Result<TakerNotif, N3xbError> =
             Ok(TakerNotif::TradeRsp(trade_rsp_envelope.clone()));
 
-        let order_envelope = self.data.order_envelope().await;
-        let offer_event_id = self.data.offer_event_id().await.expect(&format!(
+        let order_envelope = self.data.order_envelope();
+        let offer_event_id = self.data.offer_event_id().expect(&format!(
             "Taker w/ TradeUUID {} received TradeResponse message before Taker Offer has been sent",
             self.data.trade_uuid
         ));
@@ -467,7 +466,7 @@ impl TakerActor {
                     )
                 )
             );
-        } else if let Some(existing_trade_rsp_envelope) = &self.data.trade_rsp_envelope().await {
+        } else if let Some(existing_trade_rsp_envelope) = &self.data.trade_rsp_envelope() {
             notif_result = Err(
                 N3xbError::Simple(
                     format!(
@@ -490,7 +489,7 @@ impl TakerActor {
                 )
             );
         } else {
-            self.data.set_trade_rsp_envelope(trade_rsp_envelope).await;
+            self.data.set_trade_rsp_envelope(trade_rsp_envelope);
         }
 
         // Notify user of new Trade Response recieved
@@ -511,7 +510,7 @@ impl TakerActor {
     }
 
     async fn handle_engine_specific_peer_message(&mut self, envelope: PeerEnvelope) {
-        let order_envelope = self.data.order_envelope().await;
+        let order_envelope = self.data.order_envelope();
 
         // Verify peer message is signed by the expected pubkey before passing to Trade Engine
         if envelope.pubkey != order_envelope.pubkey {

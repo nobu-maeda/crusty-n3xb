@@ -8,7 +8,7 @@ use tokio::{
     sync::{mpsc, oneshot},
 };
 
-use super::data::MakerActorData;
+use super::data::MakerData;
 
 use crate::{
     common::{
@@ -33,7 +33,7 @@ pub struct MakerAccess {
 }
 
 impl MakerAccess {
-    pub(super) async fn new(tx: mpsc::Sender<MakerRequest>) -> Self {
+    pub(super) fn new(tx: mpsc::Sender<MakerRequest>) -> Self {
         Self { tx }
     }
 
@@ -125,30 +125,30 @@ pub(crate) struct Maker {
 impl Maker {
     const MAKER_REQUEST_CHANNEL_SIZE: usize = 10;
 
-    pub(crate) async fn new(
+    pub(crate) fn new(
         comms_accessor: CommsAccess,
         order: Order,
         maker_dir_path: impl AsRef<Path>,
     ) -> Self {
         let (tx, rx) = mpsc::channel::<MakerRequest>(Self::MAKER_REQUEST_CHANNEL_SIZE);
-        let actor = MakerActor::new(rx, comms_accessor, order, maker_dir_path).await;
+        let actor = MakerActor::new(rx, comms_accessor, order, maker_dir_path);
         let task_handle = tokio::spawn(async move { actor.run().await });
         Self { tx, task_handle }
     }
 
-    pub(crate) async fn restore(
+    pub(crate) fn restore(
         comms_accessor: CommsAccess,
         maker_data_path: impl AsRef<Path>,
     ) -> Result<(Uuid, Self), N3xbError> {
         let (tx, rx) = mpsc::channel::<MakerRequest>(Self::MAKER_REQUEST_CHANNEL_SIZE);
-        let (trade_uuid, actor) = MakerActor::restore(rx, comms_accessor, maker_data_path).await?;
+        let (trade_uuid, actor) = MakerActor::restore(rx, comms_accessor, maker_data_path)?;
         let task_handle = tokio::spawn(async move { actor.run().await });
         let maker = Self { tx, task_handle };
         Ok((trade_uuid, maker))
     }
 
-    pub(crate) async fn new_accessor(&self) -> MakerAccess {
-        MakerAccess::new(self.tx.clone()).await
+    pub(crate) fn new_accessor(&self) -> MakerAccess {
+        MakerAccess::new(self.tx.clone())
     }
 }
 
@@ -193,18 +193,18 @@ pub(super) enum MakerRequest {
 struct MakerActor {
     rx: mpsc::Receiver<MakerRequest>,
     comms_accessor: CommsAccess,
-    data: MakerActorData,
+    data: MakerData,
     notif_tx: Option<mpsc::Sender<Result<MakerNotif, N3xbError>>>,
 }
 
 impl MakerActor {
-    pub(crate) async fn new(
+    pub(crate) fn new(
         rx: mpsc::Receiver<MakerRequest>,
         comms_accessor: CommsAccess,
         order: Order,
         maker_dir_path: impl AsRef<Path>,
     ) -> Self {
-        let data = MakerActorData::new(maker_dir_path, order, true);
+        let data = MakerData::new(maker_dir_path, order, true);
 
         MakerActor {
             rx,
@@ -214,12 +214,12 @@ impl MakerActor {
         }
     }
 
-    pub(crate) async fn restore(
+    pub(crate) fn restore(
         rx: mpsc::Receiver<MakerRequest>,
         comms_accessor: CommsAccess,
         maker_data_path: impl AsRef<Path>,
     ) -> Result<(Uuid, Self), N3xbError> {
-        let (trade_uuid, data) = MakerActorData::restore(maker_data_path).await?;
+        let (trade_uuid, data) = MakerData::restore(maker_data_path)?;
 
         let actor = MakerActor {
             rx,
@@ -261,7 +261,7 @@ impl MakerActor {
             }
         }
         info!("Maker w/ TradeUUID {} terminating", self.data.trade_uuid);
-        self.data.terminate().await.unwrap();
+        self.data.terminate();
     }
 
     // Top-down Request Handling
@@ -276,9 +276,9 @@ impl MakerActor {
 
         match request {
             MakerRequest::SendMakerOrder { rsp_tx } => self.send_maker_order(rsp_tx).await,
-            MakerRequest::QueryOffers { rsp_tx } => self.query_offers(rsp_tx).await,
+            MakerRequest::QueryOffers { rsp_tx } => self.query_offers(rsp_tx),
             MakerRequest::QueryOffer { event_id, rsp_tx } => {
-                self.query_offer(event_id, rsp_tx).await;
+                self.query_offer(event_id, rsp_tx);
             }
             MakerRequest::AcceptOffer { trade_rsp, rsp_tx } => {
                 self.accept_offer(trade_rsp, rsp_tx).await;
@@ -294,13 +294,13 @@ impl MakerActor {
                 terminate = self.trade_complete(rsp_tx).await;
             }
             MakerRequest::RegisterNotifTx { tx, rsp_tx } => {
-                self.register_notif_tx(tx, rsp_tx).await;
+                self.register_notif_tx(tx, rsp_tx);
             }
             MakerRequest::UnregisterNotifTx { rsp_tx } => {
-                self.unregister_notif_tx(rsp_tx).await;
+                self.unregister_notif_tx(rsp_tx);
             }
             MakerRequest::Shutdown { rsp_tx } => {
-                self.shutdown(rsp_tx).await;
+                self.shutdown(rsp_tx);
                 terminate = true;
             }
         }
@@ -308,18 +308,17 @@ impl MakerActor {
     }
 
     async fn send_maker_order(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
-        if let Some(error) = self.check_trade_completed().await.err() {
+        if let Some(error) = self.check_trade_completed().err() {
             rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
             return;
         }
 
-        let order = self.data.order().await;
+        let order = self.data.order();
         let result = self.comms_accessor.send_maker_order_note(order).await;
         match result {
             Ok(order_envelope) => {
                 self.data
-                    .update_maker_order(order_envelope.event_id, order_envelope.urls)
-                    .await;
+                    .update_maker_order(order_envelope.event_id, order_envelope.urls);
                 rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
             }
             Err(error) => {
@@ -328,19 +327,16 @@ impl MakerActor {
         }
     }
 
-    async fn query_offers(
-        &mut self,
-        rsp_tx: oneshot::Sender<HashMap<EventIdString, OfferEnvelope>>,
-    ) {
-        rsp_tx.send(self.data.offer_envelopes().await).unwrap(); // oneshot should not fail
+    fn query_offers(&mut self, rsp_tx: oneshot::Sender<HashMap<EventIdString, OfferEnvelope>>) {
+        rsp_tx.send(self.data.offer_envelopes()).unwrap(); // oneshot should not fail
     }
 
-    async fn query_offer(
+    fn query_offer(
         &mut self,
         event_id: EventIdString,
         rsp_tx: oneshot::Sender<Option<OfferEnvelope>>,
     ) {
-        let offer = self.data.offer_envelopes().await.get(&event_id).cloned();
+        let offer = self.data.offer_envelopes().get(&event_id).cloned();
         rsp_tx.send(offer).unwrap(); // oneshot should not fail
     }
 
@@ -349,12 +345,12 @@ impl MakerActor {
         trade_rsp: TradeResponse,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
-        if let Some(error) = self.check_trade_completed().await.err() {
+        if let Some(error) = self.check_trade_completed().err() {
             rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
             return;
         }
 
-        if let Some(event_id) = self.data.accepted_offer_event_id().await {
+        if let Some(event_id) = self.data.accepted_offer_event_id() {
             let error = N3xbError::Simple(
                 format!(
                     "Maker w/ TradeUUID {} should not have already accepted an Offer. Prev Offer event ID {}, New Offer event ID {}",
@@ -369,15 +365,9 @@ impl MakerActor {
 
         let accepted_offer_event_id = trade_rsp.offer_event_id.clone();
         self.data
-            .set_accepted_offer_event_id(accepted_offer_event_id.clone())
-            .await;
+            .set_accepted_offer_event_id(accepted_offer_event_id.clone());
 
-        let pubkey = match self
-            .data
-            .offer_envelopes()
-            .await
-            .get(&accepted_offer_event_id)
-        {
+        let pubkey = match self.data.offer_envelopes().get(&accepted_offer_event_id) {
             Some(offer_envelope) => offer_envelope.pubkey.clone(),
             None => {
                 let error = N3xbError::Simple(format!(
@@ -389,7 +379,7 @@ impl MakerActor {
             }
         };
 
-        let maker_order_note_id = match self.data.order_event_id().await {
+        let maker_order_note_id = match self.data.order_event_id() {
             Some(event_id) => event_id,
             None => {
                 let error = N3xbError::Simple(
@@ -404,7 +394,7 @@ impl MakerActor {
         };
 
         // Send Trade Response Pending to all other Offers
-        for offer_envelope in self.data.offer_envelopes().await.values() {
+        for offer_envelope in self.data.offer_envelopes().values() {
             let offer_event_id = offer_envelope.event_id.clone();
             if offer_event_id == accepted_offer_event_id {
                 continue;
@@ -447,7 +437,7 @@ impl MakerActor {
 
         match result {
             Ok(event_id) => {
-                self.data.set_trade_rsp(trade_rsp, event_id).await;
+                self.data.set_trade_rsp(trade_rsp, event_id);
                 rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
             }
             Err(error) => {
@@ -457,12 +447,12 @@ impl MakerActor {
     }
 
     async fn cancel_order(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
-        if let Some(error) = self.check_trade_completed().await.err() {
+        if let Some(error) = self.check_trade_completed().err() {
             rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
             return;
         }
 
-        let maker_order_note_id = match self.data.order_event_id().await {
+        let maker_order_note_id = match self.data.order_event_id() {
             Some(event_id) => event_id,
             None => {
                 let error = N3xbError::Simple(
@@ -477,7 +467,7 @@ impl MakerActor {
         };
 
         // Send Trade Response Cancelled to all Offers received so far
-        for _offer_envelope in self.data.offer_envelopes().await.values() {
+        for _offer_envelope in self.data.offer_envelopes().values() {
             warn!(
                 "Maker w/ TradeUUID {} has outstanding offers, but no explicit cancellation sent to Takers",
                 self.data.trade_uuid
@@ -537,12 +527,12 @@ impl MakerActor {
         message: Box<dyn SerdeGenericTrait>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
-        if let Some(error) = self.check_trade_completed().await.err() {
+        if let Some(error) = self.check_trade_completed().err() {
             rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
             return;
         }
 
-        let accepted_offer_event_id = match self.data.accepted_offer_event_id().await {
+        let accepted_offer_event_id = match self.data.accepted_offer_event_id() {
             Some(event_id) => event_id,
             None => {
                 let error = N3xbError::Simple(format!(
@@ -554,12 +544,7 @@ impl MakerActor {
             }
         };
 
-        let pubkey = match self
-            .data
-            .offer_envelopes()
-            .await
-            .get(&accepted_offer_event_id)
-        {
+        let pubkey = match self.data.offer_envelopes().get(&accepted_offer_event_id) {
             Some(offer_envelope) => offer_envelope.pubkey.clone(),
             None => {
                 let error = N3xbError::Simple(format!(
@@ -571,7 +556,7 @@ impl MakerActor {
             }
         };
 
-        let maker_order_note_id = match self.data.order_event_id().await {
+        let maker_order_note_id = match self.data.order_event_id() {
             Some(event_id) => event_id,
             None => {
                 let error = N3xbError::Simple(
@@ -606,8 +591,8 @@ impl MakerActor {
         }
     }
 
-    async fn check_trade_completed(&self) -> Result<(), N3xbError> {
-        if self.data.trade_completed().await {
+    fn check_trade_completed(&self) -> Result<(), N3xbError> {
+        if self.data.trade_completed() {
             let error = N3xbError::Simple(format!(
                 "Maker w/ TradeUUID {} already marked as Trade Complete",
                 self.data.trade_uuid
@@ -619,15 +604,15 @@ impl MakerActor {
     }
 
     async fn trade_complete(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) -> bool {
-        if let Some(error) = self.check_trade_completed().await.err() {
+        if let Some(error) = self.check_trade_completed().err() {
             rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
             return false;
         }
 
         // TODO: What else to do for Trade Complete?
-        self.data.set_trade_completed(true).await;
+        self.data.set_trade_completed(true);
 
-        let maker_order_note_id = match self.data.order_event_id().await {
+        let maker_order_note_id = match self.data.order_event_id() {
             Some(event_id) => event_id,
             None => {
                 let error = N3xbError::Simple(
@@ -659,7 +644,7 @@ impl MakerActor {
         return true;
     }
 
-    async fn register_notif_tx(
+    fn register_notif_tx(
         &mut self,
         tx: mpsc::Sender<Result<MakerNotif, N3xbError>>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
@@ -676,7 +661,7 @@ impl MakerActor {
         rsp_tx.send(result).unwrap();
     }
 
-    async fn unregister_notif_tx(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+    fn unregister_notif_tx(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         let mut result = Ok(());
         if self.notif_tx.is_none() {
             let error = N3xbError::Simple(format!(
@@ -689,7 +674,7 @@ impl MakerActor {
         rsp_tx.send(result).unwrap();
     }
 
-    async fn shutdown(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
+    fn shutdown(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         rsp_tx.send(Ok(())).unwrap();
     }
 
@@ -743,32 +728,30 @@ impl MakerActor {
         let mut notif_result: Result<MakerNotif, N3xbError> =
             Ok(MakerNotif::Offer(offer_envelope.clone()));
 
-        let reason = if self.data.accepted_offer_event_id().await.is_some() {
+        let reason = if self.data.accepted_offer_event_id().is_some() {
             Some(OfferInvalidReason::PendingAnother)
         } else if self
             .data
             .offer_envelopes()
-            .await
             .contains_key(&offer_envelope.event_id)
         {
             Some(OfferInvalidReason::DuplicateOffer)
         } else if let Some(reason) = offer_envelope
             .offer
-            .validate_against(&self.data.order().await)
+            .validate_against(&self.data.order())
             .err()
         {
             Some(reason)
         } else {
             self.data
-                .insert_offer_envelope(offer_envelope.event_id.clone(), offer_envelope.clone())
-                .await;
+                .insert_offer_envelope(offer_envelope.event_id.clone(), offer_envelope.clone());
             None
         };
 
         let offer_envelope_clone = offer_envelope.clone();
 
         let accepted_offer_string =
-            if let Some(offer_event_id) = self.data.accepted_offer_event_id().await {
+            if let Some(offer_event_id) = self.data.accepted_offer_event_id() {
                 offer_event_id.to_string()
             } else {
                 "N/A".to_string()
@@ -789,7 +772,7 @@ impl MakerActor {
                     self.data.trade_uuid, offer_envelope.event_id, reject_err
                 );
             }
-            if self.data.reject_invalid_offers_silently().await {
+            if self.data.reject_invalid_offers_silently() {
                 return;
             }
         }
@@ -819,7 +802,7 @@ impl MakerActor {
 
         let pubkey = offer_envelope.pubkey;
         let offer_event_id = offer_envelope.event_id.clone();
-        let maker_order_note_id = match self.data.order_event_id().await {
+        let maker_order_note_id = match self.data.order_event_id() {
             Some(event_id) => event_id,
             None => {
                 reject_result = Err(
@@ -857,13 +840,8 @@ impl MakerActor {
     async fn handle_engine_specific_peer_message(&mut self, envelope: PeerEnvelope) {
         // Verify peer message is signed by the expected pubkey before passing to Trade Engine
         let expected_pubkey =
-            if let Some(accepted_offer_event_id) = self.data.accepted_offer_event_id().await {
-                match self
-                    .data
-                    .offer_envelopes()
-                    .await
-                    .get(&accepted_offer_event_id)
-                {
+            if let Some(accepted_offer_event_id) = self.data.accepted_offer_event_id() {
+                match self.data.offer_envelopes().get(&accepted_offer_event_id) {
                     Some(offer_envelope) => offer_envelope.pubkey.clone(),
                     None => {
                         error!(

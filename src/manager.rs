@@ -71,11 +71,11 @@ impl Manager {
                 .await;
         let mut maker_accessors = HashMap::new();
         for maker in &makers {
-            maker_accessors.insert(maker.0.clone(), maker.1.new_accessor().await);
+            maker_accessors.insert(maker.0.clone(), maker.1.new_accessor());
         }
         let mut taker_accessors = HashMap::new();
         for taker in &takers {
-            taker_accessors.insert(taker.0.clone(), taker.1.new_accessor().await);
+            taker_accessors.insert(taker.0.clone(), taker.1.new_accessor());
         }
 
         Manager {
@@ -98,14 +98,14 @@ impl Manager {
         let result: Result<(HashMap<Uuid, Maker>, HashMap<Uuid, Taker>), N3xbError> = async {
             // Create directories to data and manager with identifier if not already exist
             let maker_dir_path = manager_dir_path.as_ref().join(MAKERS_DIR_STR);
-            tokio::fs::create_dir_all(&maker_dir_path).await?;
+            std::fs::create_dir_all(&maker_dir_path)?;
 
             // Restore Makers from files in maker directory
             let makers = Self::restore_makers(comms_accessor, &maker_dir_path).await;
 
             // Do the same for Takers
             let taker_dir_path = manager_dir_path.as_ref().join(TAKERS_DIR_STR);
-            tokio::fs::create_dir_all(&taker_dir_path).await?;
+            std::fs::create_dir_all(&taker_dir_path)?;
 
             let takers = Self::restore_takers(comms_accessor, &taker_dir_path).await?;
             Ok((makers, takers))
@@ -135,20 +135,20 @@ impl Manager {
     ) -> HashMap<Uuid, Maker> {
         // Go through all files in maker directory and restore each file as a new Maker
         let mut makers = HashMap::new();
-        let mut maker_files = tokio::fs::read_dir(maker_dir_path).await.unwrap();
-        while let Some(maker_file) = maker_files.next_entry().await.unwrap() {
-            let maker_file_path = maker_file.path();
-            let (trade_uuid, maker) =
-                match Maker::restore(comms_accessor.clone(), &maker_file_path).await {
-                    Ok((trade_uuid, maker)) => (trade_uuid, maker),
-                    Err(err) => {
-                        warn!(
-                            "Error restoring Maker from file {:?} - {}",
-                            maker_file_path, err
-                        );
-                        continue;
-                    }
-                };
+        let mut maker_files = std::fs::read_dir(maker_dir_path).unwrap();
+        while let Some(maker_file) = maker_files.next() {
+            let maker_file_path = maker_file.unwrap().path();
+            let (trade_uuid, maker) = match Maker::restore(comms_accessor.clone(), &maker_file_path)
+            {
+                Ok((trade_uuid, maker)) => (trade_uuid, maker),
+                Err(err) => {
+                    panic!(
+                        "Error restoring Maker from file {:?} - {}",
+                        maker_file_path, err
+                    );
+                    // continue;
+                }
+            };
             makers.insert(trade_uuid, maker);
         }
         makers
@@ -160,20 +160,20 @@ impl Manager {
     ) -> Result<HashMap<Uuid, Taker>, N3xbError> {
         // Go through all files in taker directory and restore each file as a new Taker
         let mut takers = HashMap::new();
-        let mut taker_files = tokio::fs::read_dir(taker_dir_path).await?;
-        while let Some(taker_file) = taker_files.next_entry().await? {
-            let taker_file_path = taker_file.path();
-            let (trade_uuid, taker) =
-                match Taker::restore(comms_accessor.clone(), &taker_file_path).await {
-                    Ok((trade_uuid, taker)) => (trade_uuid, taker),
-                    Err(err) => {
-                        warn!(
-                            "Error restoring Taker from file {:?} - {}",
-                            taker_file_path, err
-                        );
-                        continue;
-                    }
-                };
+        let mut taker_files = std::fs::read_dir(taker_dir_path)?;
+        while let Some(taker_file) = taker_files.next() {
+            let taker_file_path = taker_file.unwrap().path();
+            let (trade_uuid, taker) = match Taker::restore(comms_accessor.clone(), &taker_file_path)
+            {
+                Ok((trade_uuid, taker)) => (trade_uuid, taker),
+                Err(err) => {
+                    panic!(
+                        "Error restoring Taker from file {:?} - {}",
+                        taker_file_path, err
+                    );
+                    // continue;
+                }
+            };
             takers.insert(trade_uuid, taker);
         }
         Ok(takers)
@@ -239,10 +239,9 @@ impl Manager {
             self.comms.new_accessor(),
             order,
             self.manager_dir_path.join(MAKERS_DIR_STR),
-        )
-        .await;
-        let maker_my_accessor = maker.new_accessor().await;
-        let maker_returned_accessor = maker.new_accessor().await;
+        );
+        let maker_my_accessor = maker.new_accessor();
+        let maker_returned_accessor = maker.new_accessor();
 
         debug!(
             "Manager w/ pubkey {} adding Maker w/ TradeUUID {}",
@@ -299,10 +298,9 @@ impl Manager {
             order_envelope,
             offer,
             self.manager_dir_path.join(TAKERS_DIR_STR),
-        )
-        .await;
-        let taker_my_accessor = taker.new_accessor().await;
-        let taker_returned_accessor = taker.new_accessor().await;
+        );
+        let taker_my_accessor = taker.new_accessor();
+        let taker_returned_accessor = taker.new_accessor();
 
         debug!(
             "Manager w/ pubkey {} adding Taker w/ TradeUUID {}",

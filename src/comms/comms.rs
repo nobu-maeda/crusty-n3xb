@@ -385,7 +385,7 @@ impl CommsActor {
         data_dir_path: impl AsRef<Path>,
     ) -> Self {
         let pubkey = client.keys().await.public_key();
-        let data = match CommsData::new(&data_dir_path, pubkey).await {
+        let data = match CommsData::new(&data_dir_path, pubkey) {
             Ok(data) => data,
             Err(error) => {
                 panic!(
@@ -396,7 +396,7 @@ impl CommsActor {
                 );
             }
         };
-        let relays = data.relays().await;
+        let relays = data.relays();
 
         let actor = CommsActor {
             rx,
@@ -614,7 +614,7 @@ impl CommsActor {
     }
 
     async fn handle_notification_event(&mut self, url: url::Url, event: Event) {
-        self.data.set_last_event(SystemTime::now()).await;
+        self.data.set_last_event(SystemTime::now());
 
         if let Kind::EncryptedDirectMessage = event.kind {
             self.handle_direct_message(url, event).await;
@@ -707,7 +707,7 @@ impl CommsActor {
             rsp_tx.send(Err(error)).unwrap(); // Oneshot should not fail
             return;
         }
-        self.data.add_relays(relay_addrs.clone()).await;
+        self.data.add_relays(relay_addrs.clone());
 
         let relay_urls: Vec<url::Url> = relay_addrs.iter().map(|(url, _)| url.clone()).collect();
 
@@ -784,7 +784,7 @@ impl CommsActor {
         match result {
             Ok(_) => {
                 rsp_tx.send(Ok(())).unwrap();
-                self.data.remove_relay(&relay_url).await;
+                self.data.remove_relay(&relay_url);
             }
             Err(error) => rsp_tx.send(Err(error.into())).unwrap(),
         };
@@ -963,7 +963,6 @@ impl CommsActor {
         let unix_epoch_secs = self
             .data
             .last_event()
-            .await
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
