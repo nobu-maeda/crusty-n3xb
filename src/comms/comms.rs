@@ -100,6 +100,7 @@ impl CommsAccess {
         rsp_rx.await.unwrap()
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn unregister_peer_message_tx(
         &self,
         trade_uuid: Uuid,
@@ -318,10 +319,12 @@ pub(super) enum CommsRequest {
         trade_uuid: Uuid,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
+    #[allow(dead_code)]
     RegisterFallbackTx {
         tx: mpsc::Sender<PeerEnvelope>,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
+    #[allow(dead_code)]
     UnregisterFallbackTx {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
@@ -936,6 +939,7 @@ impl CommsActor {
             .collect()
     }
 
+    #[allow(dead_code)]
     async fn handle_resync_events(&mut self, events: Vec<Event>) {
         for event in events {
             // Get relays this event is seen in

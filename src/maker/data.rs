@@ -57,7 +57,7 @@ impl MakerData {
         let trade_uuid = order.trade_uuid;
         let data_path = dir_path.as_ref().join(format!("{}-maker.json", trade_uuid));
 
-        let mut store = MakerDataStore {
+        let store = MakerDataStore {
             order,
             relay_urls: HashSet::new(),
             order_event_id: None,
@@ -125,6 +125,7 @@ impl MakerData {
         self.read_store().order.to_owned()
     }
 
+    #[allow(dead_code)]
     pub(crate) fn relay_urls(&self) -> HashSet<Url> {
         self.read_store().relay_urls.to_owned()
     }
@@ -141,10 +142,12 @@ impl MakerData {
         self.read_store().accepted_offer_event_id.to_owned()
     }
 
+    #[allow(dead_code)]
     pub(crate) fn trade_rsp(&self) -> Option<TradeResponse> {
         self.read_store().trade_rsp.to_owned()
     }
 
+    #[allow(dead_code)]
     pub(crate) fn trade_rsp_event_id(&self) -> Option<EventIdString> {
         self.read_store().trade_rsp_event_id.to_owned()
     }
