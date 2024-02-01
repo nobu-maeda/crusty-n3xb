@@ -1,7 +1,7 @@
 use ::log::{error, trace};
+use log::debug;
 use std::{
-    fs::File,
-    io::Write,
+    fs,
     path::Path,
     sync::{
         mpsc::{self, TrySendError},
@@ -77,6 +77,10 @@ impl Persister {
                     }
                 }
             }
+            debug!(
+                "Persistence thread for {} exiting",
+                data_path.display().to_string()
+            );
         });
         (persist_tx, task_handle)
     }
@@ -86,9 +90,22 @@ impl Persister {
         data_path: impl AsRef<Path>,
     ) -> Result<(), N3xbError> {
         let json = serde_json::to_string(&*store)?;
-        let mut file = File::create(data_path.as_ref())?;
-        file.write_all(json.as_bytes())?;
-        file.sync_all()?;
+        let contains_type = json.contains("type");
+        let contains_type_string = if contains_type {
+            "containing type"
+        } else {
+            "not containing type"
+        };
+
+        debug!(
+            "Persisting JSON {} to path: {} - {}",
+            contains_type_string,
+            data_path.as_ref().display().to_string(),
+            json
+        );
+
+        assert!(contains_type);
+        fs::write(data_path.as_ref(), json)?;
         Ok(())
     }
 

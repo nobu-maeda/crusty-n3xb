@@ -1,3 +1,4 @@
+use log::debug;
 use std::{
     collections::HashMap,
     net::SocketAddr,
@@ -68,7 +69,12 @@ impl CommsData {
     }
 
     fn restore(data_path: impl AsRef<Path>) -> Result<CommsDataStore, N3xbError> {
-        let json = Persister::restore(data_path)?;
+        let json = Persister::restore(&data_path)?;
+        debug!(
+            "Restored JSON from path: {} - {}",
+            data_path.as_ref().display().to_string(),
+            &json
+        );
         let store: CommsDataStore = serde_json::from_str(&json)?;
         Ok(store)
     }
