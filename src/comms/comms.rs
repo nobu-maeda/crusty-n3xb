@@ -6,6 +6,8 @@ use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use nostr_sdk::prelude::*;
+pub use nostr_sdk::prelude::{RelayInformationDocument, RelayStatus};
+
 use secp256k1::{rand::rngs::OsRng, Secp256k1, SecretKey, XOnlyPublicKey};
 use tokio::select;
 use tokio::sync::{mpsc, oneshot};
