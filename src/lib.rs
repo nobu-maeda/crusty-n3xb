@@ -9,3 +9,5 @@ pub mod testing;
 pub mod trade_rsp;
 
 mod comms;
+
+pub use comms::{RelayInfo, RelayInformationDocument, RelayStatus};
