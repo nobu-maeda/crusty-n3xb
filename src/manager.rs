@@ -10,7 +10,7 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::common::error::N3xbError;
-use crate::comms::{Comms, CommsAccess};
+use crate::comms::{Comms, CommsAccess, RelayInfo};
 use crate::maker::{Maker, MakerAccess};
 use crate::offer::Offer;
 use crate::order::{FilterTag, Order, OrderEnvelope};
@@ -202,7 +202,7 @@ impl Manager {
         Ok(())
     }
 
-    pub async fn get_relays(&self) -> Vec<Url> {
+    pub async fn get_relays(&self) -> Vec<RelayInfo> {
         debug!("Manager w/ pubkey {} getting relays", self.pubkey().await);
         self.comms_accessor.get_relays().await
     }

@@ -79,16 +79,16 @@ mod tests {
                 Manager::new_with_key(test_taker_private_key, &test_engine_name, "").await;
 
             // Check relays as expected
-            let urls = maker_manager.get_relays().await;
-            urls.iter().for_each(|url| {
-                assert_eq!(url, &relay_addrs[0].0);
-                assert_eq!(urls.len(), relay_addrs.len());
+            let relays_info = maker_manager.get_relays().await;
+            relays_info.iter().for_each(|relay_info| {
+                assert_eq!(relay_info.url, relay_addrs[0].0);
+                assert_eq!(relays_info.len(), relay_addrs.len());
             });
 
-            let urls = taker_manager.get_relays().await;
-            urls.iter().for_each(|url| {
-                assert_eq!(url, &relay_addrs[0].0);
-                assert_eq!(urls.len(), relay_addrs.len());
+            let relays_info = taker_manager.get_relays().await;
+            relays_info.iter().for_each(|relay_info| {
+                assert_eq!(relay_info.url, relay_addrs[0].0);
+                assert_eq!(relays_info.len(), relay_addrs.len());
             });
 
             let order = SomeTestOrderParams::default_sell_builder().build().unwrap();
@@ -415,5 +415,7 @@ mod tests {
             taker.shutdown().await.unwrap();
             taker_manager.shutdown().await.unwrap();
         }
+
+        relays.into_iter().for_each(|r| r.shutdown().unwrap());
     }
 }

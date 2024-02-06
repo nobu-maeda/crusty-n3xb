@@ -25,6 +25,13 @@ use super::data::CommsData;
 use super::maker_order_note::MakerOrderNote;
 use super::router::Router;
 
+#[derive(Clone, Debug)]
+pub struct RelayInfo {
+    pub url: url::Url,
+    pub status: RelayStatus,
+    pub document: RelayInformationDocument,
+}
+
 #[derive(Clone)]
 pub(crate) struct CommsAccess {
     tx: mpsc::Sender<CommsRequest>,
@@ -64,8 +71,8 @@ impl CommsAccess {
         rsp_rx.await.unwrap()
     }
 
-    pub(crate) async fn get_relays(&self) -> Vec<url::Url> {
-        let (rsp_tx, rsp_rx) = oneshot::channel::<Vec<url::Url>>();
+    pub(crate) async fn get_relays(&self) -> Vec<RelayInfo> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Vec<RelayInfo>>();
         let request = CommsRequest::GetRelays { rsp_tx };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
@@ -301,7 +308,7 @@ pub(super) enum CommsRequest {
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     GetRelays {
-        rsp_tx: oneshot::Sender<Vec<url::Url>>,
+        rsp_tx: oneshot::Sender<Vec<RelayInfo>>,
     },
     ConnectRelay {
         relay_url: url::Url,
@@ -793,13 +800,21 @@ impl CommsActor {
         };
     }
 
-    async fn get_relays(&self, rsp_tx: oneshot::Sender<Vec<url::Url>>) {
+    async fn get_relays(&self, rsp_tx: oneshot::Sender<Vec<RelayInfo>>) {
         let relays = self.client.relays().await;
-        let urls: Vec<url::Url> = relays
-            .iter()
-            .map(|(url, _)| url::Url::from_str(url.as_str()).unwrap())
-            .collect();
-        rsp_tx.send(urls).unwrap(); // Oneshot should not fail
+        let mut relays_info = Vec::<RelayInfo>::new();
+
+        for (url, relay) in relays {
+            let status = relay.status().await;
+            let document = relay.document().await;
+
+            relays_info.push(RelayInfo {
+                url: url::Url::from_str(url.as_str()).unwrap(),
+                status,
+                document,
+            });
+        }
+        rsp_tx.send(relays_info).unwrap(); // Oneshot should not fail
     }
 
     async fn connect_relay(
