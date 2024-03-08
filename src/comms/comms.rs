@@ -388,7 +388,7 @@ pub(super) struct CommsActor {
 }
 
 impl CommsActor {
-    const MAKER_ORDER_NOTE_KIND: Kind = Kind::ParameterizedReplaceable(30078);
+    const MAKER_ORDER_NOTE_KIND: Kind = Kind::Custom(61021);
 
     pub(super) async fn new(
         rx: mpsc::Receiver<CommsRequest>,
@@ -873,7 +873,6 @@ impl CommsActor {
 
         let order_tags = OrderTag::from_order(order.clone(), &self.trade_engine_name);
 
-        // NIP-78 Event Kind - 30078
         let builder = EventBuilder::new(
             Self::MAKER_ORDER_NOTE_KIND,
             content_string,
