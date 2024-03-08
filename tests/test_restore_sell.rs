@@ -30,9 +30,9 @@ mod tests {
     async fn test_restore_sell() {
         // logger_setup();
 
-        // Setup the initial state
+        // Set up the initial state
         if let Some(error) = fs::remove_dir_all("n3xb_data/").await.err() {
-            error!("Failed to remove n3xb_data directory: {}", error);
+            error!("Failed to remove /n3xb_data/ directory: {}", error);
         }
 
         let mut relays: Vec<Relay> = Vec::new();

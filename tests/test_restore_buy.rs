@@ -1,6 +1,7 @@
 mod common;
 
 #[cfg(test)]
+
 mod tests {
     use log::error;
     use std::{net::SocketAddr, str::FromStr, time::Duration};
@@ -121,6 +122,7 @@ mod tests {
             let (notif_tx, mut _notif_rx) =
                 mpsc::channel::<Result<MakerNotif, N3xbError>>(TESTING_DEFAULT_CHANNEL_SIZE);
             maker.register_notif_tx(notif_tx).await.unwrap();
+            maker_manager.connect_all_relays().await.unwrap();
 
             maker.post_new_order().await.unwrap();
             maker.shutdown().await.unwrap();
