@@ -254,7 +254,7 @@ impl TakerActor {
                 self.send_peer_message(message, rsp_tx).await;
             }
             TakerRequest::TradeComplete { rsp_tx } => {
-                terminate = self.trade_complete(rsp_tx);
+                self.trade_complete(rsp_tx);
             }
             TakerRequest::RegisterNotifTx { tx, rsp_tx } => {
                 self.register_notif_tx(tx, rsp_tx);
@@ -383,16 +383,15 @@ impl TakerActor {
         }
     }
 
-    fn trade_complete(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) -> bool {
+    fn trade_complete(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         if let Some(error) = self.check_trade_completed().err() {
             rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
-            return false;
+            return;
         }
 
         // TODO: What else to do for Trade Complete?
         self.data.set_trade_completed(true);
         rsp_tx.send(Ok(())).unwrap();
-        return true;
     }
 
     fn shutdown(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
