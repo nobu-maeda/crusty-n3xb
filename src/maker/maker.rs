@@ -291,7 +291,7 @@ impl MakerActor {
                 self.send_peer_message(message, rsp_tx).await;
             }
             MakerRequest::TradeComplete { rsp_tx } => {
-                terminate = self.trade_complete(rsp_tx).await;
+                self.trade_complete(rsp_tx).await;
             }
             MakerRequest::RegisterNotifTx { tx, rsp_tx } => {
                 self.register_notif_tx(tx, rsp_tx);
@@ -603,10 +603,10 @@ impl MakerActor {
         }
     }
 
-    async fn trade_complete(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) -> bool {
+    async fn trade_complete(&mut self, rsp_tx: oneshot::Sender<Result<(), N3xbError>>) {
         if let Some(error) = self.check_trade_completed().err() {
             rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
-            return false;
+            return;
         }
 
         // TODO: What else to do for Trade Complete?
@@ -622,7 +622,7 @@ impl MakerActor {
                     )
                 );
                 rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
-                return true;
+                return;
             }
         };
 
@@ -641,7 +641,6 @@ impl MakerActor {
                 rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
             }
         }
-        return true;
     }
 
     fn register_notif_tx(
