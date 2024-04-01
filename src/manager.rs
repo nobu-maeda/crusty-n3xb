@@ -1,7 +1,7 @@
-use log::{debug, warn};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use tracing::{debug, warn};
 
 use secp256k1::{SecretKey, XOnlyPublicKey};
 use tokio::sync::RwLock;

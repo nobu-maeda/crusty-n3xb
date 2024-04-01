@@ -1,4 +1,3 @@
-use log::debug;
 use std::{
     collections::HashMap,
     net::SocketAddr,
@@ -6,6 +5,7 @@ use std::{
     sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
     time::SystemTime,
 };
+use tracing::debug;
 
 use secp256k1::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};

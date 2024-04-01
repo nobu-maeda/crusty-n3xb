@@ -1,5 +1,5 @@
-use log::debug;
 use std::collections::{HashMap, HashSet};
+use tracing::debug;
 
 use secp256k1::XOnlyPublicKey;
 use tokio::sync::mpsc;

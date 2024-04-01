@@ -1,5 +1,5 @@
-use log::{debug, error, info, warn};
 use std::path::Path;
+use tracing::{debug, error, info, warn};
 
 use strum_macros::{Display, IntoStaticStr};
 use tokio::{

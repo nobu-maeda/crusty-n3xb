@@ -1,6 +1,6 @@
-use log::{debug, error, info, warn};
 use std::{collections::HashMap, path::Path};
 use strum_macros::{Display, IntoStaticStr};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use tokio::{

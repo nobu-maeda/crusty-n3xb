@@ -1,9 +1,9 @@
-use log::{debug, error, info, trace, warn};
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tracing::{debug, error, info, trace, warn};
 
 use nostr_sdk::prelude::*;
 pub use nostr_sdk::prelude::{RelayInformationDocument, RelayStatus};

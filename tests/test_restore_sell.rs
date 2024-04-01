@@ -3,8 +3,8 @@ mod common;
 #[cfg(test)]
 
 mod tests {
-    use log::error;
     use std::{net::SocketAddr, str::FromStr, time::Duration};
+    use tracing::error;
 
     use tokio::{fs, sync::mpsc, time::sleep};
     use url::Url;

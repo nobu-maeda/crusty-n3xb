@@ -1,5 +1,4 @@
-use ::log::{error, trace};
-use log::debug;
+use ::tracing::{error, trace};
 use std::{
     fs,
     path::Path,
@@ -8,6 +7,7 @@ use std::{
         Arc, RwLock, RwLockReadGuard,
     },
 };
+use tracing::debug;
 
 use crate::common::{error::N3xbError, types::SerdeGenericTrait};
 
