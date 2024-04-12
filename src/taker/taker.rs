@@ -374,7 +374,7 @@ impl TakerActor {
     fn check_trade_completed(&self) -> Result<(), N3xbError> {
         if self.data.trade_completed() {
             let error = N3xbError::Simple(format!(
-                "Maker w/ TradeUUID {} already marked as Trade Complete",
+                "Taker w/ TradeUUID {} already marked as Trade Complete",
                 self.data.trade_uuid
             ));
             Err(error) // oneshot should not fail
@@ -526,13 +526,13 @@ impl TakerActor {
         if let Some(tx) = &self.notif_tx {
             if let Some(error) = tx.send(Ok(TakerNotif::Peer(envelope))).await.err() {
                 error!(
-                    "Maker w/ TradeUUID {} failed in notifying user with handle_peer_message - {}",
+                    "Taker w/ TradeUUID {} failed in notifying user with handle_peer_message - {}",
                     self.data.trade_uuid, error
                 );
             }
         } else {
             warn!(
-                "Maker w/ TradeUUID {} do not have notif_tx registered",
+                "Taker w/ TradeUUID {} do not have notif_tx registered",
                 self.data.trade_uuid
             );
         }
