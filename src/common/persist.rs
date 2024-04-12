@@ -24,6 +24,11 @@ pub(crate) struct Persister {
 impl Persister {
     pub(crate) fn restore(data_path: impl AsRef<Path>) -> Result<String, N3xbError> {
         let json: String = std::fs::read_to_string(data_path.as_ref())?;
+        debug!(
+            "Restored crusty-n3xB JSON from path: {} - {}",
+            data_path.as_ref().display().to_string(),
+            json
+        );
         Ok(json)
     }
 
@@ -98,7 +103,7 @@ impl Persister {
         };
 
         debug!(
-            "Persisting JSON {} to path: {} - {}",
+            "Persisting crusty-n3xB JSON {} to path: {} - {}",
             contains_type_string,
             data_path.as_ref().display().to_string(),
             json
