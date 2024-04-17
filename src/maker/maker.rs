@@ -65,6 +65,13 @@ impl MakerAccess {
         rsp_rx.await.unwrap()
     }
 
+    pub async fn reject_offer(&self, trade_rsp: TradeResponse) -> Result<(), N3xbError> {
+        let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
+        let request = MakerRequest::RejectOffer { trade_rsp, rsp_tx };
+        self.tx.send(request).await.unwrap();
+        rsp_rx.await.unwrap()
+    }
+
     pub async fn cancel_order(&self) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
         let request = MakerRequest::CancelOrder { rsp_tx };
@@ -165,6 +172,10 @@ pub(super) enum MakerRequest {
         rsp_tx: oneshot::Sender<Option<OfferEnvelope>>,
     },
     AcceptOffer {
+        trade_rsp: TradeResponse,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    },
+    RejectOffer {
         trade_rsp: TradeResponse,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
@@ -282,6 +293,9 @@ impl MakerActor {
             }
             MakerRequest::AcceptOffer { trade_rsp, rsp_tx } => {
                 self.accept_offer(trade_rsp, rsp_tx).await;
+            }
+            MakerRequest::RejectOffer { trade_rsp, rsp_tx } => {
+                self.reject_offer(trade_rsp, rsp_tx).await;
             }
             MakerRequest::CancelOrder { rsp_tx } => {
                 self.cancel_order(rsp_tx).await;
@@ -451,6 +465,65 @@ impl MakerActor {
             .await;
 
         // Send response back to user
+        match result {
+            Ok(_) => {
+                rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
+            }
+            Err(error) => {
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+            }
+        }
+    }
+
+    async fn reject_offer(
+        &mut self,
+        trade_rsp: TradeResponse,
+        rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
+    ) {
+        if let Some(error) = self.check_trade_completed().err() {
+            rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+            return;
+        }
+
+        let offer_event_id = trade_rsp.offer_event_id.clone();
+
+        let pubkey = match self.data.offer_envelopes().get(&offer_event_id) {
+            Some(offer_envelope) => offer_envelope.pubkey.clone(),
+            None => {
+                let error = N3xbError::Simple(format!(
+                    "Maker w/ TradeUUID {} expected, but does not contain Offer {}",
+                    self.data.trade_uuid, offer_event_id
+                ));
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+                return;
+            }
+        };
+
+        let maker_order_note_id = match self.data.order_event_id() {
+            Some(event_id) => event_id,
+            None => {
+                let error = N3xbError::Simple(
+                    format!(
+                        "Maker w/ TradeUUID {} expected to already have sent Maker Order Note and receive Event ID",
+                        self.data.trade_uuid
+                    )
+                );
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+                return;
+            }
+        };
+
+        let result = self
+            .comms_accessor
+            .send_trade_response(
+                pubkey,
+                Some(offer_event_id),
+                maker_order_note_id,
+                self.data.trade_uuid,
+                trade_rsp,
+            )
+            .await;
+
         match result {
             Ok(_) => {
                 rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
