@@ -482,42 +482,22 @@ impl MakerActor {
         };
 
         // Send Trade Response Cancelled to all Offers received so far
-        for _offer_envelope in self.data.offer_envelopes().values() {
+        for offer_envelope in self.data.offer_envelopes().values() {
             warn!(
                 "Maker w/ TradeUUID {} has outstanding offers, but no explicit cancellation sent to Takers",
                 self.data.trade_uuid
             );
-            // TODO: This triggers Send/Sync problems. Can't find a ready solve. Skipping for now
-            // let pubkey = offer_envelope.pubkey.clone();
-            // let offer_event_id = offer_envelope.event_id.clone();
 
-            // let trade_rsp = TradeResponseBuilder::new()
-            //     .offer_event_id(offer_event_id.clone())
-            //     .trade_response(TradeResponseStatus::Rejected)
-            //     .reject_reason(OfferInvalidReason::Cancelled)
-            //     .build()
-            //     .unwrap();
-
-            // let result = self
-            //     .comms_accessor
-            //     .send_trade_response(
-            //         pubkey,
-            //         Some(offer_event_id.clone()),
-            //         maker_order_note_id.clone(),
-            //         self.data.order().trade_uuid.clone(),
-            //         trade_rsp,
-            //     )
-            //     .await;
-
-            // match result {
-            //     Ok(_) => {}
-            //     Err(error) => {
-            //         error!(
-            //             "Maker w/ TradeUUID {} failed to send TradeResponse Cancelled to Offer w/ Event ID {} - {}",
-            //             self.data.order().trade_uuid, offer_event_id, error
-            //         );
-            //     }
-            // }
+            if let Some(reject_err) = self
+                .reject_taker_offer(offer_envelope.clone(), OfferInvalidReason::Cancelled)
+                .await
+                .err()
+            {
+                error!(
+                    "Maker w/ TradeUUID {} rejected Offer with Event ID {} but with error - {}",
+                    self.data.trade_uuid, offer_envelope.event_id, reject_err
+                );
+            }
         }
 
         // Delete Order Note
