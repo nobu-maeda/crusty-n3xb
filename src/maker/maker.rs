@@ -405,21 +405,20 @@ impl MakerActor {
                 );
             }
 
-            // TODO: This triggers Send/Sync problems. Can't find a ready solve. Skipping for now
-            // let offer_envelope = offer_envelope.clone();
-            //
-            // if let Some(reject_err) = self
-            //     .reject_taker_offer(offer_envelope, OfferInvalidReason::PendingAnother)
-            //     .await
-            //     .err()
-            // {
-            //     error!(
-            //         "Maker w/ TradeUUID {} rejected Offer with Event ID {} but with error - {}",
-            //         self.data.order().trade_uuid.clone(),
-            //         offer_event_id,
-            //         reject_err
-            //     )
-            // }
+            let offer_envelope = offer_envelope.clone();
+
+            if let Some(reject_err) = self
+                .reject_taker_offer(offer_envelope, OfferInvalidReason::PendingAnother)
+                .await
+                .err()
+            {
+                error!(
+                    "Maker w/ TradeUUID {} rejected Offer with Event ID {} but with error - {}",
+                    self.data.order().trade_uuid.clone(),
+                    offer_event_id,
+                    reject_err
+                )
+            }
         }
 
         let trade_rsp_clone = trade_rsp.clone();
@@ -429,7 +428,7 @@ impl MakerActor {
             .send_trade_response(
                 pubkey,
                 Some(accepted_offer_event_id),
-                maker_order_note_id,
+                maker_order_note_id.clone(),
                 self.data.trade_uuid,
                 trade_rsp_clone,
             )
@@ -438,6 +437,22 @@ impl MakerActor {
         match result {
             Ok(event_id) => {
                 self.data.set_trade_rsp(trade_rsp, event_id);
+            }
+            Err(error) => {
+                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
+                return;
+            }
+        }
+
+        // Delete Order Note
+        let result = self
+            .comms_accessor
+            .delete_maker_order_note(maker_order_note_id.clone())
+            .await;
+
+        // Send response back to user
+        match result {
+            Ok(_) => {
                 rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
             }
             Err(error) => {
@@ -611,36 +626,7 @@ impl MakerActor {
 
         // TODO: What else to do for Trade Complete?
         self.data.set_trade_completed(true);
-
-        let maker_order_note_id = match self.data.order_event_id() {
-            Some(event_id) => event_id,
-            None => {
-                let error = N3xbError::Simple(
-                    format!(
-                        "Maker w/ TradeUUID {} expected to already have sent Maker Order Note and received Event ID",
-                        self.data.trade_uuid
-                    )
-                );
-                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
-                return;
-            }
-        };
-
-        // Delete Order Note
-        let result = self
-            .comms_accessor
-            .delete_maker_order_note(maker_order_note_id.clone())
-            .await;
-
-        // Send response back to user
-        match result {
-            Ok(_) => {
-                rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
-            }
-            Err(error) => {
-                rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
-            }
-        }
+        rsp_tx.send(Ok(())).unwrap(); // oneshot should not fail
     }
 
     fn register_notif_tx(
