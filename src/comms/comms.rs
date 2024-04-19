@@ -226,9 +226,14 @@ impl CommsAccess {
     pub(crate) async fn delete_maker_order_note(
         &self,
         event_id: EventIdString,
+        reason: impl Into<String>,
     ) -> Result<(), N3xbError> {
         let (rsp_tx, rsp_rx) = oneshot::channel::<Result<(), N3xbError>>();
-        let request = CommsRequest::DeletMakerOrderNote { event_id, rsp_tx };
+        let request = CommsRequest::DeletMakerOrderNote {
+            event_id,
+            reason: reason.into(),
+            rsp_tx,
+        };
         self.tx.send(request).await.unwrap();
         rsp_rx.await.unwrap()
     }
@@ -371,6 +376,7 @@ pub(super) enum CommsRequest {
     },
     DeletMakerOrderNote {
         event_id: EventIdString,
+        reason: String,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     },
     Shutdown {
@@ -582,8 +588,12 @@ impl CommsActor {
                 .await;
             }
             // Delete an Maker Order Note
-            CommsRequest::DeletMakerOrderNote { event_id, rsp_tx } => {
-                self.delete_maker_order_note(event_id, rsp_tx).await;
+            CommsRequest::DeletMakerOrderNote {
+                event_id,
+                reason,
+                rsp_tx,
+            } => {
+                self.delete_maker_order_note(event_id, reason, rsp_tx).await;
             }
 
             // Shutdown
@@ -1367,14 +1377,12 @@ impl CommsActor {
     async fn delete_maker_order_note(
         &self,
         event_id: EventIdString,
+        reason: String,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
         let result = self
             .client
-            .delete_event(
-                EventId::from_str(&event_id).unwrap(),
-                Some("n3xB: Order cancelled by Maker before Trade commenced"),
-            )
+            .delete_event(EventId::from_str(&event_id).unwrap(), Some(reason))
             .await;
         match result {
             Ok(_) => rsp_tx.send(Ok(())).unwrap(),

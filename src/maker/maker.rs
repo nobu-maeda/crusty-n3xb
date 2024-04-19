@@ -461,7 +461,7 @@ impl MakerActor {
         // Delete Order Note
         let result = self
             .comms_accessor
-            .delete_maker_order_note(maker_order_note_id.clone())
+            .delete_maker_order_note(maker_order_note_id.clone(), "Trade Started on Offer Accept")
             .await;
 
         // Send response back to user
@@ -576,7 +576,7 @@ impl MakerActor {
         // Delete Order Note
         let result = self
             .comms_accessor
-            .delete_maker_order_note(maker_order_note_id.clone())
+            .delete_maker_order_note(maker_order_note_id.clone(), "Trade Cancelled")
             .await;
 
         // Send response back to user
