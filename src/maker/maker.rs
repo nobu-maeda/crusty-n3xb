@@ -556,11 +556,6 @@ impl MakerActor {
 
         // Send Trade Response Cancelled to all Offers received so far
         for offer_envelope in self.data.offer_envelopes().values() {
-            warn!(
-                "Maker w/ TradeUUID {} has outstanding offers, but no explicit cancellation sent to Takers",
-                self.data.trade_uuid
-            );
-
             if let Some(reject_err) = self
                 .reject_taker_offer(offer_envelope.clone(), OfferInvalidReason::Cancelled)
                 .await
