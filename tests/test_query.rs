@@ -4,8 +4,9 @@ mod common;
 mod test_query {
     use std::str::FromStr;
     use std::time::Duration;
+    use tracing::error;
 
-    use tokio::time::sleep;
+    use tokio::{fs, time::sleep};
     use url::Url;
     use uuid::Uuid;
 
@@ -19,6 +20,11 @@ mod test_query {
 
     #[tokio::test]
     async fn test_query_order_filtering() {
+        // Set up the initial state
+        if let Some(error) = fs::remove_dir_all("n3xb_data/").await.err() {
+            error!("Failed to remove /n3xb_data/ directory: {}", error);
+        }
+
         let relay1: Relay = Relay::start();
         relay1.wait_for_healthy_relay().await.unwrap();
         let relay1_url = Url::from_str(&format!("{}:{}", "ws://localhost", relay1.port)).unwrap();

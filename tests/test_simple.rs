@@ -5,8 +5,9 @@ mod test_simple {
     use std::net::SocketAddr;
     use std::str::FromStr;
     use std::time::Duration;
+    use tracing::error;
 
-    use tokio::time::sleep;
+    use tokio::{fs, time::sleep};
 
     use crusty_n3xb::manager::Manager;
     use crusty_n3xb::order::FilterTag;
@@ -19,6 +20,11 @@ mod test_simple {
 
     #[tokio::test]
     async fn test_simple_four_relays_flow() {
+        // Set up the initial state
+        if let Some(error) = fs::remove_dir_all("n3xb_data/").await.err() {
+            error!("Failed to remove /n3xb_data/ directory: {}", error);
+        }
+
         let mut relays: Vec<Relay> = Vec::new();
 
         let relay: Relay = Relay::start();
