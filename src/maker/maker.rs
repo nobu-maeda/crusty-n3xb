@@ -479,11 +479,6 @@ impl MakerActor {
         trade_rsp: TradeResponse,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
-        if let Some(error) = self.check_trade_completed().err() {
-            rsp_tx.send(Err(error)).unwrap(); // oneshot should not fail
-            return;
-        }
-
         let offer_event_id = trade_rsp.offer_event_id.clone();
 
         let pubkey = match self.data.offer_envelopes().get(&offer_event_id) {
@@ -572,6 +567,8 @@ impl MakerActor {
             .comms_accessor
             .delete_maker_order_note(maker_order_note_id.clone(), "Trade Cancelled")
             .await;
+
+        self.data.set_trade_completed(true);
 
         // Send response back to user
         match result {
