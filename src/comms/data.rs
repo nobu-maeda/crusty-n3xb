@@ -1,9 +1,8 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     net::SocketAddr,
     path::{Path, PathBuf},
     sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
-    time::SystemTime,
 };
 use tracing::debug;
 
@@ -16,7 +15,7 @@ use crate::common::{error::N3xbError, persist::Persister, types::SerdeGenericTra
 struct CommsDataStore {
     relays: HashMap<url::Url, Option<SocketAddr>>,
     // filters:
-    last_event: SystemTime,
+    event_ids: HashSet<String>,
 }
 
 #[typetag::serde(name = "n3xb_comms_data")]
@@ -40,7 +39,7 @@ impl CommsData {
 
         let mut store = CommsDataStore {
             relays: HashMap::new(),
-            last_event: SystemTime::now(),
+            event_ids: HashSet::new(),
         };
 
         if data_path.exists() {
@@ -126,13 +125,13 @@ impl CommsData {
         self.persister.queue();
     }
 
-    pub(crate) fn last_event(&self) -> SystemTime {
-        self.read_store().last_event
+    pub(crate) fn event_id_seen(&self, event_id: impl Into<String>) -> bool {
+        self.read_store().event_ids.contains(&event_id.into())
     }
 
-    pub(crate) fn set_last_event(&self, last_event: SystemTime) {
+    pub(crate) fn store_event_id(&self, event_id: impl Into<String>) {
         let mut store = self.write_store();
-        store.last_event = last_event;
+        store.event_ids.insert(event_id.into());
         self.persister.queue();
     }
 
