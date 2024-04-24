@@ -750,7 +750,7 @@ impl CommsActor {
                             .await
                             .err()
                         {
-                            relay_error_strings.insert(relay_url, error.to_string());
+                            relay_error_strings.insert(relay_url.clone(), error.to_string());
                             continue;
                         }
                         relay.connect(true).await;
@@ -761,12 +761,22 @@ impl CommsActor {
                                 self.data.add_relays(vec![relay_addr]);
                             }
                             _ => {
-                                relay_error_strings.insert(relay_url, relay_status.to_string());
+                                relay_error_strings
+                                    .insert(relay_url.clone(), relay_status.to_string());
                             }
                         }
                     }
                     Err(error) => {
-                        relay_error_strings.insert(relay_url, error.to_string());
+                        relay_error_strings.insert(relay_url.clone(), error.to_string());
+                    }
+                }
+
+                if relay_error_strings.contains_key(&relay_url) {
+                    if let Some(error) = self.client.remove_relay(relay_url.as_str()).await.err() {
+                        error!(
+                            "Comms w/ pubkey {} failed to remove relay {} - {}",
+                            self.pubkey, relay_url, error
+                        )
                     }
                 }
             }
@@ -799,17 +809,23 @@ impl CommsActor {
         }
     }
 
+    async fn disconnect_remove_relay(&mut self, relay_url: url::Url) -> Result<(), N3xbError> {
+        self.data.remove_relay(&relay_url);
+
+        let relay_string: String = relay_url.clone().into();
+        self.client.disconnect_relay(relay_string.clone()).await?;
+        self.client.remove_relay(relay_string).await?;
+        Ok(())
+    }
+
     async fn remove_relay(
         &mut self,
         relay_url: url::Url,
         rsp_tx: oneshot::Sender<Result<(), N3xbError>>,
     ) {
-        let relay_string: String = relay_url.clone().into();
-        let result = self.client.remove_relay(relay_string).await;
-        match result {
+        match self.disconnect_remove_relay(relay_url).await {
             Ok(_) => {
                 rsp_tx.send(Ok(())).unwrap();
-                self.data.remove_relay(&relay_url);
             }
             Err(error) => rsp_tx.send(Err(error.into())).unwrap(),
         };
