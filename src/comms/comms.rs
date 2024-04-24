@@ -712,6 +712,7 @@ impl CommsActor {
             })
             .collect();
         self.client.add_relays(into_relays).await?;
+        debug!("Comms w/ pubkey {} added relays {:?}", self.pubkey, relays);
         Ok(())
     }
 
@@ -729,9 +730,6 @@ impl CommsActor {
             rsp_tx.send(Err(error)).unwrap(); // Oneshot should not fail
             return;
         }
-        self.data.add_relays(relay_addrs.clone());
-
-        let relay_urls: Vec<url::Url> = relay_addrs.iter().map(|(url, _)| url.clone()).collect();
 
         if let Some(error) = self.add_relays_to_client(relay_addrs.clone()).await.err() {
             rsp_tx.send(Err(error.into())).unwrap(); // Oneshot should not fail
@@ -741,7 +739,8 @@ impl CommsActor {
         if connect {
             let mut relay_error_strings = HashMap::<url::Url, String>::new();
 
-            for relay_url in relay_urls {
+            for relay_addr in relay_addrs.clone() {
+                let relay_url = relay_addr.0.clone();
                 let relay = self.client.relay(relay_url.to_string()).await;
 
                 match relay {
@@ -758,7 +757,9 @@ impl CommsActor {
 
                         let relay_status = relay.status().await;
                         match relay_status {
-                            RelayStatus::Connected => {}
+                            RelayStatus::Connected => {
+                                self.data.add_relays(vec![relay_addr]);
+                            }
                             _ => {
                                 relay_error_strings.insert(relay_url, relay_status.to_string());
                             }
@@ -792,6 +793,8 @@ impl CommsActor {
                 rsp_tx.send(Err(error)).unwrap(); // Oneshot should not fail
             }
         } else {
+            self.data.add_relays(relay_addrs.clone());
+
             rsp_tx.send(Ok(())).unwrap(); // Oneshot should not fail
         }
     }
