@@ -299,7 +299,6 @@ impl MakerActor {
             }
             MakerRequest::CancelOrder { rsp_tx } => {
                 self.cancel_order(rsp_tx).await;
-                terminate = true;
             }
             MakerRequest::PeerMessage { message, rsp_tx } => {
                 self.send_peer_message(message, rsp_tx).await;
