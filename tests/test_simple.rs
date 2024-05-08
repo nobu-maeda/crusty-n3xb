@@ -2,6 +2,7 @@ mod common;
 
 #[cfg(test)]
 mod test_simple {
+    use crusty_n3xb::common::types::BitcoinNetwork;
     use std::net::SocketAddr;
     use std::str::FromStr;
     use std::time::Duration;
@@ -47,10 +48,20 @@ mod test_simple {
         let test_maker_private_key = SomeTestParams::maker_private_key();
         let test_taker_private_key = SomeTestParams::taker_private_key();
 
-        let maker_manager =
-            Manager::new_with_key(test_maker_private_key, &test_engine_name, "").await;
-        let taker_manager =
-            Manager::new_with_key(test_taker_private_key, &test_engine_name, "").await;
+        let maker_manager = Manager::new_with_key(
+            test_maker_private_key,
+            &test_engine_name,
+            BitcoinNetwork::Regtest,
+            "",
+        )
+        .await;
+        let taker_manager = Manager::new_with_key(
+            test_taker_private_key,
+            &test_engine_name,
+            BitcoinNetwork::Regtest,
+            "",
+        )
+        .await;
 
         let mut relay_addrs: Vec<(Url, Option<SocketAddr>)> = Vec::new();
 

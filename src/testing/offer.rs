@@ -57,7 +57,10 @@ impl SomeTestOfferParams {
 
     pub fn maker_obligation_bitcoin_onchain() -> Obligation {
         Obligation {
-            kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Onchain)),
+            kind: ObligationKind::Bitcoin(
+                BitcoinNetwork::Testnet,
+                Some(BitcoinSettlementMethod::Onchain),
+            ),
             amount: 10000000.0,
             bond_amount: Some(1000000.0),
         }
@@ -65,7 +68,10 @@ impl SomeTestOfferParams {
 
     pub fn maker_obligation_bitcoin_lightning() -> Obligation {
         Obligation {
-            kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
+            kind: ObligationKind::Bitcoin(
+                BitcoinNetwork::Testnet,
+                Some(BitcoinSettlementMethod::Lightning),
+            ),
             amount: 10000000.0,
             bond_amount: Some(1000000.0),
         }
@@ -107,7 +113,10 @@ impl SomeTestOfferParams {
 
     pub fn taker_obligation_bitcoin_onchain() -> Obligation {
         Obligation {
-            kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Onchain)),
+            kind: ObligationKind::Bitcoin(
+                BitcoinNetwork::Testnet,
+                Some(BitcoinSettlementMethod::Onchain),
+            ),
             amount: 10000000.0,
             bond_amount: Some(1000000.0),
         }
@@ -115,7 +124,10 @@ impl SomeTestOfferParams {
 
     pub fn taker_obligation_bitcoin_lightning() -> Obligation {
         Obligation {
-            kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
+            kind: ObligationKind::Bitcoin(
+                BitcoinNetwork::Testnet,
+                Some(BitcoinSettlementMethod::Lightning),
+            ),
             amount: 10000000.0,
             bond_amount: Some(1000000.0),
         }

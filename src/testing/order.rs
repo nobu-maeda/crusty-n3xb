@@ -57,21 +57,29 @@ impl SomeTestOrderParams {
     }
 
     pub fn obligation_bitcoin_onchain_kinds() -> HashSet<ObligationKind> {
-        HashSet::from([ObligationKind::Bitcoin(Some(
-            BitcoinSettlementMethod::Onchain,
-        ))])
+        HashSet::from([ObligationKind::Bitcoin(
+            BitcoinNetwork::Testnet,
+            Some(BitcoinSettlementMethod::Onchain),
+        )])
     }
 
     pub fn obligation_bitcoin_lightning_kinds() -> HashSet<ObligationKind> {
-        HashSet::from([ObligationKind::Bitcoin(Some(
-            BitcoinSettlementMethod::Lightning,
-        ))])
+        HashSet::from([ObligationKind::Bitcoin(
+            BitcoinNetwork::Testnet,
+            Some(BitcoinSettlementMethod::Lightning),
+        )])
     }
 
     pub fn obligation_bitcoin_both_kinds() -> HashSet<ObligationKind> {
         HashSet::from([
-            ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Onchain)),
-            ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
+            ObligationKind::Bitcoin(
+                BitcoinNetwork::Testnet,
+                Some(BitcoinSettlementMethod::Onchain),
+            ),
+            ObligationKind::Bitcoin(
+                BitcoinNetwork::Testnet,
+                Some(BitcoinSettlementMethod::Lightning),
+            ),
         ])
     }
 

@@ -172,7 +172,9 @@ mod tests {
     use iso_currency::Currency;
 
     use crate::{
-        common::types::{BitcoinSettlementMethod, FiatPaymentMethod, ObligationKind},
+        common::types::{
+            BitcoinNetwork, BitcoinSettlementMethod, FiatPaymentMethod, ObligationKind,
+        },
         offer::Obligation,
         order::{MakerObligation, MakerObligationContent, TradeDetails, TradeDetailsContent},
         testing::{SomeTestOfferParams, SomeTestOrderParams},
@@ -377,7 +379,10 @@ mod tests {
         let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
 
         let taker_obligation = Obligation {
-            kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Onchain)),
+            kind: ObligationKind::Bitcoin(
+                BitcoinNetwork::Signet,
+                Some(BitcoinSettlementMethod::Onchain),
+            ),
             amount: 40000000.0,
             bond_amount: Some(4000000.0),
         };
@@ -401,7 +406,10 @@ mod tests {
         };
 
         let taker_obligation = Obligation {
-            kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
+            kind: ObligationKind::Bitcoin(
+                BitcoinNetwork::Signet,
+                Some(BitcoinSettlementMethod::Lightning),
+            ),
             amount: 42000000.0,
             bond_amount: Some(4200000.0),
         };
@@ -420,7 +428,10 @@ mod tests {
         let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
 
         let taker_obligation = Obligation {
-            kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
+            kind: ObligationKind::Bitcoin(
+                BitcoinNetwork::Signet,
+                Some(BitcoinSettlementMethod::Lightning),
+            ),
             amount: 40000000.0,
             bond_amount: Some(3000000.0),
         };
@@ -438,7 +449,10 @@ mod tests {
         let order = SomeTestOrderParams::default_buy_builder().build().unwrap();
 
         let taker_obligation = Obligation {
-            kind: ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Lightning)),
+            kind: ObligationKind::Bitcoin(
+                BitcoinNetwork::Signet,
+                Some(BitcoinSettlementMethod::Lightning),
+            ),
             amount: 40000000.0,
             bond_amount: None,
         };

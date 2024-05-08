@@ -47,7 +47,17 @@ impl SerdeGenericTrait for SerdeGenericsPlaceholder {
 }
 
 #[derive(
-    Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Debug, EnumString, Display, IntoStaticStr,
+    PartialEq, Eq, Hash, Clone, Debug, Serialize, Deserialize, EnumString, Display, IntoStaticStr,
+)]
+pub enum BitcoinNetwork {
+    Mainnet,
+    Testnet,
+    Signet,
+    Regtest,
+}
+
+#[derive(
+    PartialEq, Eq, Hash, Clone, Debug, Serialize, Deserialize, EnumString, Display, IntoStaticStr,
 )]
 pub enum BitcoinSettlementMethod {
     Onchain,
@@ -121,9 +131,9 @@ pub enum FiatPaymentMethod {
     Venmo,
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Debug, Display, Deserialize, Serialize, IntoStaticStr)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug, Serialize, Deserialize, Display, IntoStaticStr)]
 pub enum ObligationKind {
-    Bitcoin(Option<BitcoinSettlementMethod>),
+    Bitcoin(BitcoinNetwork, Option<BitcoinSettlementMethod>),
     Fiat(Currency, Option<FiatPaymentMethod>),
     Custom(String),
 }
@@ -133,7 +143,7 @@ const OBLIGATION_KIND_SPLIT_CHAR: &str = "-";
 impl ObligationKind {
     pub fn is_bitcoin(&self) -> bool {
         match self {
-            ObligationKind::Bitcoin(_) => true,
+            ObligationKind::Bitcoin(_, _) => true,
             ObligationKind::Fiat(_, _) => false,
             ObligationKind::Custom(_) => false,
         }
@@ -141,18 +151,18 @@ impl ObligationKind {
 
     pub fn is_same_currency_as(&self, kind: ObligationKind) -> bool {
         match self {
-            ObligationKind::Bitcoin(_) => match kind {
-                ObligationKind::Bitcoin(_) => true,
+            ObligationKind::Bitcoin(_, _) => match kind {
+                ObligationKind::Bitcoin(_, _) => true,
                 ObligationKind::Fiat(_, _) => false,
                 ObligationKind::Custom(_) => false,
             },
             ObligationKind::Fiat(self_currency, _) => match kind {
-                ObligationKind::Bitcoin(_) => false,
+                ObligationKind::Bitcoin(_, _) => false,
                 ObligationKind::Fiat(kind_currency, _) => self_currency.to_owned() == kind_currency,
                 ObligationKind::Custom(_) => false,
             },
             ObligationKind::Custom(self_custom) => match kind {
-                ObligationKind::Bitcoin(_) => false,
+                ObligationKind::Bitcoin(_, _) => false,
                 ObligationKind::Fiat(_, _) => false,
                 ObligationKind::Custom(kind_custom) => self_custom.to_owned() == kind_custom,
             },
@@ -161,19 +171,33 @@ impl ObligationKind {
 
     pub fn to_tag_strings(&self) -> HashSet<String> {
         let mut tag_string_set: HashSet<String>;
-        let obligation_kind_prefix_bitcoin = ObligationKind::Bitcoin(None).to_string();
+        let obligation_kind_prefix_bitcoin =
+            ObligationKind::Bitcoin(BitcoinNetwork::Mainnet, None).to_string();
         let obligation_kind_prefix_fiat = ObligationKind::Fiat(Currency::XXX, None).to_string();
         let obligation_kind_prefix_custom = ObligationKind::Custom("".to_string()).to_string();
 
         match self {
-            ObligationKind::Bitcoin(settlement_method) => {
+            ObligationKind::Bitcoin(network, settlement_method) => {
                 let prefix_string = obligation_kind_prefix_bitcoin;
-                tag_string_set = HashSet::from([prefix_string.clone()]);
+                let mut networked_string = prefix_string.clone();
+
+                match network {
+                    BitcoinNetwork::Mainnet => {}
+                    BitcoinNetwork::Testnet | BitcoinNetwork::Signet | BitcoinNetwork::Regtest => {
+                        networked_string = format!(
+                            "{}{}{}",
+                            prefix_string,
+                            OBLIGATION_KIND_SPLIT_CHAR,
+                            network.to_string()
+                        );
+                    }
+                }
+                tag_string_set = HashSet::from([networked_string.clone()]);
 
                 if let Some(settlement_method) = settlement_method {
                     let tag_string = format!(
                         "{}{}{}",
-                        prefix_string,
+                        networked_string,
                         OBLIGATION_KIND_SPLIT_CHAR,
                         settlement_method.to_string()
                     );
@@ -218,7 +242,8 @@ impl ObligationKind {
     }
 
     pub fn from_tag_strings(tags: HashSet<String>) -> Result<HashSet<ObligationKind>, N3xbError> {
-        let obligation_kind_prefix_bitcoin = ObligationKind::Bitcoin(None).to_string();
+        let obligation_kind_prefix_bitcoin =
+            ObligationKind::Bitcoin(BitcoinNetwork::Mainnet, None).to_string();
         let obligation_kind_prefix_fiat = ObligationKind::Fiat(Currency::XXX, None).to_string();
         let obligation_kind_prefix_custom = ObligationKind::Custom("".to_string()).to_string();
 
@@ -255,9 +280,22 @@ impl ObligationKind {
             }
 
             if &obligation_kind_prefix_bitcoin == kind_prefix.as_ref().unwrap() {
-                if splits_set.len() > 1 {
-                    let bitcoin_method = BitcoinSettlementMethod::from_str(splits_set[1])?;
-                    obligation_kinds.insert(ObligationKind::Bitcoin(Some(bitcoin_method)));
+                if splits_set.len() > 2 {
+                    let network = BitcoinNetwork::from_str(splits_set[1])?;
+                    let method = BitcoinSettlementMethod::from_str(splits_set[2])?;
+                    obligation_kinds.insert(ObligationKind::Bitcoin(network, Some(method)));
+                } else if splits_set.len() > 1 {
+                    match BitcoinSettlementMethod::from_str(splits_set[1]) {
+                        Ok(method) => {
+                            obligation_kinds.insert(ObligationKind::Bitcoin(
+                                BitcoinNetwork::Mainnet,
+                                Some(method),
+                            ));
+                        }
+                        Err(_) => {
+                            continue;
+                        }
+                    }
                 }
             } else if &obligation_kind_prefix_fiat == kind_prefix.as_ref().unwrap() {
                 if splits_set.len() > 1 {
@@ -313,8 +351,11 @@ mod tests {
     }
 
     #[test]
-    fn bitcoin_onchain_obligation_kind_to_tags() {
-        let obligation_kind = ObligationKind::Bitcoin(Some(BitcoinSettlementMethod::Onchain));
+    fn bitcoin_mainnet_onchain_obligation_kind_to_tags() {
+        let obligation_kind = ObligationKind::Bitcoin(
+            BitcoinNetwork::Mainnet,
+            Some(BitcoinSettlementMethod::Onchain),
+        );
         let obligation_tags = obligation_kind.to_tag_strings();
         let expected_tags = HashSet::from(["Bitcoin-Onchain".to_string(), "Bitcoin".to_string()]);
         print!(
@@ -325,12 +366,49 @@ mod tests {
     }
 
     #[test]
-    fn bitcoin_onchain_obligation_kind_from_tags() {
+    fn bitcoin_testnet_onchain_obligation_kind_to_tags() {
+        let obligation_kind = ObligationKind::Bitcoin(
+            BitcoinNetwork::Testnet,
+            Some(BitcoinSettlementMethod::Onchain),
+        );
+        let obligation_tags = obligation_kind.to_tag_strings();
+        let expected_tags = HashSet::from([
+            "Bitcoin-Testnet-Onchain".to_string(),
+            "Bitcoin-Testnet".to_string(),
+        ]);
+        print!(
+            "Obligation: {:?} Expected: {:?}",
+            obligation_tags, expected_tags
+        );
+        assert_eq!(obligation_tags, expected_tags);
+    }
+
+    #[test]
+    fn bitcoin_mainnet_onchain_obligation_kind_from_tags() {
         let obligation_tags = HashSet::from(["Bitcoin-Onchain".to_string(), "Bitcoin".to_string()]);
         let obligation_kinds = ObligationKind::from_tag_strings(obligation_tags).unwrap();
-        let expected_kinds = HashSet::from([ObligationKind::Bitcoin(Some(
-            BitcoinSettlementMethod::Onchain,
-        ))]);
+        let expected_kinds: HashSet<ObligationKind> = HashSet::from([ObligationKind::Bitcoin(
+            BitcoinNetwork::Mainnet,
+            Some(BitcoinSettlementMethod::Onchain),
+        )]);
+        print!(
+            "Obligation Kind: {:?} Expected: {:?}",
+            obligation_kinds, expected_kinds
+        );
+        assert_eq!(obligation_kinds, expected_kinds);
+    }
+
+    #[test]
+    fn bitcoin_signet_onchain_obligation_kind_from_tags() {
+        let obligation_tags = HashSet::from([
+            "Bitcoin-Signet-Onchain".to_string(),
+            "Bitcoin-Signet".to_string(),
+        ]);
+        let obligation_kinds = ObligationKind::from_tag_strings(obligation_tags).unwrap();
+        let expected_kinds = HashSet::from([ObligationKind::Bitcoin(
+            BitcoinNetwork::Signet,
+            Some(BitcoinSettlementMethod::Onchain),
+        )]);
         print!(
             "Obligation Kind: {:?} Expected: {:?}",
             obligation_kinds, expected_kinds

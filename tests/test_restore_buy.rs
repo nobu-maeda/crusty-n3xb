@@ -10,7 +10,7 @@ mod tests {
     use url::Url;
 
     use crusty_n3xb::{
-        common::error::N3xbError,
+        common::{error::N3xbError, types::BitcoinNetwork},
         maker::MakerNotif,
         manager::Manager,
         order::FilterTag,
@@ -54,10 +54,20 @@ mod tests {
 
         // Add Relays
         {
-            let maker_manager =
-                Manager::new_with_key(test_maker_private_key, &test_engine_name, "").await;
-            let taker_manager =
-                Manager::new_with_key(test_taker_private_key, &test_engine_name, "").await;
+            let maker_manager = Manager::new_with_key(
+                test_maker_private_key,
+                &test_engine_name,
+                BitcoinNetwork::Regtest,
+                "",
+            )
+            .await;
+            let taker_manager = Manager::new_with_key(
+                test_taker_private_key,
+                &test_engine_name,
+                BitcoinNetwork::Regtest,
+                "",
+            )
+            .await;
 
             maker_manager
                 .add_relays(relay_addrs.clone(), true)
@@ -73,10 +83,20 @@ mod tests {
 
         // New Maker
         {
-            let maker_manager =
-                Manager::new_with_key(test_maker_private_key, &test_engine_name, "").await;
-            let taker_manager =
-                Manager::new_with_key(test_taker_private_key, &test_engine_name, "").await;
+            let maker_manager = Manager::new_with_key(
+                test_maker_private_key,
+                &test_engine_name,
+                BitcoinNetwork::Regtest,
+                "",
+            )
+            .await;
+            let taker_manager = Manager::new_with_key(
+                test_taker_private_key,
+                &test_engine_name,
+                BitcoinNetwork::Regtest,
+                "",
+            )
+            .await;
 
             // Check relays as expected
             let relays_info = maker_manager.get_relays().await;
@@ -112,8 +132,13 @@ mod tests {
 
         // Post Order
         {
-            let maker_manager =
-                Manager::new_with_key(test_maker_private_key, &test_engine_name, "").await;
+            let maker_manager = Manager::new_with_key(
+                test_maker_private_key,
+                &test_engine_name,
+                BitcoinNetwork::Regtest,
+                "",
+            )
+            .await;
 
             // Check maker as expected
             let makers = maker_manager.get_makers().await;
@@ -129,8 +154,13 @@ mod tests {
             maker_manager.shutdown().await.unwrap();
 
             // Restore Taker only after Maker have sent
-            let taker_manager =
-                Manager::new_with_key(test_taker_private_key, &test_engine_name, "").await;
+            let taker_manager = Manager::new_with_key(
+                test_taker_private_key,
+                &test_engine_name,
+                BitcoinNetwork::Regtest,
+                "",
+            )
+            .await;
             taker_manager.connect_all_relays().await.unwrap();
 
             let order_envelopes = taker_manager.query_orders(query_filter).await.unwrap();
@@ -155,8 +185,13 @@ mod tests {
         // Take Order
         {
             println!("Take Order");
-            let taker_manager =
-                Manager::new_with_key(test_taker_private_key, &test_engine_name, "").await;
+            let taker_manager = Manager::new_with_key(
+                test_taker_private_key,
+                &test_engine_name,
+                BitcoinNetwork::Regtest,
+                "",
+            )
+            .await;
 
             let takers = taker_manager.get_takers().await;
             let taker = takers.get(&SomeTestOrderParams::some_uuid()).unwrap();
@@ -174,8 +209,13 @@ mod tests {
 
             // Expect Offer notify
             println!("Expect Offer notify");
-            let maker_manager =
-                Manager::new_with_key(test_maker_private_key, &test_engine_name, "").await;
+            let maker_manager = Manager::new_with_key(
+                test_maker_private_key,
+                &test_engine_name,
+                BitcoinNetwork::Regtest,
+                "",
+            )
+            .await;
 
             let makers = maker_manager.get_makers().await;
             let maker = makers.get(&SomeTestOrderParams::some_uuid()).unwrap();
@@ -217,8 +257,13 @@ mod tests {
         // Accept Offer
         {
             println!("Accept Offer - Restore Maker");
-            let maker_manager =
-                Manager::new_with_key(test_maker_private_key, &test_engine_name, "").await;
+            let maker_manager = Manager::new_with_key(
+                test_maker_private_key,
+                &test_engine_name,
+                BitcoinNetwork::Regtest,
+                "",
+            )
+            .await;
 
             let makers = maker_manager.get_makers().await;
             let maker = makers.get(&SomeTestOrderParams::some_uuid()).unwrap();
@@ -257,8 +302,13 @@ mod tests {
             maker_manager.shutdown().await.unwrap();
 
             // Expect Trade notify
-            let taker_manager =
-                Manager::new_with_key(test_taker_private_key, &test_engine_name, "").await;
+            let taker_manager = Manager::new_with_key(
+                test_taker_private_key,
+                &test_engine_name,
+                BitcoinNetwork::Regtest,
+                "",
+            )
+            .await;
 
             let takers = taker_manager.get_takers().await;
             let taker = takers.get(&SomeTestOrderParams::some_uuid()).unwrap();
@@ -293,8 +343,13 @@ mod tests {
         // Peer Message
         {
             // Should find Trade notify again
-            let taker_manager =
-                Manager::new_with_key(test_taker_private_key, &test_engine_name, "").await;
+            let taker_manager = Manager::new_with_key(
+                test_taker_private_key,
+                &test_engine_name,
+                BitcoinNetwork::Regtest,
+                "",
+            )
+            .await;
 
             let takers = taker_manager.get_takers().await;
             let taker = takers.get(&SomeTestOrderParams::some_uuid()).unwrap();
@@ -331,8 +386,13 @@ mod tests {
             taker_manager.shutdown().await.unwrap();
 
             // Expect Peer Message notify
-            let maker_manager =
-                Manager::new_with_key(test_maker_private_key, &test_engine_name, "").await;
+            let maker_manager = Manager::new_with_key(
+                test_maker_private_key,
+                &test_engine_name,
+                BitcoinNetwork::Regtest,
+                "",
+            )
+            .await;
 
             let makers = maker_manager.get_makers().await;
             let maker = makers.get(&SomeTestOrderParams::some_uuid()).unwrap();
@@ -365,8 +425,13 @@ mod tests {
 
         // Trade Complete
         {
-            let maker_manager =
-                Manager::new_with_key(test_maker_private_key, &test_engine_name, "").await;
+            let maker_manager = Manager::new_with_key(
+                test_maker_private_key,
+                &test_engine_name,
+                BitcoinNetwork::Regtest,
+                "",
+            )
+            .await;
 
             let makers = maker_manager.get_makers().await;
             let maker = makers.get(&SomeTestOrderParams::some_uuid()).unwrap();
@@ -378,8 +443,13 @@ mod tests {
             maker.trade_complete().await.unwrap();
             maker_manager.shutdown().await.unwrap();
 
-            let taker_manager =
-                Manager::new_with_key(test_taker_private_key, &test_engine_name, "").await;
+            let taker_manager = Manager::new_with_key(
+                test_taker_private_key,
+                &test_engine_name,
+                BitcoinNetwork::Regtest,
+                "",
+            )
+            .await;
 
             let takers = taker_manager.get_takers().await;
             let taker = takers.get(&SomeTestOrderParams::some_uuid()).unwrap();
@@ -395,15 +465,25 @@ mod tests {
         // Completed Status
         {
             // Should find Completed Trade
-            let maker_manager =
-                Manager::new_with_key(test_maker_private_key, &test_engine_name, "").await;
+            let maker_manager = Manager::new_with_key(
+                test_maker_private_key,
+                &test_engine_name,
+                BitcoinNetwork::Regtest,
+                "",
+            )
+            .await;
 
             let makers = maker_manager.get_makers().await;
             let maker = makers.get(&SomeTestOrderParams::some_uuid()).unwrap();
             assert!(maker.trade_complete().await.is_err());
 
-            let taker_manager =
-                Manager::new_with_key(test_taker_private_key, &test_engine_name, "").await;
+            let taker_manager = Manager::new_with_key(
+                test_taker_private_key,
+                &test_engine_name,
+                BitcoinNetwork::Regtest,
+                "",
+            )
+            .await;
 
             let takers = taker_manager.get_takers().await;
             let taker = takers.get(&SomeTestOrderParams::some_uuid()).unwrap();

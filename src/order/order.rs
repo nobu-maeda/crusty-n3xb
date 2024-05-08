@@ -57,7 +57,7 @@ impl Order {
                         )));
                     }
                 }
-                ObligationKind::Bitcoin(method) => {
+                ObligationKind::Bitcoin(_network, method) => {
                     if method.is_none() {
                         return Err(N3xbError::Simple(format!(
                             "Maker Obligation Kinds in Order missing Settlement Method"
@@ -130,7 +130,7 @@ impl Order {
                         )));
                     }
                 }
-                ObligationKind::Bitcoin(method) => {
+                ObligationKind::Bitcoin(_network, method) => {
                     if method.is_none() {
                         return Err(N3xbError::Simple(format!(
                             "Taker Obligation Kinds in Order missing Settlement Method"
@@ -231,7 +231,7 @@ mod tests {
     use std::collections::HashSet;
 
     use crate::{
-        common::types::{FiatPaymentMethod, ObligationKind},
+        common::types::{BitcoinNetwork, FiatPaymentMethod, ObligationKind},
         order::{
             MakerObligation, MakerObligationContent, TakerObligation, TakerObligationContent,
             TradeDetails, TradeDetailsContent, TradeParameter, TradeTimeOutLimit,
@@ -265,7 +265,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_order_maker_obligation_kind_bitcoin_missing_settlement() {
-        let maker_obligation_kinds = HashSet::from([ObligationKind::Bitcoin(None)]);
+        let maker_obligation_kinds =
+            HashSet::from([ObligationKind::Bitcoin(BitcoinNetwork::Regtest, None)]);
         let maker_obligation = MakerObligation {
             kinds: maker_obligation_kinds,
             content: SomeTestOrderParams::maker_obligation_fiat_cny_content(),
@@ -350,7 +351,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_order_taker_obligation_kind_bitcoin_missing_settlement() {
-        let taker_obligation_kinds = HashSet::from([ObligationKind::Bitcoin(None)]);
+        let taker_obligation_kinds =
+            HashSet::from([ObligationKind::Bitcoin(BitcoinNetwork::Regtest, None)]);
         let taker_obligation = TakerObligation {
             kinds: taker_obligation_kinds,
             content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),

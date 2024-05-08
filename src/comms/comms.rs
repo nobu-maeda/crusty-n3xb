@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::path::Path;
@@ -14,7 +15,9 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
 use crate::common::error::N3xbError;
-use crate::common::types::{EventIdString, ObligationKind, SerdeGenericTrait, SerdeGenericType};
+use crate::common::types::{
+    BitcoinNetwork, EventIdString, ObligationKind, SerdeGenericTrait, SerdeGenericType,
+};
 use crate::offer::Offer;
 use crate::order::{
     EventKind, FilterTag, MakerObligation, Order, OrderEnvelope, OrderTag, TakerObligation,
@@ -259,29 +262,32 @@ impl Comms {
 
     pub(crate) async fn new(
         trade_engine_name: impl Into<String>,
+        network: impl Borrow<BitcoinNetwork>,
         data_dir_path: impl AsRef<Path>,
     ) -> Self {
         let secp = Secp256k1::new();
         let (secret_key, _) = secp.generate_keypair(&mut OsRng);
-        Self::new_with_key(secret_key, trade_engine_name, data_dir_path).await
+        Self::new_with_key(secret_key, trade_engine_name, network, data_dir_path).await
     }
 
     pub(crate) async fn new_with_key(
         secret_key: SecretKey,
         trade_engine_name: impl Into<String>,
+        network: impl Borrow<BitcoinNetwork>,
         data_dir_path: impl AsRef<Path>,
     ) -> Self {
         let client = Self::new_nostr_client(secret_key).await;
-        Self::new_with_nostr_client(client, trade_engine_name, data_dir_path).await
+        Self::new_with_nostr_client(client, trade_engine_name, network, data_dir_path).await
     }
 
     pub(super) async fn new_with_nostr_client(
         client: Client,
         trade_engine_name: impl Into<String>,
+        network: impl Borrow<BitcoinNetwork>,
         data_dir_path: impl AsRef<Path>,
     ) -> Self {
         let (tx, rx) = mpsc::channel::<CommsRequest>(Self::INTEFACER_REQUEST_CHANNEL_SIZE);
-        let actor = CommsActor::new(rx, trade_engine_name, client, data_dir_path).await;
+        let actor = CommsActor::new(rx, trade_engine_name, network, client, data_dir_path).await;
         let task_handle = tokio::spawn(async move { actor.run().await });
         Self { tx, task_handle }
     }
@@ -387,6 +393,7 @@ pub(super) enum CommsRequest {
 pub(super) struct CommsActor {
     rx: mpsc::Receiver<CommsRequest>,
     trade_engine_name: String,
+    network: BitcoinNetwork,
     pubkey: XOnlyPublicKey,
     data: CommsData,
     client: Client,
@@ -399,6 +406,7 @@ impl CommsActor {
     pub(super) async fn new(
         rx: mpsc::Receiver<CommsRequest>,
         trade_engine_name: impl Into<String>,
+        network: impl Borrow<BitcoinNetwork>,
         client: Client,
         data_dir_path: impl AsRef<Path>,
     ) -> Self {
@@ -419,6 +427,7 @@ impl CommsActor {
         let actor = CommsActor {
             rx,
             trade_engine_name: trade_engine_name.into(),
+            network: network.borrow().to_owned(),
             pubkey,
             data,
             client,
@@ -1002,7 +1011,7 @@ impl CommsActor {
     ) {
         let order_tags = OrderTag::from_filter_tags(filter_tags, &self.trade_engine_name);
 
-        let filter = Self::create_event_tag_filter(order_tags);
+        let filter = Self::create_event_tag_filter(order_tags, &self.network);
         let timeout = Duration::from_secs(1);
         let events = match self.client.get_events_of(vec![filter], Some(timeout)).await {
             Ok(events) => events,
@@ -1181,7 +1190,11 @@ impl CommsActor {
         order_envelopes
     }
 
-    fn consume_tags_for_filter(tags: Vec<OrderTag>, filter: Filter) -> Filter {
+    fn consume_tags_for_filter(
+        tags: Vec<OrderTag>,
+        filter: Filter,
+        network: impl Borrow<BitcoinNetwork>,
+    ) -> Filter {
         if let Some(tag) = tags.first() {
             match tag {
                 OrderTag::TradeUUID(trade_uuid) => {
@@ -1189,7 +1202,7 @@ impl CommsActor {
                         Alphabet::try_from(tag.key()).unwrap(),
                         [trade_uuid.to_string()].to_vec(),
                     );
-                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
+                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter, network)
                 }
                 OrderTag::MakerObligations(obligations) => {
                     let filter = filter.custom_tag(
@@ -1200,7 +1213,7 @@ impl CommsActor {
                             .flat_map(|kind| kind.to_tag_strings())
                             .collect(),
                     );
-                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
+                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter, network.borrow())
                 }
                 OrderTag::TakerObligations(obligations) => {
                     let filter = filter.custom_tag(
@@ -1211,7 +1224,7 @@ impl CommsActor {
                             .flat_map(|kind| kind.to_tag_strings())
                             .collect(),
                     );
-                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
+                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter, network.borrow())
                 }
                 OrderTag::TradeDetailParameters(parameters) => {
                     let filter = filter.custom_tag(
@@ -1220,28 +1233,28 @@ impl CommsActor {
                             .into_iter()
                             .collect(),
                     );
-                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
+                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter, network)
                 }
                 OrderTag::TradeEngineName(name) => {
                     let filter = filter.custom_tag(
                         Alphabet::try_from(tag.key()).unwrap(),
                         [name.to_owned()].to_vec(),
                     );
-                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
+                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter, network)
                 }
                 OrderTag::EventKind(kind) => {
                     let filter = filter.custom_tag(
                         Alphabet::try_from(tag.key()).unwrap(),
                         [kind.to_string()].to_vec(),
                     );
-                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
+                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter, network)
                 }
                 OrderTag::ApplicationTag(app_tag) => {
                     let filter = filter.custom_tag(
                         Alphabet::try_from(tag.key()).unwrap(),
                         [app_tag.to_owned()].to_vec(),
                     );
-                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter)
+                    Self::consume_tags_for_filter(tags[1..].to_vec(), filter, network)
                 }
             }
         } else {
@@ -1249,9 +1262,12 @@ impl CommsActor {
         }
     }
 
-    fn create_event_tag_filter(tags: Vec<OrderTag>) -> Filter {
+    fn create_event_tag_filter(
+        tags: Vec<OrderTag>,
+        network: impl Borrow<BitcoinNetwork>,
+    ) -> Filter {
         let filter = Filter::new().kind(Self::MAKER_ORDER_NOTE_KIND);
-        Self::consume_tags_for_filter(tags, filter)
+        Self::consume_tags_for_filter(tags, filter, network)
     }
 
     async fn send_peer_message(

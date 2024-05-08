@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -10,6 +11,7 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::common::error::N3xbError;
+use crate::common::types::BitcoinNetwork;
 use crate::comms::{Comms, CommsAccess, RelayInfo};
 use crate::maker::{Maker, MakerAccess};
 use crate::offer::Offer;
@@ -37,22 +39,25 @@ impl Manager {
 
     pub async fn new(
         trade_engine_name: impl AsRef<str>,
+        network: impl Borrow<BitcoinNetwork>,
         root_dir_path: impl AsRef<Path>,
     ) -> Manager {
         let data_dir_path = root_dir_path.as_ref().join(DATA_DIR_PATH_STR);
         // This will always create a new Comms with a randomly generated key pair
-        let comms = Comms::new(trade_engine_name.as_ref(), &data_dir_path).await;
+        let comms = Comms::new(trade_engine_name.as_ref(), network, &data_dir_path).await;
         Self::new_with_comms(comms, &data_dir_path).await
     }
 
     pub async fn new_with_key(
         key: SecretKey,
         trade_engine_name: impl AsRef<str>,
+        network: impl Borrow<BitcoinNetwork>,
         root_dir_path: impl AsRef<Path>,
     ) -> Manager {
         let data_dir_path = root_dir_path.as_ref().join(DATA_DIR_PATH_STR);
         // Will try to look for Comms data that matches the pubkey and restore relays if found. New Comms is created otherwise
-        let comms = Comms::new_with_key(key, trade_engine_name.as_ref(), &data_dir_path).await;
+        let comms =
+            Comms::new_with_key(key, trade_engine_name.as_ref(), network, &data_dir_path).await;
         Self::new_with_comms(comms, &data_dir_path).await
     }
 
