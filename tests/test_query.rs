@@ -46,8 +46,8 @@ mod test_query {
         let relay4_url = Url::from_str(&format!("{}:{}", "ws://localhost", relay4.port)).unwrap();
         let relay4_addr = (relay4_url.clone(), None);
 
-        let test_engine_name1 = String::from("TestEngine1");
-        let test_engine_name2 = String::from("TestEngine2");
+        let test_engine_name1 = String::from("test-engine1");
+        let test_engine_name2 = String::from("test-engine2");
 
         let manager_m1 = Manager::new(&test_engine_name1, BitcoinNetwork::Regtest, "").await;
         let manager_m2 = Manager::new(&test_engine_name2, BitcoinNetwork::Regtest, "").await;

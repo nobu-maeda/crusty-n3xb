@@ -44,8 +44,8 @@ impl Manager {
     ) -> Manager {
         let data_dir_path = root_dir_path.as_ref().join(DATA_DIR_PATH_STR);
         // This will always create a new Comms with a randomly generated key pair
-        let comms = Comms::new(trade_engine_name.as_ref(), network, &data_dir_path).await;
-        Self::new_with_comms(comms, &data_dir_path).await
+        let comms = Comms::new(&trade_engine_name, network.borrow(), &data_dir_path).await;
+        Self::new_with_comms(comms, &trade_engine_name, network.borrow(), &data_dir_path).await
     }
 
     pub async fn new_with_key(
@@ -57,14 +57,24 @@ impl Manager {
         let data_dir_path = root_dir_path.as_ref().join(DATA_DIR_PATH_STR);
         // Will try to look for Comms data that matches the pubkey and restore relays if found. New Comms is created otherwise
         let comms =
-            Comms::new_with_key(key, trade_engine_name.as_ref(), network, &data_dir_path).await;
-        Self::new_with_comms(comms, &data_dir_path).await
+            Comms::new_with_key(key, &trade_engine_name, network.borrow(), &data_dir_path).await;
+        Self::new_with_comms(comms, &trade_engine_name, network.borrow(), &data_dir_path).await
     }
 
-    async fn new_with_comms(comms: Comms, data_dir_path: impl AsRef<Path>) -> Manager {
+    async fn new_with_comms(
+        comms: Comms,
+        trade_engine_name: impl AsRef<str>,
+        network: impl Borrow<BitcoinNetwork>,
+        data_dir_path: impl AsRef<Path>,
+    ) -> Manager {
         let comms_accessor = comms.new_accessor();
         let pubkey = comms_accessor.get_pubkey().await;
-        let manager_dir_path = data_dir_path.as_ref().join(pubkey.to_string());
+        let manager_dir_path = data_dir_path.as_ref().join(format!(
+            "{}/{}/{}",
+            pubkey.to_string(),
+            trade_engine_name.as_ref(),
+            network.borrow().to_string().to_lowercase(),
+        ));
 
         let (makers, takers) =
             Self::maker_taker_setup_restore(&comms_accessor, pubkey.to_string(), &manager_dir_path)

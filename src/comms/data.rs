@@ -1,4 +1,5 @@
 use std::{
+    borrow::Borrow,
     collections::{HashMap, HashSet},
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -9,7 +10,11 @@ use tracing::debug;
 use secp256k1::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};
 
-use crate::common::{error::N3xbError, persist::Persister, types::SerdeGenericTrait};
+use crate::common::{
+    error::N3xbError,
+    persist::Persister,
+    types::{BitcoinNetwork, SerdeGenericTrait},
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct CommsDataStore {
@@ -34,8 +39,10 @@ impl CommsData {
     pub(crate) fn new(
         dir_path: impl AsRef<Path>,
         pubkey: XOnlyPublicKey,
+        trade_engine_name: impl AsRef<str>,
+        network: impl Borrow<BitcoinNetwork>,
     ) -> Result<Self, N3xbError> {
-        let data_path = Self::setup_data_path(&dir_path, pubkey.to_string())?;
+        let data_path = Self::setup_data_path(&dir_path, pubkey, trade_engine_name, network)?;
 
         let mut store = CommsDataStore {
             relays: HashMap::new(),
@@ -80,9 +87,16 @@ impl CommsData {
 
     fn setup_data_path(
         data_dir_path: impl AsRef<Path>,
-        pubkey_string: String,
+        pubkey: XOnlyPublicKey,
+        trade_engine_name: impl AsRef<str>,
+        network: impl Borrow<BitcoinNetwork>,
     ) -> Result<PathBuf, N3xbError> {
-        let dir_path = data_dir_path.as_ref().join(format!("{}/", pubkey_string));
+        let dir_path = data_dir_path.as_ref().join(format!(
+            "{}/{}/{}",
+            pubkey.to_string(),
+            trade_engine_name.as_ref(),
+            network.borrow().to_string().to_lowercase()
+        ));
         std::fs::create_dir_all(&dir_path)?;
         let data_path = dir_path.join("comms.json");
         Ok(data_path)

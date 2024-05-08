@@ -261,7 +261,7 @@ impl Comms {
     // Constructors
 
     pub(crate) async fn new(
-        trade_engine_name: impl Into<String>,
+        trade_engine_name: impl AsRef<str>,
         network: impl Borrow<BitcoinNetwork>,
         data_dir_path: impl AsRef<Path>,
     ) -> Self {
@@ -272,7 +272,7 @@ impl Comms {
 
     pub(crate) async fn new_with_key(
         secret_key: SecretKey,
-        trade_engine_name: impl Into<String>,
+        trade_engine_name: impl AsRef<str>,
         network: impl Borrow<BitcoinNetwork>,
         data_dir_path: impl AsRef<Path>,
     ) -> Self {
@@ -282,7 +282,7 @@ impl Comms {
 
     pub(super) async fn new_with_nostr_client(
         client: Client,
-        trade_engine_name: impl Into<String>,
+        trade_engine_name: impl AsRef<str>,
         network: impl Borrow<BitcoinNetwork>,
         data_dir_path: impl AsRef<Path>,
     ) -> Self {
@@ -405,28 +405,29 @@ impl CommsActor {
 
     pub(super) async fn new(
         rx: mpsc::Receiver<CommsRequest>,
-        trade_engine_name: impl Into<String>,
+        trade_engine_name: impl AsRef<str>,
         network: impl Borrow<BitcoinNetwork>,
         client: Client,
         data_dir_path: impl AsRef<Path>,
     ) -> Self {
         let pubkey = client.keys().await.public_key();
-        let data = match CommsData::new(&data_dir_path, pubkey) {
-            Ok(data) => data,
-            Err(error) => {
-                panic!(
-                    "Comms w/ pubkey {} failed to initialize CommsData with path {} - {}",
-                    pubkey,
-                    data_dir_path.as_ref().display().to_string(),
-                    error
-                );
-            }
-        };
+        let data =
+            match CommsData::new(&data_dir_path, pubkey, &trade_engine_name, network.borrow()) {
+                Ok(data) => data,
+                Err(error) => {
+                    panic!(
+                        "Comms w/ pubkey {} failed to initialize CommsData with path {} - {}",
+                        pubkey,
+                        data_dir_path.as_ref().display().to_string(),
+                        error
+                    );
+                }
+            };
         let relays = data.relays();
 
         let actor = CommsActor {
             rx,
-            trade_engine_name: trade_engine_name.into(),
+            trade_engine_name: trade_engine_name.as_ref().to_string(),
             network: network.borrow().to_owned(),
             pubkey,
             data,
