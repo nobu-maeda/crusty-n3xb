@@ -146,6 +146,7 @@ impl OrderTag {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::types::BitcoinNetwork;
     use crate::order::{EventKind, FilterTag, OrderTag, TradeDetails};
     use crate::testing::{SomeTestOrderParams, SomeTestParams};
 
@@ -169,7 +170,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_key_for_taker_obligations() {
-        let taker_obligation_kinds = SomeTestOrderParams::obligation_bitcoin_lightning_kinds();
+        let taker_obligation_kinds =
+            SomeTestOrderParams::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Signet);
         let order_tag = OrderTag::TakerObligations(taker_obligation_kinds);
         let key = order_tag.key();
         assert_eq!(key, 't');
@@ -234,7 +236,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_order_tag_from_taker_obligations_key_value() {
-        let taker_obligation_kinds = SomeTestOrderParams::obligation_bitcoin_lightning_kinds();
+        let taker_obligation_kinds =
+            SomeTestOrderParams::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Testnet);
         let key = "t";
         let value = taker_obligation_kinds
             .iter()
@@ -320,7 +323,7 @@ mod tests {
             SomeTestOrderParams::obligation_fiat_cny_kinds(),
         ));
         filter_tags.push(FilterTag::TakerObligations(
-            SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            SomeTestOrderParams::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Regtest),
         ));
         filter_tags.push(FilterTag::TradeDetailParameters(
             SomeTestOrderParams::trade_parameters(),
@@ -332,7 +335,7 @@ mod tests {
             SomeTestOrderParams::obligation_fiat_cny_kinds()
         )));
         assert!(order_tags.contains(&OrderTag::TakerObligations(
-            SomeTestOrderParams::obligation_bitcoin_lightning_kinds()
+            SomeTestOrderParams::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Regtest)
         )));
         assert!(order_tags.contains(&OrderTag::TradeDetailParameters(
             SomeTestOrderParams::trade_parameters()

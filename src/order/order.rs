@@ -8,7 +8,7 @@ use uuid::Uuid;
 use super::{obligation::*, trade_details::*};
 use crate::common::{
     error::N3xbError,
-    types::{EventIdString, ObligationKind, SerdeGenericTrait},
+    types::{BitcoinNetwork, EventIdString, ObligationKind, SerdeGenericTrait},
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -32,6 +32,32 @@ pub struct Order {
 }
 
 impl Order {
+    pub fn check_bitcoin_network(&self, expected_network: BitcoinNetwork) -> bool {
+        for kind in &self.maker_obligation.kinds {
+            match kind {
+                ObligationKind::Bitcoin(network, _method) => {
+                    if network.to_owned() != expected_network {
+                        return false;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        for kind in &self.taker_obligation.kinds {
+            match kind {
+                ObligationKind::Bitcoin(network, _method) => {
+                    if network.to_owned() != expected_network {
+                        return false;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        return true;
+    }
+
     pub fn validate(&self) -> Result<(), N3xbError> {
         // Add additional validation rules here. Code is doc in this case
         self.validate_maker_obligation_kinds_has_settlement()?;
@@ -391,7 +417,7 @@ mod tests {
         };
 
         let taker_obligation = TakerObligation {
-            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Signet),
             content: taker_obligation_content,
         };
 
@@ -410,7 +436,7 @@ mod tests {
         };
 
         let taker_obligation = TakerObligation {
-            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Regtest),
             content: taker_obligation_content,
         };
 
@@ -429,7 +455,7 @@ mod tests {
         };
 
         let taker_obligation = TakerObligation {
-            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Testnet),
             content: taker_obligation_content,
         };
 
@@ -452,7 +478,7 @@ mod tests {
         };
 
         let taker_obligation = TakerObligation {
-            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Signet),
             content: taker_obligation_content,
         };
 

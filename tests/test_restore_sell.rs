@@ -121,7 +121,7 @@ mod tests {
         let mut query_filter = Vec::new();
         query_filter.push(FilterTag::TradeUuid(SomeTestOrderParams::some_uuid()));
         query_filter.push(FilterTag::MakerObligations(
-            SomeTestOrderParams::obligation_bitcoin_both_kinds(),
+            SomeTestOrderParams::obligation_bitcoin_both_kinds(BitcoinNetwork::Regtest),
         ));
         query_filter.push(FilterTag::TakerObligations(
             SomeTestOrderParams::obligation_fiat_eur_kinds(),

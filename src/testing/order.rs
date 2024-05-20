@@ -56,30 +56,24 @@ impl SomeTestOrderParams {
         )])
     }
 
-    pub fn obligation_bitcoin_onchain_kinds() -> HashSet<ObligationKind> {
+    pub fn obligation_bitcoin_onchain_kinds(network: BitcoinNetwork) -> HashSet<ObligationKind> {
         HashSet::from([ObligationKind::Bitcoin(
-            BitcoinNetwork::Testnet,
+            network,
             Some(BitcoinSettlementMethod::Onchain),
         )])
     }
 
-    pub fn obligation_bitcoin_lightning_kinds() -> HashSet<ObligationKind> {
+    pub fn obligation_bitcoin_lightning_kinds(network: BitcoinNetwork) -> HashSet<ObligationKind> {
         HashSet::from([ObligationKind::Bitcoin(
-            BitcoinNetwork::Testnet,
+            network,
             Some(BitcoinSettlementMethod::Lightning),
         )])
     }
 
-    pub fn obligation_bitcoin_both_kinds() -> HashSet<ObligationKind> {
+    pub fn obligation_bitcoin_both_kinds(network: BitcoinNetwork) -> HashSet<ObligationKind> {
         HashSet::from([
-            ObligationKind::Bitcoin(
-                BitcoinNetwork::Testnet,
-                Some(BitcoinSettlementMethod::Onchain),
-            ),
-            ObligationKind::Bitcoin(
-                BitcoinNetwork::Testnet,
-                Some(BitcoinSettlementMethod::Lightning),
-            ),
+            ObligationKind::Bitcoin(network.clone(), Some(BitcoinSettlementMethod::Onchain)),
+            ObligationKind::Bitcoin(network, Some(BitcoinSettlementMethod::Lightning)),
         ])
     }
 
@@ -223,7 +217,7 @@ impl SomeTestOrderParams {
         builder.maker_obligation(maker_obligation);
 
         let taker_obligation = TakerObligation {
-            kinds: Self::obligation_bitcoin_lightning_kinds(),
+            kinds: Self::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Regtest),
             content: Self::taker_obligation_bitcoin_rmb_content(),
         };
 
@@ -251,7 +245,7 @@ impl SomeTestOrderParams {
         builder.trade_uuid(Self::some_uuid());
 
         let maker_obligation = MakerObligation {
-            kinds: Self::obligation_bitcoin_both_kinds(),
+            kinds: Self::obligation_bitcoin_both_kinds(BitcoinNetwork::Regtest),
             content: Self::maker_obligation_bitcoin_content(),
         };
 

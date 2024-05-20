@@ -110,7 +110,7 @@ mod test_query {
             content: SomeTestOrderParams::maker_obligation_fiat_cny_content(),
         };
         let taker_obligation1 = TakerObligation {
-            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Regtest),
             content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         };
         let order1 = SomeTestOrderParams::default_buy_builder()
@@ -129,7 +129,7 @@ mod test_query {
             content: SomeTestOrderParams::maker_obligation_fiat_usd_content(),
         };
         let taker_obligation2 = TakerObligation {
-            kinds: SomeTestOrderParams::obligation_bitcoin_both_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_both_kinds(BitcoinNetwork::Regtest),
             content: SomeTestOrderParams::taker_obligation_bitcoin_usd_content(),
         };
         let order2 = SomeTestOrderParams::default_buy_builder()
@@ -144,7 +144,7 @@ mod test_query {
         // Manager M3 posts Order 3 tracked by Maker M3A - BTC/onchain for EUR
         let uuid3 = Uuid::new_v4();
         let maker_obligation3 = MakerObligation {
-            kinds: SomeTestOrderParams::obligation_bitcoin_onchain_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_onchain_kinds(BitcoinNetwork::Regtest),
             content: SomeTestOrderParams::maker_obligation_bitcoin_content(),
         };
         let taker_obligation3 = TakerObligation {
@@ -213,7 +213,7 @@ mod test_query {
         // Taker 2 Filter to buy BTC (Maker Obligation = BTC), should get nothing
         let mut query_filter = Vec::new();
         query_filter.push(FilterTag::MakerObligations(
-            SomeTestOrderParams::obligation_bitcoin_both_kinds(),
+            SomeTestOrderParams::obligation_bitcoin_both_kinds(BitcoinNetwork::Regtest),
         ));
         let taker_tester = TakerTester::start(manager_t2, query_filter, None).await;
         let order_envelopes = taker_tester.wait_for_completion().await.unwrap();

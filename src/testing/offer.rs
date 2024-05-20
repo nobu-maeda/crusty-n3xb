@@ -55,23 +55,17 @@ impl SomeTestOfferParams {
         }
     }
 
-    pub fn maker_obligation_bitcoin_onchain() -> Obligation {
+    pub fn maker_obligation_bitcoin_onchain(network: BitcoinNetwork) -> Obligation {
         Obligation {
-            kind: ObligationKind::Bitcoin(
-                BitcoinNetwork::Testnet,
-                Some(BitcoinSettlementMethod::Onchain),
-            ),
+            kind: ObligationKind::Bitcoin(network, Some(BitcoinSettlementMethod::Onchain)),
             amount: 10000000.0,
             bond_amount: Some(1000000.0),
         }
     }
 
-    pub fn maker_obligation_bitcoin_lightning() -> Obligation {
+    pub fn maker_obligation_bitcoin_lightning(network: BitcoinNetwork) -> Obligation {
         Obligation {
-            kind: ObligationKind::Bitcoin(
-                BitcoinNetwork::Testnet,
-                Some(BitcoinSettlementMethod::Lightning),
-            ),
+            kind: ObligationKind::Bitcoin(network, Some(BitcoinSettlementMethod::Lightning)),
             amount: 10000000.0,
             bond_amount: Some(1000000.0),
         }
@@ -111,23 +105,17 @@ impl SomeTestOfferParams {
         }
     }
 
-    pub fn taker_obligation_bitcoin_onchain() -> Obligation {
+    pub fn taker_obligation_bitcoin_onchain(network: BitcoinNetwork) -> Obligation {
         Obligation {
-            kind: ObligationKind::Bitcoin(
-                BitcoinNetwork::Testnet,
-                Some(BitcoinSettlementMethod::Onchain),
-            ),
+            kind: ObligationKind::Bitcoin(network, Some(BitcoinSettlementMethod::Onchain)),
             amount: 10000000.0,
             bond_amount: Some(1000000.0),
         }
     }
 
-    pub fn taker_obligation_bitcoin_lightning() -> Obligation {
+    pub fn taker_obligation_bitcoin_lightning(network: BitcoinNetwork) -> Obligation {
         Obligation {
-            kind: ObligationKind::Bitcoin(
-                BitcoinNetwork::Testnet,
-                Some(BitcoinSettlementMethod::Lightning),
-            ),
+            kind: ObligationKind::Bitcoin(network, Some(BitcoinSettlementMethod::Lightning)),
             amount: 10000000.0,
             bond_amount: Some(1000000.0),
         }
@@ -136,7 +124,9 @@ impl SomeTestOfferParams {
     pub fn default_buy_builder() -> OfferBuilder {
         let mut builder: OfferBuilder = OfferBuilder::new();
         builder.maker_obligation(Self::maker_obligation_rmb_wechat());
-        builder.taker_obligation(Self::taker_obligation_bitcoin_lightning());
+        builder.taker_obligation(Self::taker_obligation_bitcoin_lightning(
+            BitcoinNetwork::Regtest,
+        ));
 
         let trade_engine_specifics = Box::new(SomeTradeEngineTakerOfferSpecifics {
             test_specific_field: SomeTestParams::engine_specific_str(),
@@ -147,7 +137,9 @@ impl SomeTestOfferParams {
 
     pub fn default_sell_builder() -> OfferBuilder {
         let mut builder: OfferBuilder = OfferBuilder::new();
-        builder.maker_obligation(Self::maker_obligation_bitcoin_onchain());
+        builder.maker_obligation(Self::maker_obligation_bitcoin_onchain(
+            BitcoinNetwork::Regtest,
+        ));
         builder.taker_obligation(Self::taker_obligation_eur_revolut());
 
         let trade_engine_specifics = Box::new(SomeTradeEngineTakerOfferSpecifics {

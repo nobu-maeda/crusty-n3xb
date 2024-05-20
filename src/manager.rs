@@ -22,6 +22,7 @@ use crate::taker::{Taker, TakerAccess};
 // Might need to change to a dyn Trait if mulitple is to be supported at a time
 pub struct Manager {
     manager_dir_path: PathBuf,
+    network: BitcoinNetwork,
     comms: Comms,
     comms_accessor: CommsAccess,
     makers: RwLock<HashMap<Uuid, Maker>>,
@@ -90,6 +91,7 @@ impl Manager {
 
         Manager {
             manager_dir_path,
+            network: network.borrow().clone(),
             comms,
             comms_accessor,
             makers: RwLock::new(makers),
@@ -276,7 +278,7 @@ impl Manager {
 
         let valid_order_envelopes: Vec<OrderEnvelope> = order_envelopes
             .drain(..)
-            .filter(|order_envelope| order_envelope.order.validate().is_ok())
+            .filter(|order_envelope| self.order_filter_check(&order_envelope.order))
             .collect();
         let valid_length = valid_order_envelopes.len();
 
@@ -292,6 +294,10 @@ impl Manager {
             warn!("{} orders filtered out on original query result of {} orders leaving {} valid orders returned", filtered_orders, queried_length, valid_length);
         }
         Ok(valid_order_envelopes)
+    }
+
+    fn order_filter_check(&self, order: &Order) -> bool {
+        order.validate().is_ok() && order.check_bitcoin_network(self.network.clone())
     }
 
     pub async fn new_taker(

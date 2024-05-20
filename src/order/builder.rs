@@ -68,19 +68,26 @@ impl OrderBuilder {
         };
 
         let Some(maker_obligation) = self.maker_obligation.as_ref() else {
-            return Err(N3xbError::Simple("No Maker Obligations defined".to_string()));  // TODO: Error handling?
+            return Err(N3xbError::Simple(
+                "No Maker Obligations defined".to_string(),
+            )); // TODO: Error handling?
         };
 
         let Some(taker_obligation) = self.taker_obligation.as_ref() else {
-            return Err(N3xbError::Simple("No Taker Obligations defined".to_string()));  // TODO: Error handling?
+            return Err(N3xbError::Simple(
+                "No Taker Obligations defined".to_string(),
+            )); // TODO: Error handling?
         };
 
         let Some(trade_details) = self.trade_details.as_ref() else {
-            return Err(N3xbError::Simple("No Trade Details defined".to_string()));  // TODO: Error handling?
+            return Err(N3xbError::Simple("No Trade Details defined".to_string()));
+            // TODO: Error handling?
         };
 
         let Some(trade_engine_specifics) = self.trade_engine_specifics.take() else {
-            return Err(N3xbError::Simple("No Trade Engine Details defined".to_string()));  // TODO: Error handling?
+            return Err(N3xbError::Simple(
+                "No Trade Engine Details defined".to_string(),
+            )); // TODO: Error handling?
         };
 
         let pow_difficulty = self.pow_difficulty.unwrap_or_else(|| 0);
@@ -103,7 +110,7 @@ impl OrderBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::*;
+    use crate::{common::types::BitcoinNetwork, testing::*};
     use core::panic;
 
     #[tokio::test]
@@ -118,7 +125,7 @@ mod tests {
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Regtest),
             content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         });
 
@@ -149,7 +156,9 @@ mod tests {
                 );
                 assert_eq!(
                     order.taker_obligation.kinds,
-                    SomeTestOrderParams::obligation_bitcoin_lightning_kinds()
+                    SomeTestOrderParams::obligation_bitcoin_lightning_kinds(
+                        BitcoinNetwork::Regtest
+                    )
                 );
                 assert_eq!(
                     order.taker_obligation.content,
@@ -194,7 +203,7 @@ mod tests {
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Testnet),
             content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         });
 
@@ -221,7 +230,7 @@ mod tests {
         builder.trade_uuid(SomeTestOrderParams::some_uuid());
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Testnet),
             content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         });
 
@@ -294,7 +303,7 @@ mod tests {
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Signet),
             content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         });
 
@@ -328,7 +337,7 @@ mod tests {
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Regtest),
             content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         });
 
@@ -361,7 +370,7 @@ mod tests {
         });
 
         builder.taker_obligation(TakerObligation {
-            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            kinds: SomeTestOrderParams::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Testnet),
             content: SomeTestOrderParams::taker_obligation_bitcoin_rmb_content(),
         });
 
@@ -391,7 +400,9 @@ mod tests {
                 );
                 assert_eq!(
                     order.taker_obligation.kinds,
-                    SomeTestOrderParams::obligation_bitcoin_lightning_kinds()
+                    SomeTestOrderParams::obligation_bitcoin_lightning_kinds(
+                        BitcoinNetwork::Testnet
+                    )
                 );
                 assert_eq!(
                     order.taker_obligation.content,

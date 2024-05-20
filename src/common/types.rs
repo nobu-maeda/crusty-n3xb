@@ -151,8 +151,8 @@ impl ObligationKind {
 
     pub fn is_same_currency_as(&self, kind: ObligationKind) -> bool {
         match self {
-            ObligationKind::Bitcoin(_, _) => match kind {
-                ObligationKind::Bitcoin(_, _) => true,
+            ObligationKind::Bitcoin(self_network, _) => match kind {
+                ObligationKind::Bitcoin(kind_network, _) => self_network.to_owned() == kind_network,
                 ObligationKind::Fiat(_, _) => false,
                 ObligationKind::Custom(_) => false,
             },

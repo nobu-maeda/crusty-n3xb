@@ -90,7 +90,7 @@ mod test_simple {
             SomeTestOrderParams::obligation_fiat_cny_kinds(),
         ));
         query_filter.push(FilterTag::TakerObligations(
-            SomeTestOrderParams::obligation_bitcoin_lightning_kinds(),
+            SomeTestOrderParams::obligation_bitcoin_lightning_kinds(BitcoinNetwork::Regtest),
         ));
         query_filter.push(FilterTag::TradeDetailParameters(
             SomeTestOrderParams::trade_parameters(),
